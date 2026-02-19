@@ -11,17 +11,14 @@ import {
     Text,
     TouchableOpacity,
     View,
-    useWindowDimensions, // <--- Changed from Dimensions
+    useWindowDimensions,
 } from "react-native";
 
 function Homescreen() {
   const router = useRouter();
 
-  // This hook perfectly calculates the width, even if they resize the browser!
   const { width } = useWindowDimensions();
 
-  // --- RESPONSIVE CAPS ---
-  // Math.min means "Use the percentage, but NEVER go higher than the second number"
   const titleSize = Math.min(width * 0.12, 60);
   const mainImageSize = Math.min(width * 0.45, 200);
   const starIconSize = Math.min(width * 0.08, 35);
