@@ -4,7 +4,6 @@ import Octicons from "@expo/vector-icons/Octicons";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-    Dimensions,
     Image,
     SafeAreaView,
     ScrollView,
@@ -12,31 +11,66 @@ import {
     Text,
     TouchableOpacity,
     View,
+    useWindowDimensions, // <--- Changed from Dimensions
 } from "react-native";
-
-const { width } = Dimensions.get("window");
 
 function Homescreen() {
   const router = useRouter();
+
+  // This hook perfectly calculates the width, even if they resize the browser!
+  const { width } = useWindowDimensions();
+
+  // --- RESPONSIVE CAPS ---
+  // Math.min means "Use the percentage, but NEVER go higher than the second number"
+  const titleSize = Math.min(width * 0.12, 60);
+  const mainImageSize = Math.min(width * 0.45, 200);
+  const starIconSize = Math.min(width * 0.08, 35);
+  const bigIconSize = Math.min(width * 0.1, 45);
+
   const handleStartGame = (chosenDifficulty: string) => {
-    // This sends the user to app/game.tsx AND passes the difficulty
     router.push({
       pathname: "/game",
-      params: { level: chosenDifficulty }, // 'level' is the name of the variable we are sending
+      params: { level: chosenDifficulty },
     });
   };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         {/* Title Section */}
         <View style={styles.headerSection}>
-          <Text style={[styles.title, { color: "#E2F200" }]}>Salpakan</Text>
-          <Text style={[styles.title, { color: "#E2F200" }]}>Frontlines</Text>
+          <Text
+            style={[
+              styles.title,
+              {
+                color: "#E2F200",
+                fontSize: titleSize,
+                lineHeight: titleSize + 10,
+              },
+            ]}
+          >
+            Salpakan
+          </Text>
+          <Text
+            style={[
+              styles.title,
+              {
+                color: "#E2F200",
+                fontSize: titleSize,
+                lineHeight: titleSize + 10,
+              },
+            ]}
+          >
+            Frontlines
+          </Text>
         </View>
 
         {/* Mascot/Icon Section */}
         <Image
-          style={styles.mainIcon}
+          style={[
+            styles.mainIcon,
+            { width: mainImageSize, height: mainImageSize },
+          ]}
           source={require("../assets/images/swords.png")}
           resizeMode="contain"
         />
@@ -63,7 +97,7 @@ function Homescreen() {
                   for recruits
                 </Text>
               </View>
-              <Entypo name="star" size={width * 0.1} color="#00A700" />
+              <Entypo name="star" size={bigIconSize} color="#00A700" />
             </View>
           </TouchableOpacity>
 
@@ -75,7 +109,7 @@ function Homescreen() {
             <View style={styles.buttonContent}>
               <MaterialCommunityIcons
                 name="sword-cross"
-                size={width * 0.1}
+                size={bigIconSize}
                 color="#E27A03"
               />
               <View style={styles.textContainer}>
@@ -87,8 +121,8 @@ function Homescreen() {
                 </Text>
               </View>
               <View style={{ flexDirection: "row" }}>
-                <Entypo name="star" size={width * 0.08} color="#E27A03" />
-                <Entypo name="star" size={width * 0.08} color="#E27A03" />
+                <Entypo name="star" size={starIconSize} color="#E27A03" />
+                <Entypo name="star" size={starIconSize} color="#E27A03" />
               </View>
             </View>
           </TouchableOpacity>
@@ -99,7 +133,7 @@ function Homescreen() {
             onPress={() => handleStartGame("hard")}
           >
             <View style={styles.buttonContent}>
-              <Octicons name="trophy" size={width * 0.1} color="#C80000" />
+              <Octicons name="trophy" size={bigIconSize} color="#C80000" />
               <View style={styles.textContainer}>
                 <Text style={[styles.difficultyText, { color: "#FFA4A9" }]}>
                   HARD
@@ -109,9 +143,9 @@ function Homescreen() {
                 </Text>
               </View>
               <View style={{ flexDirection: "row" }}>
-                <Entypo name="star" size={width * 0.07} color="#C80000" />
-                <Entypo name="star" size={width * 0.07} color="#C80000" />
-                <Entypo name="star" size={width * 0.07} color="#C80000" />
+                <Entypo name="star" size={starIconSize} color="#C80000" />
+                <Entypo name="star" size={starIconSize} color="#C80000" />
+                <Entypo name="star" size={starIconSize} color="#C80000" />
               </View>
             </View>
           </TouchableOpacity>
@@ -137,13 +171,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   title: {
-    fontSize: width * 0.12,
     fontWeight: "bold",
-    lineHeight: width * 0.14,
   },
   mainIcon: {
-    height: width * 0.45,
-    width: width * 0.45,
     marginVertical: 10,
   },
   subtitle: {
@@ -159,6 +189,7 @@ const styles = StyleSheet.create({
   },
   buttonBase: {
     width: "90%",
+    maxWidth: 500,
     height: 110,
     borderWidth: 4,
     borderRadius: 20,
@@ -192,8 +223,9 @@ const styles = StyleSheet.create({
   },
   difficultyText: {
     fontFamily: "DifficultyFont",
-    fontSize: 22,
-    fontWeight: "bold",
+    fontSize: 30,
+    fontWeight: "semibold",
+    letterSpacing: 3,
   },
   subText: {
     fontSize: 14,
