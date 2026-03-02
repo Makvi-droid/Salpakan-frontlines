@@ -4,18 +4,20 @@ import Octicons from "@expo/vector-icons/Octicons";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    useWindowDimensions,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
 } from "react-native";
 
 function Homescreen() {
   const router = useRouter();
+
+  type Difficulty = "easy" | "medium" | "hard";
 
   const { width } = useWindowDimensions();
 
@@ -24,7 +26,7 @@ function Homescreen() {
   const starIconSize = Math.min(width * 0.08, 35);
   const bigIconSize = Math.min(width * 0.1, 45);
 
-  const handleStartGame = (chosenDifficulty: string) => {
+  const handleStartGame = (chosenDifficulty: Difficulty) => {
     router.push({
       pathname: "/game",
       params: { level: chosenDifficulty },
