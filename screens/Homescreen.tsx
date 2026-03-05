@@ -13,14 +13,49 @@ import {
   View,
 } from "react-native";
 
+import { appTheme, difficultyTones } from "@/constants/theme";
 import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
+
+type Difficulty = "easy" | "medium" | "hard";
+
+type DifficultyOption = {
+  key: Difficulty;
+  title: string;
+  subtitle: string;
+  stars: number;
+  borderStyle?: "solid" | "dashed";
+  icon: React.ReactNode;
+};
+
+const difficultyOptions: DifficultyOption[] = [
+  {
+    key: "easy",
+    title: "EASY",
+    subtitle: "for recruits",
+    stars: 1,
+    icon: <Image source={require("../assets/images/security.png")} style={{ height: 38, width: 38 }} />,
+  },
+  {
+    key: "medium",
+    title: "MEDIUM",
+    subtitle: "for soldiers",
+    stars: 2,
+    borderStyle: "dashed",
+    icon: <MaterialCommunityIcons name="sword-cross" size={34} color={difficultyTones.medium.icon} />,
+  },
+  {
+    key: "hard",
+    title: "HARD",
+    subtitle: "for generals",
+    stars: 3,
+    icon: <Octicons name="trophy" size={34} color={difficultyTones.hard.icon} />,
+  },
+];
 
 function Homescreen() {
   const router = useRouter();
   const tokens = useResponsiveTokens(670);
   const { width, maxContentWidth, rs, rsv, rf, shouldUseScrollFallback } = tokens;
-
-  type Difficulty = "easy" | "medium" | "hard";
 
   const titleSize = clamp(width * 0.12, rf(34), rf(58));
   const mainImageSize = clamp(width * 0.42, rs(130), rs(210));
@@ -35,13 +70,12 @@ function Homescreen() {
   };
 
   const content = (
-    <View style={[styles.contentRoot, { maxWidth: maxContentWidth }]}> 
-      <View style={[styles.headerSection, { marginBottom: rsv(8) }]}> 
+    <View style={[styles.contentRoot, { maxWidth: maxContentWidth }]}>
+      <View style={[styles.headerSection, { marginBottom: rsv(10) }]}>
         <Text
           style={[
             styles.title,
             {
-              color: "#E2F200",
               fontSize: titleSize,
               lineHeight: titleSize + rf(8),
             },
@@ -53,7 +87,6 @@ function Homescreen() {
           style={[
             styles.title,
             {
-              color: "#E2F200",
               fontSize: titleSize,
               lineHeight: titleSize + rf(8),
             },
@@ -69,7 +102,7 @@ function Homescreen() {
           {
             width: mainImageSize,
             height: mainImageSize,
-            marginVertical: rsv(6),
+            marginVertical: rsv(8),
           },
         ]}
         source={require("../assets/images/swords.png")}
@@ -88,101 +121,56 @@ function Homescreen() {
         Select Difficulty
       </Text>
 
-      <View style={[styles.buttonList, { gap: rsv(12) }]}> 
-        <TouchableOpacity
-          style={[
-            styles.buttonBase,
-            styles.easy,
-            {
-              maxWidth: maxContentWidth,
-              height: rsv(94),
-              borderRadius: rs(18),
-              borderWidth: Math.max(2, rs(4)),
-            },
-          ]}
-          onPress={() => handleStartGame("easy")}
-        >
-          <View style={[styles.buttonContent, { paddingHorizontal: rs(14), gap: rs(8) }]}> 
-            <Image
-              source={require("../assets/images/security.png")}
-              style={{ height: rs(42), width: rs(42) }}
-            />
-            <View style={styles.textContainer}>
-              <Text style={[styles.difficultyText, { color: "#81FF81", fontSize: rf(28), letterSpacing: rs(2) }]}> 
-                EASY
-              </Text>
-              <Text style={[styles.subText, { color: "#018701", fontSize: rf(13) }]}> 
-                for recruits
-              </Text>
-            </View>
-            <Entypo name="star" size={bigIconSize} color="#00A700" />
-          </View>
-        </TouchableOpacity>
+      <View style={[styles.buttonList, { gap: rsv(12) }]}>
+        {difficultyOptions.map((option, index) => {
+          const tone = difficultyTones[option.key];
 
-        <TouchableOpacity
-          style={[
-            styles.buttonBase,
-            styles.medium,
-            {
-              maxWidth: maxContentWidth,
-              height: rsv(94),
-              borderRadius: rs(18),
-              borderWidth: Math.max(2, rs(4)),
-            },
-          ]}
-          onPress={() => handleStartGame("medium")}
-        >
-          <View style={[styles.buttonContent, { paddingHorizontal: rs(14), gap: rs(8) }]}> 
-            <MaterialCommunityIcons
-              name="sword-cross"
-              size={bigIconSize}
-              color="#E27A03"
-            />
-            <View style={styles.textContainer}>
-              <Text style={[styles.difficultyText, { color: "#FFFB79", fontSize: rf(28), letterSpacing: rs(2) }]}> 
-                MEDIUM
-              </Text>
-              <Text style={[styles.subText, { color: "#D0A700", fontSize: rf(13) }]}> 
-                for soldiers
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row" }}>
-              <Entypo name="star" size={starIconSize} color="#E27A03" />
-              <Entypo name="star" size={starIconSize} color="#E27A03" />
-            </View>
-          </View>
-        </TouchableOpacity>
+          return (
+            <TouchableOpacity
+              key={option.key}
+              style={[
+                styles.buttonBase,
+                {
+                  maxWidth: maxContentWidth,
+                  height: rsv(96),
+                  borderRadius: rs(18),
+                  borderWidth: index === 0 ? Math.max(2, rs(4)) : Math.max(2, rs(3)),
+                  borderColor: tone.border,
+                  backgroundColor: tone.bg,
+                  borderStyle: option.borderStyle ?? "solid",
+                },
+              ]}
+              onPress={() => handleStartGame(option.key)}
+              activeOpacity={0.86}
+            >
+              <View style={[styles.buttonContent, { paddingHorizontal: rs(14), gap: rs(8) }]}>
+                <View style={[styles.leftIconWrap, { width: bigIconSize }]}>
+                  {option.key === "easy" ? (
+                    <Image
+                      source={require("../assets/images/security.png")}
+                      style={{ height: rs(38), width: rs(38), tintColor: tone.icon }}
+                    />
+                  ) : (
+                    option.icon
+                  )}
+                </View>
 
-        <TouchableOpacity
-          style={[
-            styles.buttonBase,
-            styles.hard,
-            {
-              maxWidth: maxContentWidth,
-              height: rsv(94),
-              borderRadius: rs(18),
-              borderWidth: Math.max(2, rs(4)),
-            },
-          ]}
-          onPress={() => handleStartGame("hard")}
-        >
-          <View style={[styles.buttonContent, { paddingHorizontal: rs(14), gap: rs(8) }]}> 
-            <Octicons name="trophy" size={bigIconSize} color="#C80000" />
-            <View style={styles.textContainer}>
-              <Text style={[styles.difficultyText, { color: "#FFA4A9", fontSize: rf(28), letterSpacing: rs(2) }]}> 
-                HARD
-              </Text>
-              <Text style={[styles.subText, { color: "#FF2600", fontSize: rf(13) }]}> 
-                for generals
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row" }}>
-              <Entypo name="star" size={starIconSize} color="#C80000" />
-              <Entypo name="star" size={starIconSize} color="#C80000" />
-              <Entypo name="star" size={starIconSize} color="#C80000" />
-            </View>
-          </View>
-        </TouchableOpacity>
+                <View style={styles.textContainer}>
+                  <Text style={[styles.difficultyText, { color: tone.label, fontSize: rf(28), letterSpacing: rs(1.5) }]}>
+                    {option.title}
+                  </Text>
+                  <Text style={[styles.subText, { color: tone.subLabel, fontSize: rf(13) }]}>{option.subtitle}</Text>
+                </View>
+
+                <View style={styles.starRow}>
+                  {Array.from({ length: option.stars }, (_, starIndex) => (
+                    <Entypo key={`${option.key}-${starIndex}`} name="star" size={starIconSize} color={tone.icon} />
+                  ))}
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -218,7 +206,7 @@ export default Homescreen;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#060D1F",
+    backgroundColor: appTheme.colors.mono.appBackground,
   },
   noScrollContainer: {
     flex: 1,
@@ -236,12 +224,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontWeight: "bold",
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.display,
+    letterSpacing: 1,
   },
-  mainIcon: {},
+  mainIcon: {
+    tintColor: appTheme.colors.mono.textPrimary,
+  },
   subtitle: {
-    color: "white",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.textSecondary,
+    fontFamily: appTheme.fonts.body,
   },
   buttonList: {
     width: "100%",
@@ -251,30 +243,25 @@ const styles = StyleSheet.create({
     width: "92%",
     justifyContent: "center",
   },
-  easy: {
-    borderColor: "#00D719",
-    backgroundColor: "#22352F",
-  },
-  medium: {
-    borderColor: "#E27A03",
-    backgroundColor: "#353322",
-  },
-  hard: {
-    borderColor: "#C80000",
-    backgroundColor: "#352522",
-  },
   buttonContent: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  leftIconWrap: {
+    alignItems: "flex-start",
   },
   textContainer: {
     flex: 1,
     flexDirection: "column",
   },
   difficultyText: {
-    fontFamily: "DifficultyFont",
-    fontWeight: "600",
+    fontFamily: appTheme.fonts.display,
   },
-  subText: {},
+  subText: {
+    fontFamily: appTheme.fonts.body,
+  },
+  starRow: {
+    flexDirection: "row",
+  },
 });
 

@@ -9,8 +9,6 @@ export default function RootLayout() {
   useEffect(() => {
     async function loadFonts() {
       await Font.loadAsync({
-        // 'GameFont' is the nickname you'll use in your CSS
-        DifficultyFont: require("../assets/fonts/Jersey10-Regular.ttf"),
         K2D: require("../assets/fonts/K2D-Regular.ttf"),
         Bebas: require("../assets/fonts/BebasNeue-Regular.ttf"),
       });

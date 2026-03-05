@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 
+import { appTheme } from "@/constants/theme";
 import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
 
 const BOARD_WIDTH = 9;
@@ -28,6 +29,7 @@ export default function GameScreen() {
   const router = useRouter();
   const [isInventoryExpanded, setIsInventoryExpanded] = useState(false);
   const [showQuitModal, setShowQuitModal] = useState(false);
+  const [showReadyModal, setShowReadyModal] = useState(false);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [placedByTileIndex, setPlacedByTileIndex] = useState<Record<number, string>>({});
   const [moveSourceTileIndex, setMoveSourceTileIndex] = useState<number | null>(null);
@@ -138,6 +140,7 @@ export default function GameScreen() {
     () => Object.values(pieceCountById).reduce((sum, count) => sum + count, 0),
     [pieceCountById]
   );
+  const isReadyEnabled = totalUnplacedCount === 0;
   const selectedPiece = selectedPieceId ? pieceById[selectedPieceId] : null;
 
   const handlePieceButtonPress = (pieceId: string) => {
@@ -322,8 +325,8 @@ export default function GameScreen() {
           },
         ]}
       >
-        <View style={[styles.container, { maxWidth: contentWidth }]}> 
-          <View style={[styles.topMenuRow, { marginBottom: rsv(8) }]}> 
+        <View style={[styles.container, { maxWidth: contentWidth }]}>
+          <View style={[styles.topMenuRow, { marginBottom: rsv(8) }]}>
             <TouchableOpacity
               style={[styles.menuButton, { width: rs(90), paddingVertical: rsv(4) }]}
               onPress={() => setShowQuitModal(true)}
@@ -338,7 +341,7 @@ export default function GameScreen() {
             <View style={[styles.menuSpacer, { width: rs(90) }]} />
           </View>
 
-          <View style={[styles.setupBox, { height: setupBoxHeight, marginBottom: rsv(8), paddingTop: rsv(6) }]}> 
+          <View style={[styles.setupBox, { height: setupBoxHeight, marginBottom: rsv(8), paddingTop: rsv(6) }]}>
             <View style={styles.turnIndicatorRow}>
               <View style={styles.turnIndicatorItem}>
                 <View style={[styles.turnDot, { width: rs(14), height: rs(14), borderRadius: rs(7) }]} />
@@ -352,24 +355,50 @@ export default function GameScreen() {
             </View>
           </View>
 
-          <View style={[styles.actionRow, { marginBottom: rsv(6) }]}> 
+          <View style={[styles.actionRow, { marginBottom: rsv(8) }]}>
             <Text style={[styles.subtitle, { fontSize: rf(22) }]}>Set your pieces</Text>
-            <TouchableOpacity
-              style={[
-                styles.randomizeButton,
-                {
-                  paddingVertical: rsv(6),
-                  paddingHorizontal: rs(12),
-                  borderRadius: rs(10),
-                },
-              ]}
-              onPress={handleRandomizeSet}
-            >
-              <Text style={[styles.randomizeButtonText, { fontSize: rf(13) }]}>Random Set</Text>
-            </TouchableOpacity>
+            <View style={[styles.actionButtons, { gap: rs(8) }]}>
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  {
+                    paddingVertical: rsv(6),
+                    paddingHorizontal: rs(12),
+                    borderRadius: rs(10),
+                  },
+                ]}
+                onPress={handleRandomizeSet}
+              >
+                <Text style={[styles.actionButtonText, { fontSize: rf(13) }]}>Random Set</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  {
+                    paddingVertical: rsv(6),
+                    paddingHorizontal: rs(12),
+                    borderRadius: rs(10),
+                  },
+                  isReadyEnabled ? styles.readyButtonEnabled : styles.readyButtonDisabled,
+                ]}
+                disabled={!isReadyEnabled}
+                onPress={() => setShowReadyModal(true)}
+              >
+                <Text
+                  style={[
+                    styles.actionButtonText,
+                    { fontSize: rf(13) },
+                    isReadyEnabled ? styles.readyButtonTextEnabled : styles.readyButtonTextDisabled,
+                  ]}
+                >
+                  Ready
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <View style={[styles.boardOuterShell, { width: boardWidth, padding: rs(10), marginBottom: rsv(6) }]}> 
+          <View style={[styles.boardOuterShell, { width: boardWidth, padding: rs(10), marginBottom: rsv(8) }]}>
             <View style={styles.boardFrame}>
               <View style={styles.boardGrid}>
                 {boardTiles.map((tile) => {
@@ -377,12 +406,16 @@ export default function GameScreen() {
                   const placedPiece = placedPieceId ? pieceById[placedPieceId] : null;
                   const isMoveSource = moveSourceTileIndex === tile.index;
                   const isSetupZoneTile = isSetupZoneTileIndex(tile.index);
+                  const tileColumn = tile.index % BOARD_WIDTH;
+                  const tileRow = Math.floor(tile.index / BOARD_WIDTH);
+                  const isDarkWoodTile = (tileColumn + tileRow) % 2 === 1;
 
                   return (
                     <TouchableOpacity
                       key={tile.index}
                       style={[
                         styles.tile,
+                        isDarkWoodTile ? styles.tileWoodDark : styles.tileWoodLight,
                         showSetupZoneHint && isSetupZoneTile && styles.setupZoneTileHint,
                         showSetupZoneHint && !isSetupZoneTile && styles.restrictedTileHint,
                         placedPiece && styles.placedTile,
@@ -415,12 +448,12 @@ export default function GameScreen() {
                 onPress={handleResetBoard}
                 activeOpacity={0.85}
               >
-                <MaterialIcons name="close" size={rs(15)} color="#E81300" />
+                <MaterialIcons name="close" size={rs(15)} color={appTheme.colors.mono.textPrimary} />
               </TouchableOpacity>
             ) : null}
           </View>
 
-          <View style={[styles.inventoryHeader, { height: inventoryHeaderHeight, marginBottom: rsv(4) }]}> 
+          <View style={[styles.inventoryHeader, { height: inventoryHeaderHeight, marginBottom: rsv(4) }]}>
             <View style={styles.inventoryInfoBlock}>
               <Text style={[styles.inventoryInfoLabel, { fontSize: rf(12) }]}>Selected</Text>
               <Text style={[styles.inventoryInfoValue, { fontSize: rf(14) }]} numberOfLines={1}>
@@ -445,7 +478,7 @@ export default function GameScreen() {
           </View>
 
           {isInventoryExpanded ? (
-            <View style={[styles.inventoryRailContainer, { marginBottom: rsv(6), maxHeight: inventoryExpandedHeight }]}> 
+            <View style={[styles.inventoryRailContainer, { marginBottom: rsv(6), maxHeight: inventoryExpandedHeight }]}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -492,7 +525,12 @@ export default function GameScreen() {
                       <View
                         style={[
                           styles.inventoryCountPill,
-                          { marginTop: rsv(6), borderRadius: rs(9), paddingHorizontal: rs(8), paddingVertical: rsv(2) },
+                          {
+                            marginTop: rsv(6),
+                            borderRadius: rs(9),
+                            paddingHorizontal: rs(8),
+                            paddingVertical: rsv(2),
+                          },
                           isSelected && styles.inventoryCountPillSelected,
                         ]}
                       >
@@ -513,7 +551,7 @@ export default function GameScreen() {
             </View>
           ) : null}
 
-          <Text style={[styles.boardInstructionText, { fontSize: rf(12), marginBottom: rsv(2) }]}> 
+          <Text style={[styles.boardInstructionText, { fontSize: rf(12), marginBottom: rsv(2) }]}>
             Tip: Expand inventory to pick ranks, then place them on your setup zone.
           </Text>
         </View>
@@ -526,14 +564,14 @@ export default function GameScreen() {
         onRequestClose={() => setShowQuitModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { maxWidth: Math.min(rs(340), width * 0.9), padding: rs(16) }]}> 
+          <View style={[styles.modalCard, { maxWidth: Math.min(rs(340), width * 0.9), padding: rs(16) }]}>
             <Text style={[styles.modalMessage, { fontSize: rf(34), lineHeight: rf(38), marginBottom: rsv(28) }]}>
               Are you sure you{"\n"}want to quit?
             </Text>
 
-            <View style={[styles.modalButtonsRow, { marginBottom: rsv(20), gap: rs(16) }]}> 
+            <View style={[styles.modalButtonsRow, { marginBottom: rsv(20), gap: rs(16) }]}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.yesButton]}
+                style={[styles.modalButton, styles.modalPrimaryButton]}
                 onPress={() => {
                   setShowQuitModal(false);
                   if (typeof router.canGoBack === "function" && router.canGoBack()) {
@@ -547,10 +585,41 @@ export default function GameScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalButton, styles.noButton]}
+                style={[styles.modalButton, styles.modalSecondaryButton]}
                 onPress={() => setShowQuitModal(false)}
               >
-                <Text style={[styles.modalButtonText, { fontSize: rf(15) }]}>No</Text>
+                <Text style={[styles.modalButtonText, styles.modalSecondaryButtonText, { fontSize: rf(15) }]}>No</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showReadyModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowReadyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxWidth: Math.min(rs(340), width * 0.9), padding: rs(16) }]}>
+            <Text style={[styles.modalMessage, { fontSize: rf(28), lineHeight: rf(32), marginBottom: rsv(24) }]}>
+              All pieces are placed.{"\n"}Confirm ready?
+            </Text>
+
+            <View style={[styles.modalButtonsRow, { marginBottom: rsv(16), gap: rs(16) }]}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalPrimaryButton]}
+                onPress={() => setShowReadyModal(false)}
+              >
+                <Text style={[styles.modalButtonText, { fontSize: rf(15) }]}>Confirm</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalSecondaryButton]}
+                onPress={() => setShowReadyModal(false)}
+              >
+                <Text style={[styles.modalButtonText, styles.modalSecondaryButtonText, { fontSize: rf(15) }]}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -563,7 +632,7 @@ export default function GameScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#060D1F",
+    backgroundColor: appTheme.colors.mono.appBackground,
   },
   scrollContainer: {
     alignItems: "center",
@@ -582,8 +651,8 @@ const styles = StyleSheet.create({
   topRowTitle: {
     flex: 1,
     textAlign: "center",
-    color: "#E2F200",
-    fontFamily: "Bebas",
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.display,
     letterSpacing: 1,
   },
   menuButton: {
@@ -605,18 +674,18 @@ const styles = StyleSheet.create({
     borderRightWidth: 12,
     borderTopColor: "transparent",
     borderBottomColor: "transparent",
-    borderRightColor: "#F29500",
+    borderRightColor: appTheme.colors.mono.textPrimary,
   },
   menuArrowBody: {
     width: 14,
     height: 3,
-    backgroundColor: "#F29500",
+    backgroundColor: appTheme.colors.mono.textPrimary,
     marginLeft: -1,
     borderRadius: 2,
   },
   menuButtonText: {
-    color: "#F29500",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.body,
     fontWeight: "bold",
   },
   actionRow: {
@@ -625,16 +694,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  actionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   subtitle: {
-    color: "#00F915",
-    fontWeight: "bold",
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.display,
+    letterSpacing: 0.5,
   },
   setupBox: {
     width: "100%",
-    backgroundColor: "#0C1530",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-    borderRadius: 14,
+    backgroundColor: appTheme.colors.mono.surface,
+    borderWidth: appTheme.borderWidth.regular,
+    borderColor: appTheme.colors.mono.borderStrong,
+    borderRadius: appTheme.radius.lg,
     paddingHorizontal: 10,
   },
   turnIndicatorRow: {
@@ -648,38 +722,52 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   turnDot: {
-    borderWidth: 1.5,
-    borderColor: "#9A9A9A",
-    backgroundColor: "#9A9A9A",
+    borderWidth: appTheme.borderWidth.thin,
+    borderColor: appTheme.colors.mono.border,
+    backgroundColor: appTheme.colors.mono.textSecondary,
   },
   turnIndicatorText: {
-    color: "#E2F200",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.body,
     fontWeight: "normal",
   },
-  randomizeButton: {
-    borderWidth: 1,
-    borderColor: "#000BD6",
-    backgroundColor: "#2A365A",
+  actionButton: {
+    borderWidth: appTheme.borderWidth.thin,
+    borderColor: appTheme.colors.mono.borderStrong,
+    backgroundColor: appTheme.colors.mono.surfaceRaised,
   },
-  randomizeButtonText: {
-    color: "#E2F200",
-    fontFamily: "K2D",
+  actionButtonText: {
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.body,
     fontWeight: "bold",
+  },
+  readyButtonEnabled: {
+    borderColor: appTheme.colors.mono.borderStrong,
+    backgroundColor: appTheme.colors.mono.surface,
+  },
+  readyButtonDisabled: {
+    borderColor: appTheme.colors.mono.disabledBorder,
+    backgroundColor: appTheme.colors.mono.disabledBg,
+  },
+  readyButtonTextEnabled: {
+    color: appTheme.colors.mono.textPrimary,
+  },
+  readyButtonTextDisabled: {
+    color: appTheme.colors.mono.disabledText,
   },
   boardOuterShell: {
     aspectRatio: 9 / 8,
-    backgroundColor: "#0C1530",
-    borderWidth: 3,
-    borderColor: "#E81300",
-    borderRadius: 16,
+    backgroundColor: appTheme.colors.wood.shell,
+    borderWidth: appTheme.borderWidth.thick,
+    borderColor: appTheme.colors.wood.shellBorder,
+    borderRadius: appTheme.radius.lg,
     position: "relative",
   },
   boardResetButton: {
     position: "absolute",
-    backgroundColor: "#111B32",
-    borderWidth: 2,
-    borderColor: "#E81300",
+    backgroundColor: appTheme.colors.mono.surface,
+    borderWidth: appTheme.borderWidth.regular,
+    borderColor: appTheme.colors.mono.borderStrong,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
@@ -691,8 +779,9 @@ const styles = StyleSheet.create({
   },
   boardFrame: {
     flex: 1,
-    borderWidth: 2,
-    borderColor: "#E2F200",
+    borderWidth: appTheme.borderWidth.regular,
+    borderColor: appTheme.colors.wood.frameBorder,
+    backgroundColor: appTheme.colors.wood.frame,
     overflow: "hidden",
     padding: 3,
   },
@@ -700,42 +789,50 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     flexWrap: "wrap",
-    backgroundColor: "#13213F",
+    backgroundColor: appTheme.colors.wood.grid,
   },
   tile: {
     width: `${100 / BOARD_WIDTH}%`,
     height: `${100 / BOARD_HEIGHT}%`,
-    borderWidth: 3,
-    borderColor: "#2F2F2F",
-    backgroundColor: "#D9D9D9",
+    borderWidth: appTheme.borderWidth.thin,
+    borderColor: appTheme.colors.wood.line,
     alignItems: "center",
     justifyContent: "center",
   },
+  tileWoodLight: {
+    backgroundColor: appTheme.colors.wood.tileLight,
+  },
+  tileWoodDark: {
+    backgroundColor: appTheme.colors.wood.tileDark,
+  },
   setupZoneTileHint: {
-    backgroundColor: "#BFEAC3",
+    borderWidth: appTheme.borderWidth.regular,
+    borderColor: appTheme.colors.mono.borderStrong,
   },
   restrictedTileHint: {
-    backgroundColor: "#EABFBF",
+    opacity: 0.62,
+    borderStyle: "dashed",
   },
   placedTile: {
-    backgroundColor: "#209300",
+    backgroundColor: appTheme.colors.wood.placedPiece,
+    borderColor: appTheme.colors.mono.borderStrong,
   },
   moveSourceTile: {
-    borderColor: "#FFFFFF",
-    borderWidth: 3,
+    borderColor: appTheme.colors.mono.textPrimary,
+    borderWidth: appTheme.borderWidth.thick,
   },
   tilePieceText: {
-    color: "#FFFFFF",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.body,
     fontWeight: "bold",
     textAlign: "center",
   },
   inventoryHeader: {
     width: "100%",
-    borderWidth: 1,
-    borderColor: "#253A67",
-    borderRadius: 12,
-    backgroundColor: "#0E1A35",
+    borderWidth: appTheme.borderWidth.thin,
+    borderColor: appTheme.colors.mono.border,
+    borderRadius: appTheme.radius.md,
+    backgroundColor: appTheme.colors.mono.surface,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -745,23 +842,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inventoryInfoLabel: {
-    color: "#9CB3DD",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.textMuted,
+    fontFamily: appTheme.fonts.body,
   },
   inventoryInfoValue: {
-    color: "#E2F200",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.body,
     fontWeight: "bold",
   },
   inventoryToggleButton: {
-    backgroundColor: "#1C2B4D",
-    borderWidth: 1,
-    borderColor: "#3A4F7E",
-    borderRadius: 8,
+    backgroundColor: appTheme.colors.mono.surfaceRaised,
+    borderWidth: appTheme.borderWidth.thin,
+    borderColor: appTheme.colors.mono.border,
+    borderRadius: appTheme.radius.sm,
   },
   inventoryToggleText: {
-    color: "#E2F200",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.body,
     fontWeight: "bold",
   },
   inventoryRailContainer: {
@@ -771,53 +868,53 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
   },
   inventoryChip: {
-    backgroundColor: "#35FF3F",
-    borderWidth: 1,
-    borderColor: "#1A5B1F",
+    backgroundColor: appTheme.colors.mono.surfaceRaised,
+    borderWidth: appTheme.borderWidth.thin,
+    borderColor: appTheme.colors.mono.border,
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
   inventoryChipSelected: {
-    backgroundColor: "#15781B",
-    borderColor: "#081B0A",
+    backgroundColor: appTheme.colors.mono.surfaceMuted,
+    borderColor: appTheme.colors.mono.borderStrong,
   },
   inventoryChipDepleted: {
-    backgroundColor: "#8FAF91",
-    borderColor: "#4C5E4D",
+    backgroundColor: appTheme.colors.mono.disabledBg,
+    borderColor: appTheme.colors.mono.disabledBorder,
   },
   inventoryChipTitle: {
-    color: "#000000",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.body,
     fontWeight: "bold",
   },
   inventoryChipTitleSelected: {
-    color: "#E9FFE9",
+    color: appTheme.colors.mono.textPrimary,
   },
   inventoryChipTitleDepleted: {
-    color: "#2B3A2C",
+    color: appTheme.colors.mono.disabledText,
   },
   inventoryCountPill: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: appTheme.colors.mono.textPrimary,
   },
   inventoryCountPillSelected: {
-    backgroundColor: "#DFF9DF",
+    backgroundColor: appTheme.colors.mono.textSecondary,
   },
   inventoryCountText: {
-    color: "#111111",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.surface,
+    fontFamily: appTheme.fonts.body,
     fontWeight: "bold",
   },
   inventoryCountTextSelected: {
-    color: "#0C240E",
+    color: appTheme.colors.mono.appBackground,
   },
   boardInstructionText: {
-    color: "#B9CFFF",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.textSecondary,
+    fontFamily: appTheme.fonts.body,
     textAlign: "center",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: appTheme.colors.mono.overlay,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 24,
@@ -826,15 +923,15 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 360,
     aspectRatio: 1,
-    backgroundColor: "#111B32",
-    borderRadius: 14,
-    borderWidth: 3,
-    borderColor: "#E81300",
+    backgroundColor: appTheme.colors.mono.surface,
+    borderRadius: appTheme.radius.lg,
+    borderWidth: appTheme.borderWidth.thick,
+    borderColor: appTheme.colors.mono.borderStrong,
     justifyContent: "space-between",
   },
   modalMessage: {
-    color: "#E81300",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.textPrimary,
+    fontFamily: appTheme.fonts.body,
     fontWeight: "bold",
     textAlign: "center",
     marginTop: 14,
@@ -847,19 +944,25 @@ const styles = StyleSheet.create({
   modalButton: {
     width: "40%",
     aspectRatio: 11 / 6,
-    borderRadius: 10,
+    borderRadius: appTheme.radius.sm,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: appTheme.borderWidth.regular,
   },
-  yesButton: {
-    backgroundColor: "#9A9A9A",
+  modalPrimaryButton: {
+    backgroundColor: appTheme.colors.mono.textPrimary,
+    borderColor: appTheme.colors.mono.textPrimary,
   },
-  noButton: {
-    backgroundColor: "#9A9A9A",
+  modalSecondaryButton: {
+    backgroundColor: appTheme.colors.mono.surfaceRaised,
+    borderColor: appTheme.colors.mono.border,
   },
   modalButtonText: {
-    color: "black",
-    fontFamily: "K2D",
+    color: appTheme.colors.mono.appBackground,
+    fontFamily: appTheme.fonts.body,
     fontWeight: "bold",
+  },
+  modalSecondaryButtonText: {
+    color: appTheme.colors.mono.textPrimary,
   },
 });
