@@ -10,33 +10,48 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
 
 const BOARD_WIDTH = 9;
 const BOARD_HEIGHT = 8;
 const DOUBLE_TAP_MS = 300;
 
+type PieceDefinition = {
+  id: string;
+  label: string;
+  shortLabel: string;
+  initialCount: number;
+};
+
 export default function GameScreen() {
   const router = useRouter();
-  const tokens = useResponsiveTokens(700);
-  const { width, height, rs, rsv, rf, maxContentWidth, shouldUseScrollFallback } = tokens;
-  const contentWidth = Math.min(maxContentWidth, rs(500));
-  const setupBoxHeight = rsv(96);
-  const controlRowHeight = rsv(36);
-  const controlRowsHeight = controlRowHeight * 5 + rsv(8) * 4;
-  const boardHeightBudget = Math.max(rsv(170), height - (setupBoxHeight + controlRowsHeight + rsv(330)));
-  const boardWidth = clamp(boardHeightBudget * (9 / 8), rs(230), Math.min(contentWidth, width * 0.9));
+  const [isInventoryExpanded, setIsInventoryExpanded] = useState(false);
   const [showQuitModal, setShowQuitModal] = useState(false);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [placedByTileIndex, setPlacedByTileIndex] = useState<Record<number, string>>({});
   const [moveSourceTileIndex, setMoveSourceTileIndex] = useState<number | null>(null);
-  const [lastTap, setLastTap] = useState<{ tileIndex: number; time: number } | null>(
-    null
-  );
+  const [lastTap, setLastTap] = useState<{ tileIndex: number; time: number } | null>(null);
+
+  const tokens = useResponsiveTokens(700);
+  const { width, height, rs, rsv, rf, maxContentWidth, shouldUseScrollFallback } = tokens;
+
+  const contentWidth = Math.min(maxContentWidth, rs(520));
+  const setupBoxHeight = rsv(74);
+  const inventoryHeaderHeight = rsv(42);
+  const inventoryExpandedHeight = rsv(96);
+  const estimatedChromeHeight =
+    rsv(188) +
+    setupBoxHeight +
+    inventoryHeaderHeight +
+    (isInventoryExpanded ? inventoryExpandedHeight : 0);
+  const boardHeightBudget = Math.max(rsv(220), height - estimatedChromeHeight);
+  const boardWidth = clamp(boardHeightBudget * (9 / 8), rs(280), Math.min(contentWidth, width * 0.94));
+
   const boardTiles = Array.from({ length: BOARD_WIDTH * BOARD_HEIGHT }, (_, index) => ({
     index,
   }));
-  const controlButtons = Array.from({ length: 15 }, (_, index) => index + 1);
+
   const firstColumnLabels = ["Flag", "Spy", "Private", "Sgt", "2nd Lt"];
   const secondColumnLabels = ["1st Lt", "Cpt", "Major", "Lt Col", "Col"];
   const thirdColumnLabels = [
@@ -47,8 +62,6 @@ export default function GameScreen() {
     "5 Star\nGeneral",
   ];
 
-  // Creates a stable identifier for each piece rank.
-  // Used as the key for counts, selection, and board placement mapping.
   function getPieceId(column: number, row: number, label: string) {
     return `${column}-${row}-${label
       .replace(/\n/g, " ")
@@ -57,9 +70,7 @@ export default function GameScreen() {
       .replace(/^-+|-+$/g, "")}`;
   }
 
-  // Canonical setup metadata for all piece ranks.
-  // Keeps rank label, id, initial count, and short board display label in one place.
-  const pieceDefinitions = useMemo(() => {
+  const pieceDefinitions: PieceDefinition[] = useMemo(() => {
     const columns = [firstColumnLabels, secondColumnLabels, thirdColumnLabels];
     const shortLabelByName: Record<string, string> = {
       Flag: "F",
@@ -72,11 +83,11 @@ export default function GameScreen() {
       Major: "Maj",
       "Lt Col": "LtC",
       Col: "Col",
-      "1 Star\nGeneral": "1★",
-      "2 Star\nGeneral": "2★",
-      "3 Star\nGeneral": "3★",
-      "4 Star\nGeneral": "4★",
-      "5 Star\nGeneral": "5★",
+      "1 Star\nGeneral": "1*",
+      "2 Star\nGeneral": "2*",
+      "3 Star\nGeneral": "3*",
+      "4 Star\nGeneral": "4*",
+      "5 Star\nGeneral": "5*",
     };
 
     return columns.flatMap((labels, column) =>
@@ -86,6 +97,7 @@ export default function GameScreen() {
 
         return {
           id,
+          label,
           initialCount,
           shortLabel: shortLabelByName[label] ?? label,
         };
@@ -93,13 +105,11 @@ export default function GameScreen() {
     );
   }, [firstColumnLabels, secondColumnLabels, thirdColumnLabels]);
 
-  // Fast lookup map for piece metadata when rendering board tiles.
   const pieceById = useMemo(
     () => Object.fromEntries(pieceDefinitions.map((piece) => [piece.id, piece])),
     [pieceDefinitions]
   );
 
-  // Initial piece inventory by rank id.
   const initialPieceCountById: Record<string, number> = useMemo(() => {
     const initialCounts: Record<string, number> = {};
 
@@ -110,7 +120,6 @@ export default function GameScreen() {
     return initialCounts;
   }, [pieceDefinitions]);
 
-  // Live remaining inventory derived from current placements.
   const pieceCountById: Record<string, number> = useMemo(() => {
     const remaining = { ...initialPieceCountById };
 
@@ -123,23 +132,24 @@ export default function GameScreen() {
     return remaining;
   }, [initialPieceCountById, placedByTileIndex]);
 
-  // Select/deselect a rank button.
-  // Selecting a rank also exits tile-move mode.
+  const showSetupZoneHint = selectedPieceId !== null || moveSourceTileIndex !== null;
+  const hasPlacedPieces = Object.keys(placedByTileIndex).length > 0;
+  const totalUnplacedCount = useMemo(
+    () => Object.values(pieceCountById).reduce((sum, count) => sum + count, 0),
+    [pieceCountById]
+  );
+  const selectedPiece = selectedPieceId ? pieceById[selectedPieceId] : null;
+
   const handlePieceButtonPress = (pieceId: string) => {
     setMoveSourceTileIndex(null);
     setSelectedPieceId((current) => (current === pieceId ? null : pieceId));
   };
 
-  // Setup phase restriction: only the bottom 3 rows can be edited.
   const isSetupZoneTileIndex = (tileIndex: number) => {
     const tileY = Math.floor(tileIndex / BOARD_WIDTH);
     return tileY >= BOARD_HEIGHT - 3;
   };
 
-  const showSetupZoneHint = selectedPieceId !== null || moveSourceTileIndex !== null;
-  const hasPlacedPieces = Object.keys(placedByTileIndex).length > 0;
-
-  // Clears the setup board and resets setup interaction state.
   const handleResetBoard = () => {
     setPlacedByTileIndex({});
     setMoveSourceTileIndex(null);
@@ -147,14 +157,11 @@ export default function GameScreen() {
     setLastTap(null);
   };
 
-  // Clears current piece/tile selection state after a completed or canceled action.
   const clearSelectionState = () => {
     setMoveSourceTileIndex(null);
     setSelectedPieceId(null);
   };
 
-  // Handles quick double-tap on the same tile to remove a placed piece.
-  // Returns true when the action is consumed.
   const tryHandleDoubleTapRemove = (tileIndex: number, now: number) => {
     if (!lastTap || lastTap.tileIndex !== tileIndex || now - lastTap.time >= DOUBLE_TAP_MS) {
       return false;
@@ -174,9 +181,6 @@ export default function GameScreen() {
     return true;
   };
 
-  // Handles moving from an already selected source tile.
-  // Includes swap behavior when destination is occupied.
-  // Returns true when the action is consumed.
   const tryHandleMoveFromSource = (tileIndex: number) => {
     if (moveSourceTileIndex === null) {
       return false;
@@ -210,8 +214,6 @@ export default function GameScreen() {
     return true;
   };
 
-  // If no rank is selected, tapping an occupied tile enters move mode for that piece.
-  // Returns true when the action is consumed.
   const tryBeginMoveFromTile = (tileIndex: number) => {
     if (selectedPieceId) {
       return false;
@@ -227,7 +229,6 @@ export default function GameScreen() {
     return true;
   };
 
-  // Places the currently selected rank onto the tapped tile (if inventory remains).
   const handlePlaceSelectedPiece = (tileIndex: number) => {
     if (!selectedPieceId) {
       return;
@@ -244,9 +245,6 @@ export default function GameScreen() {
     clearSelectionState();
   };
 
-  // Main board interaction handler.
-  // Supports: placement from selected rank, tile-to-tile move, swap on occupied target,
-  // and double-tap removal.
   const handleTilePress = (tileIndex: number) => {
     if (!isSetupZoneTileIndex(tileIndex)) {
       return;
@@ -270,8 +268,6 @@ export default function GameScreen() {
     handlePlaceSelectedPiece(tileIndex);
   };
 
-  // Full setup reshuffle across allowed setup tiles.
-  // Replaces all current placements using configured piece counts.
   const handleRandomizeSet = () => {
     const setupTileIndexes = boardTiles
       .filter((tile) => isSetupZoneTileIndex(tile.index))
@@ -321,51 +317,59 @@ export default function GameScreen() {
           {
             flexGrow: 1,
             justifyContent: shouldUseScrollFallback ? "flex-start" : "center",
-            paddingVertical: rsv(shouldUseScrollFallback ? 16 : 8),
-            paddingHorizontal: rs(10),
+            paddingVertical: rsv(shouldUseScrollFallback ? 12 : 6),
+            paddingHorizontal: rs(8),
           },
         ]}
       >
-        <View style={[styles.container, { maxWidth: contentWidth }]}>
-          <View style={[styles.topMenuRow, { marginBottom: rsv(10) }]}>
+        <View style={[styles.container, { maxWidth: contentWidth }]}> 
+          <View style={[styles.topMenuRow, { marginBottom: rsv(8) }]}> 
             <TouchableOpacity
-              style={[styles.menuButton, { width: rs(96), paddingVertical: rsv(6) }]}
+              style={[styles.menuButton, { width: rs(90), paddingVertical: rsv(4) }]}
               onPress={() => setShowQuitModal(true)}
             >
               <View style={styles.menuArrowIcon}>
                 <View style={styles.menuArrowTip} />
                 <View style={styles.menuArrowBody} />
               </View>
-              <Text style={[styles.menuButtonText, { fontSize: rf(16) }]}>Menu</Text>
+              <Text style={[styles.menuButtonText, { fontSize: rf(15) }]}>Menu</Text>
             </TouchableOpacity>
-            <Text style={[styles.topRowTitle, { fontSize: rf(30) }]}>Salpakan</Text>
-            <View style={[styles.menuSpacer, { width: rs(96) }]} />
+            <Text style={[styles.topRowTitle, { fontSize: rf(28) }]}>Salpakan</Text>
+            <View style={[styles.menuSpacer, { width: rs(90) }]} />
           </View>
 
-          <View style={[styles.setupBox, { height: setupBoxHeight, marginBottom: rsv(10), paddingTop: rsv(8) }]}>
+          <View style={[styles.setupBox, { height: setupBoxHeight, marginBottom: rsv(8), paddingTop: rsv(6) }]}> 
             <View style={styles.turnIndicatorRow}>
               <View style={styles.turnIndicatorItem}>
-                <View style={[styles.turnDot, { width: rs(16), height: rs(16), borderRadius: rs(8) }]} />
-                <Text style={[styles.turnIndicatorText, { fontSize: rf(18) }]}>Your turn</Text>
+                <View style={[styles.turnDot, { width: rs(14), height: rs(14), borderRadius: rs(7) }]} />
+                <Text style={[styles.turnIndicatorText, { fontSize: rf(15) }]}>Your turn</Text>
               </View>
 
               <View style={styles.turnIndicatorItem}>
-                <View style={[styles.turnDot, { width: rs(16), height: rs(16), borderRadius: rs(8) }]} />
-                <Text style={[styles.turnIndicatorText, { fontSize: rf(18) }]}>Enemy turn</Text>
+                <View style={[styles.turnDot, { width: rs(14), height: rs(14), borderRadius: rs(7) }]} />
+                <Text style={[styles.turnIndicatorText, { fontSize: rf(15) }]}>Enemy turn</Text>
               </View>
             </View>
           </View>
 
-          <Text style={[styles.subtitle, { fontSize: rf(28), marginTop: rsv(8), marginBottom: rsv(8) }]}>Set your pieces</Text>
+          <View style={[styles.actionRow, { marginBottom: rsv(6) }]}> 
+            <Text style={[styles.subtitle, { fontSize: rf(22) }]}>Set your pieces</Text>
+            <TouchableOpacity
+              style={[
+                styles.randomizeButton,
+                {
+                  paddingVertical: rsv(6),
+                  paddingHorizontal: rs(12),
+                  borderRadius: rs(10),
+                },
+              ]}
+              onPress={handleRandomizeSet}
+            >
+              <Text style={[styles.randomizeButtonText, { fontSize: rf(13) }]}>Random Set</Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={[styles.randomizeButton, { paddingVertical: rsv(8), paddingHorizontal: rs(14), marginBottom: rsv(10) }]}
-            onPress={handleRandomizeSet}
-          >
-            <Text style={[styles.randomizeButtonText, { fontSize: rf(15) }]}>Random Set</Text>
-          </TouchableOpacity>
-
-          <View style={[styles.boardOuterShell, { width: boardWidth, padding: rs(12), marginBottom: rsv(8) }]}>
+          <View style={[styles.boardOuterShell, { width: boardWidth, padding: rs(10), marginBottom: rsv(6) }]}> 
             <View style={styles.boardFrame}>
               <View style={styles.boardGrid}>
                 {boardTiles.map((tile) => {
@@ -388,7 +392,7 @@ export default function GameScreen() {
                       activeOpacity={0.8}
                     >
                       {placedPiece ? (
-                        <Text style={styles.tilePieceText}>{placedPiece.shortLabel}</Text>
+                        <Text style={[styles.tilePieceText, { fontSize: rf(10) }]}>{placedPiece.shortLabel}</Text>
                       ) : null}
                     </TouchableOpacity>
                   );
@@ -398,65 +402,120 @@ export default function GameScreen() {
 
             {hasPlacedPieces ? (
               <TouchableOpacity
-                style={[styles.boardResetButton, { width: rs(28), height: rs(28), borderRadius: rs(14), top: -rs(12), right: -rs(12) }]}
+                style={[
+                  styles.boardResetButton,
+                  {
+                    width: rs(26),
+                    height: rs(26),
+                    borderRadius: rs(13),
+                    top: -rs(10),
+                    right: -rs(10),
+                  },
+                ]}
                 onPress={handleResetBoard}
                 activeOpacity={0.85}
               >
-                <MaterialIcons name="close" size={rs(16)} color="#E81300" />
+                <MaterialIcons name="close" size={rs(15)} color="#E81300" />
               </TouchableOpacity>
             ) : null}
           </View>
 
-          <Text style={[styles.boardInstructionText, { fontSize: rf(16), marginBottom: rsv(10) }]}>
-            Drag and drop your pieces on the{"\n"}board
-          </Text>
+          <View style={[styles.inventoryHeader, { height: inventoryHeaderHeight, marginBottom: rsv(4) }]}> 
+            <View style={styles.inventoryInfoBlock}>
+              <Text style={[styles.inventoryInfoLabel, { fontSize: rf(12) }]}>Selected</Text>
+              <Text style={[styles.inventoryInfoValue, { fontSize: rf(14) }]} numberOfLines={1}>
+                {selectedPiece ? selectedPiece.label.replace("\n", " ") : "None"}
+              </Text>
+            </View>
 
-          <View style={[styles.controlButtonsContainer, { rowGap: rsv(8), columnGap: rs(8), marginBottom: rsv(10) }]}>
-            {controlButtons.map((buttonNumber, index) => {
-              const row = Math.floor(index / 3);
-              const column = index % 3;
-              const label =
-                column === 0
-                  ? firstColumnLabels[row]
-                  : column === 1
-                    ? secondColumnLabels[row]
-                    : thirdColumnLabels[row];
-              const pieceId = getPieceId(column, row, label);
+            <View style={styles.inventoryInfoBlock}>
+              <Text style={[styles.inventoryInfoLabel, { fontSize: rf(12) }]}>Unplaced</Text>
+              <Text style={[styles.inventoryInfoValue, { fontSize: rf(14) }]}>{totalUnplacedCount}</Text>
+            </View>
 
-              return (
-                <View key={buttonNumber} style={[styles.controlButtonSlot, { height: controlRowHeight }]}>
-                  <TouchableOpacity
-                    style={[
-                      styles.controlButton,
-                      { height: controlRowHeight },
-                      selectedPieceId === pieceId && styles.controlButtonActive,
-                      (pieceCountById[pieceId] ?? 0) <= 0 && styles.controlButtonDepleted,
-                    ]}
-                    onPress={() => handlePieceButtonPress(pieceId)}
-                    disabled={(pieceCountById[pieceId] ?? 0) <= 0}
-                  >
-                    <Text
-                      style={[
-                        styles.controlButtonText,
-                        selectedPieceId === pieceId && styles.controlButtonTextActive,
-                        (pieceCountById[pieceId] ?? 0) <= 0 && styles.controlButtonTextDepleted,
-                        column === 2 && styles.controlButtonTextThirdColumn,
-                        column === 2 ? { fontSize: rf(11), lineHeight: rf(12) } : { fontSize: rf(14) },
-                      ]}
-                    >
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <View style={[styles.controlButtonCountBox, { width: rs(28) }]}>
-                    <Text style={[styles.controlButtonCount, { fontSize: rf(16) }]}>
-                      x{pieceCountById[pieceId] ?? 0}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
+            <TouchableOpacity
+              style={[styles.inventoryToggleButton, { paddingHorizontal: rs(10), paddingVertical: rsv(6) }]}
+              onPress={() => setIsInventoryExpanded((current) => !current)}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.inventoryToggleText, { fontSize: rf(12) }]}>
+                {isInventoryExpanded ? "Collapse" : "Expand"}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {isInventoryExpanded ? (
+            <View style={[styles.inventoryRailContainer, { marginBottom: rsv(6), maxHeight: inventoryExpandedHeight }]}> 
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={[styles.inventoryRailContent, { columnGap: rs(8), paddingRight: rs(10) }]}
+              >
+                {pieceDefinitions.map((piece) => {
+                  const remaining = pieceCountById[piece.id] ?? 0;
+                  const isSelected = selectedPieceId === piece.id;
+                  const isDepleted = remaining <= 0;
+
+                  return (
+                    <TouchableOpacity
+                      key={piece.id}
+                      style={[
+                        styles.inventoryChip,
+                        {
+                          minWidth: rs(96),
+                          minHeight: rsv(76),
+                          paddingHorizontal: rs(8),
+                          paddingVertical: rsv(6),
+                          borderRadius: rs(10),
+                        },
+                        isSelected && styles.inventoryChipSelected,
+                        isDepleted && styles.inventoryChipDepleted,
+                      ]}
+                      onPress={() => handlePieceButtonPress(piece.id)}
+                      disabled={isDepleted}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          styles.inventoryChipTitle,
+                          {
+                            fontSize: piece.label.includes("\n") ? rf(11) : rf(13),
+                            lineHeight: piece.label.includes("\n") ? rf(12) : rf(14),
+                          },
+                          isSelected && styles.inventoryChipTitleSelected,
+                          isDepleted && styles.inventoryChipTitleDepleted,
+                        ]}
+                      >
+                        {piece.label}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.inventoryCountPill,
+                          { marginTop: rsv(6), borderRadius: rs(9), paddingHorizontal: rs(8), paddingVertical: rsv(2) },
+                          isSelected && styles.inventoryCountPillSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.inventoryCountText,
+                            { fontSize: rf(12) },
+                            isSelected && styles.inventoryCountTextSelected,
+                          ]}
+                        >
+                          x{remaining}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          <Text style={[styles.boardInstructionText, { fontSize: rf(12), marginBottom: rsv(2) }]}> 
+            Tip: Expand inventory to pick ranks, then place them on your setup zone.
+          </Text>
         </View>
       </ScrollView>
 
@@ -467,12 +526,12 @@ export default function GameScreen() {
         onRequestClose={() => setShowQuitModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { maxWidth: Math.min(rs(340), width * 0.9), padding: rs(16) }]}>
+          <View style={[styles.modalCard, { maxWidth: Math.min(rs(340), width * 0.9), padding: rs(16) }]}> 
             <Text style={[styles.modalMessage, { fontSize: rf(34), lineHeight: rf(38), marginBottom: rsv(28) }]}>
               Are you sure you{"\n"}want to quit?
             </Text>
 
-            <View style={[styles.modalButtonsRow, { marginBottom: rsv(20), gap: rs(16) }]}>
+            <View style={[styles.modalButtonsRow, { marginBottom: rsv(20), gap: rs(16) }]}> 
               <TouchableOpacity
                 style={[styles.modalButton, styles.yesButton]}
                 onPress={() => {
@@ -508,38 +567,31 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     alignItems: "center",
-    paddingVertical: 40,
   },
   container: {
     justifyContent: "center",
     alignItems: "center",
-    width: "90%",
-    maxWidth: 500,
+    width: "92%",
+    maxWidth: 520,
   },
   topMenuRow: {
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
   },
   topRowTitle: {
     flex: 1,
     textAlign: "center",
     color: "#E2F200",
     fontFamily: "Bebas",
-    fontSize: 32,
     letterSpacing: 1,
   },
   menuButton: {
-    width: 110,
-    paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-start",
   },
-  menuSpacer: {
-    width: 110,
-  },
+  menuSpacer: {},
   menuArrowIcon: {
     flexDirection: "row",
     alignItems: "center",
@@ -565,26 +617,25 @@ const styles = StyleSheet.create({
   menuButtonText: {
     color: "#F29500",
     fontFamily: "K2D",
-    fontSize: 18,
     fontWeight: "bold",
   },
+  actionRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   subtitle: {
-    fontSize: 34,
     color: "#00F915",
     fontWeight: "bold",
-    marginTop: 12,
-    marginBottom: 10,
   },
   setupBox: {
     width: "100%",
-    height: 112,
     backgroundColor: "#0C1530",
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: "#FFFFFF",
-    borderRadius: 18,
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingTop: 10,
+    borderRadius: 14,
+    paddingHorizontal: 10,
   },
   turnIndicatorRow: {
     flexDirection: "row",
@@ -594,12 +645,9 @@ const styles = StyleSheet.create({
   turnIndicatorItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   turnDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
     borderWidth: 1.5,
     borderColor: "#9A9A9A",
     backgroundColor: "#9A9A9A",
@@ -607,42 +655,28 @@ const styles = StyleSheet.create({
   turnIndicatorText: {
     color: "#E2F200",
     fontFamily: "K2D",
-    fontSize: 20,
     fontWeight: "normal",
   },
   randomizeButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#000BD6",
     backgroundColor: "#2A365A",
-    marginBottom: 12,
   },
   randomizeButtonText: {
     color: "#E2F200",
     fontFamily: "K2D",
-    fontSize: 16,
     fontWeight: "bold",
   },
   boardOuterShell: {
-    width: "100%",
     aspectRatio: 9 / 8,
     backgroundColor: "#0C1530",
     borderWidth: 3,
     borderColor: "#E81300",
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 10,
+    borderRadius: 16,
     position: "relative",
   },
   boardResetButton: {
     position: "absolute",
-    top: -14,
-    right: -14,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
     backgroundColor: "#111B32",
     borderWidth: 2,
     borderColor: "#E81300",
@@ -659,16 +693,8 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 2,
     borderColor: "#E2F200",
-    borderRadius: 0,
     overflow: "hidden",
     padding: 3,
-  },
-  boardInstructionText: {
-    color: "#E2F200",
-    fontFamily: "K2D",
-    fontSize: 18,
-    textAlign: "center",
-    marginBottom: 14,
   },
   boardGrid: {
     flex: 1,
@@ -701,70 +727,92 @@ const styles = StyleSheet.create({
   tilePieceText: {
     color: "#FFFFFF",
     fontFamily: "K2D",
-    fontSize: 11,
     fontWeight: "bold",
     textAlign: "center",
   },
-  controlButtonsContainer: {
+  inventoryHeader: {
     width: "100%",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    marginBottom: 20,
-    columnGap: 10,
-    rowGap: 10,
-  },
-  controlButtonSlot: {
-    width: "30%",
-    height: 44,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  controlButton: {
-    flex: 1,
-    height: 44,
+    borderWidth: 1,
+    borderColor: "#253A67",
     borderRadius: 12,
-    borderWidth: 0,
-    backgroundColor: "#35FF3F",
+    backgroundColor: "#0E1A35",
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
   },
-  controlButtonActive: {
-    borderWidth: 2,
-    borderColor: "#081B0A",
+  inventoryInfoBlock: {
+    flex: 1,
+  },
+  inventoryInfoLabel: {
+    color: "#9CB3DD",
+    fontFamily: "K2D",
+  },
+  inventoryInfoValue: {
+    color: "#E2F200",
+    fontFamily: "K2D",
+    fontWeight: "bold",
+  },
+  inventoryToggleButton: {
+    backgroundColor: "#1C2B4D",
+    borderWidth: 1,
+    borderColor: "#3A4F7E",
+    borderRadius: 8,
+  },
+  inventoryToggleText: {
+    color: "#E2F200",
+    fontFamily: "K2D",
+    fontWeight: "bold",
+  },
+  inventoryRailContainer: {
+    width: "100%",
+  },
+  inventoryRailContent: {
+    alignItems: "stretch",
+  },
+  inventoryChip: {
+    backgroundColor: "#35FF3F",
+    borderWidth: 1,
+    borderColor: "#1A5B1F",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  inventoryChipSelected: {
     backgroundColor: "#15781B",
+    borderColor: "#081B0A",
   },
-  controlButtonDepleted: {
+  inventoryChipDepleted: {
     backgroundColor: "#8FAF91",
-    borderWidth: 0,
+    borderColor: "#4C5E4D",
   },
-  controlButtonTextActive: {
-    color: "#E9FFE9",
-  },
-  controlButtonTextDepleted: {
-    color: "#2B3A2C",
-  },
-  controlButtonText: {
+  inventoryChipTitle: {
     color: "#000000",
     fontFamily: "K2D",
-    fontSize: 16,
     fontWeight: "bold",
-    textAlign: "center",
   },
-  controlButtonTextThirdColumn: {
-    fontSize: 12,
-    lineHeight: 13,
+  inventoryChipTitleSelected: {
+    color: "#E9FFE9",
   },
-  controlButtonCountBox: {
-    width: 32,
-    alignItems: "center",
-    justifyContent: "center",
+  inventoryChipTitleDepleted: {
+    color: "#2B3A2C",
   },
-  controlButtonCount: {
-    color: "#FFFFFF",
+  inventoryCountPill: {
+    backgroundColor: "#FFFFFF",
+  },
+  inventoryCountPillSelected: {
+    backgroundColor: "#DFF9DF",
+  },
+  inventoryCountText: {
+    color: "#111111",
     fontFamily: "K2D",
-    fontSize: 18,
     fontWeight: "bold",
+  },
+  inventoryCountTextSelected: {
+    color: "#0C240E",
+  },
+  boardInstructionText: {
+    color: "#B9CFFF",
+    fontFamily: "K2D",
     textAlign: "center",
   },
   modalOverlay: {
@@ -782,24 +830,18 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 3,
     borderColor: "#E81300",
-    padding: 20,
     justifyContent: "space-between",
   },
   modalMessage: {
     color: "#E81300",
     fontFamily: "K2D",
-    fontSize: 40,
-    lineHeight: 46,
     fontWeight: "bold",
     textAlign: "center",
     marginTop: 14,
-    marginBottom: 36,
   },
   modalButtonsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 24,
-    marginBottom: 28,
     paddingHorizontal: 8,
   },
   modalButton: {
@@ -819,7 +861,5 @@ const styles = StyleSheet.create({
     color: "black",
     fontFamily: "K2D",
     fontWeight: "bold",
-    fontSize: 16,
   },
 });
-
