@@ -11,20 +11,21 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useWindowDimensions,
 } from "react-native";
+
+import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
 
 function Homescreen() {
   const router = useRouter();
+  const tokens = useResponsiveTokens(670);
+  const { width, maxContentWidth, rs, rsv, rf, shouldUseScrollFallback } = tokens;
 
   type Difficulty = "easy" | "medium" | "hard";
 
-  const { width } = useWindowDimensions();
-
-  const titleSize = Math.min(width * 0.12, 60);
-  const mainImageSize = Math.min(width * 0.45, 200);
-  const starIconSize = Math.min(width * 0.08, 35);
-  const bigIconSize = Math.min(width * 0.1, 45);
+  const titleSize = clamp(width * 0.12, rf(34), rf(58));
+  const mainImageSize = clamp(width * 0.42, rs(130), rs(210));
+  const starIconSize = clamp(width * 0.08, rs(20), rs(34));
+  const bigIconSize = clamp(width * 0.1, rs(24), rs(42));
 
   const handleStartGame = (chosenDifficulty: Difficulty) => {
     router.push({
@@ -33,123 +34,181 @@ function Homescreen() {
     });
   };
 
+  const content = (
+    <View style={[styles.contentRoot, { maxWidth: maxContentWidth }]}> 
+      <View style={[styles.headerSection, { marginBottom: rsv(8) }]}> 
+        <Text
+          style={[
+            styles.title,
+            {
+              color: "#E2F200",
+              fontSize: titleSize,
+              lineHeight: titleSize + rf(8),
+            },
+          ]}
+        >
+          Salpakan
+        </Text>
+        <Text
+          style={[
+            styles.title,
+            {
+              color: "#E2F200",
+              fontSize: titleSize,
+              lineHeight: titleSize + rf(8),
+            },
+          ]}
+        >
+          Frontlines
+        </Text>
+      </View>
+
+      <Image
+        style={[
+          styles.mainIcon,
+          {
+            width: mainImageSize,
+            height: mainImageSize,
+            marginVertical: rsv(6),
+          },
+        ]}
+        source={require("../assets/images/swords.png")}
+        resizeMode="contain"
+      />
+
+      <Text
+        style={[
+          styles.subtitle,
+          {
+            fontSize: rf(22),
+            marginBottom: rsv(14),
+          },
+        ]}
+      >
+        Select Difficulty
+      </Text>
+
+      <View style={[styles.buttonList, { gap: rsv(12) }]}> 
+        <TouchableOpacity
+          style={[
+            styles.buttonBase,
+            styles.easy,
+            {
+              maxWidth: maxContentWidth,
+              height: rsv(94),
+              borderRadius: rs(18),
+              borderWidth: Math.max(2, rs(4)),
+            },
+          ]}
+          onPress={() => handleStartGame("easy")}
+        >
+          <View style={[styles.buttonContent, { paddingHorizontal: rs(14), gap: rs(8) }]}> 
+            <Image
+              source={require("../assets/images/security.png")}
+              style={{ height: rs(42), width: rs(42) }}
+            />
+            <View style={styles.textContainer}>
+              <Text style={[styles.difficultyText, { color: "#81FF81", fontSize: rf(28), letterSpacing: rs(2) }]}> 
+                EASY
+              </Text>
+              <Text style={[styles.subText, { color: "#018701", fontSize: rf(13) }]}> 
+                for recruits
+              </Text>
+            </View>
+            <Entypo name="star" size={bigIconSize} color="#00A700" />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.buttonBase,
+            styles.medium,
+            {
+              maxWidth: maxContentWidth,
+              height: rsv(94),
+              borderRadius: rs(18),
+              borderWidth: Math.max(2, rs(4)),
+            },
+          ]}
+          onPress={() => handleStartGame("medium")}
+        >
+          <View style={[styles.buttonContent, { paddingHorizontal: rs(14), gap: rs(8) }]}> 
+            <MaterialCommunityIcons
+              name="sword-cross"
+              size={bigIconSize}
+              color="#E27A03"
+            />
+            <View style={styles.textContainer}>
+              <Text style={[styles.difficultyText, { color: "#FFFB79", fontSize: rf(28), letterSpacing: rs(2) }]}> 
+                MEDIUM
+              </Text>
+              <Text style={[styles.subText, { color: "#D0A700", fontSize: rf(13) }]}> 
+                for soldiers
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row" }}>
+              <Entypo name="star" size={starIconSize} color="#E27A03" />
+              <Entypo name="star" size={starIconSize} color="#E27A03" />
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.buttonBase,
+            styles.hard,
+            {
+              maxWidth: maxContentWidth,
+              height: rsv(94),
+              borderRadius: rs(18),
+              borderWidth: Math.max(2, rs(4)),
+            },
+          ]}
+          onPress={() => handleStartGame("hard")}
+        >
+          <View style={[styles.buttonContent, { paddingHorizontal: rs(14), gap: rs(8) }]}> 
+            <Octicons name="trophy" size={bigIconSize} color="#C80000" />
+            <View style={styles.textContainer}>
+              <Text style={[styles.difficultyText, { color: "#FFA4A9", fontSize: rf(28), letterSpacing: rs(2) }]}> 
+                HARD
+              </Text>
+              <Text style={[styles.subText, { color: "#FF2600", fontSize: rf(13) }]}> 
+                for generals
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row" }}>
+              <Entypo name="star" size={starIconSize} color="#C80000" />
+              <Entypo name="star" size={starIconSize} color="#C80000" />
+              <Entypo name="star" size={starIconSize} color="#C80000" />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {/* Title Section */}
-        <View style={styles.headerSection}>
-          <Text
-            style={[
-              styles.title,
-              {
-                color: "#E2F200",
-                fontSize: titleSize,
-                lineHeight: titleSize + 10,
-              },
-            ]}
-          >
-            Salpakan
-          </Text>
-          <Text
-            style={[
-              styles.title,
-              {
-                color: "#E2F200",
-                fontSize: titleSize,
-                lineHeight: titleSize + 10,
-              },
-            ]}
-          >
-            Frontlines
-          </Text>
-        </View>
-
-        {/* Mascot/Icon Section */}
-        <Image
-          style={[
-            styles.mainIcon,
-            { width: mainImageSize, height: mainImageSize },
+      {shouldUseScrollFallback ? (
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContainer,
+            { paddingVertical: rsv(16), paddingHorizontal: rs(12) },
           ]}
-          source={require("../assets/images/swords.png")}
-          resizeMode="contain"
-        />
-
-        <Text style={styles.subtitle}>Select Difficulty</Text>
-
-        {/* Buttons Container */}
-        <View style={styles.buttonList}>
-          {/* EASY BUTTON */}
-          <TouchableOpacity
-            style={[styles.buttonBase, styles.easy]}
-            onPress={() => handleStartGame("easy")}
-          >
-            <View style={styles.buttonContent}>
-              <Image
-                source={require("../assets/images/security.png")}
-                style={styles.innerIcon}
-              />
-              <View style={styles.textContainer}>
-                <Text style={[styles.difficultyText, { color: "#81FF81" }]}>
-                  EASY
-                </Text>
-                <Text style={[styles.subText, { color: "#018701" }]}>
-                  for recruits
-                </Text>
-              </View>
-              <Entypo name="star" size={bigIconSize} color="#00A700" />
-            </View>
-          </TouchableOpacity>
-
-          {/* MEDIUM BUTTON */}
-          <TouchableOpacity
-            style={[styles.buttonBase, styles.medium]}
-            onPress={() => handleStartGame("medium")}
-          >
-            <View style={styles.buttonContent}>
-              <MaterialCommunityIcons
-                name="sword-cross"
-                size={bigIconSize}
-                color="#E27A03"
-              />
-              <View style={styles.textContainer}>
-                <Text style={[styles.difficultyText, { color: "#FFFB79" }]}>
-                  MEDIUM
-                </Text>
-                <Text style={[styles.subText, { color: "#D0A700" }]}>
-                  for soldiers
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row" }}>
-                <Entypo name="star" size={starIconSize} color="#E27A03" />
-                <Entypo name="star" size={starIconSize} color="#E27A03" />
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          {/* HARD BUTTON */}
-          <TouchableOpacity
-            style={[styles.buttonBase, styles.hard]}
-            onPress={() => handleStartGame("hard")}
-          >
-            <View style={styles.buttonContent}>
-              <Octicons name="trophy" size={bigIconSize} color="#C80000" />
-              <View style={styles.textContainer}>
-                <Text style={[styles.difficultyText, { color: "#FFA4A9" }]}>
-                  HARD
-                </Text>
-                <Text style={[styles.subText, { color: "#FF2600" }]}>
-                  for generals
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row" }}>
-                <Entypo name="star" size={starIconSize} color="#C80000" />
-                <Entypo name="star" size={starIconSize} color="#C80000" />
-                <Entypo name="star" size={starIconSize} color="#C80000" />
-              </View>
-            </View>
-          </TouchableOpacity>
+          showsVerticalScrollIndicator={false}
+        >
+          {content}
+        </ScrollView>
+      ) : (
+        <View
+          style={[
+            styles.noScrollContainer,
+            { paddingVertical: rsv(12), paddingHorizontal: rs(12) },
+          ]}
+        >
+          {content}
         </View>
-      </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -161,37 +220,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#060D1F",
   },
+  noScrollContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   scrollContainer: {
     alignItems: "center",
-    paddingVertical: 40,
+  },
+  contentRoot: {
+    width: "100%",
+    alignItems: "center",
   },
   headerSection: {
     alignItems: "center",
-    marginBottom: 10,
   },
   title: {
     fontWeight: "bold",
   },
-  mainIcon: {
-    marginVertical: 10,
-  },
+  mainIcon: {},
   subtitle: {
-    fontSize: 22,
     color: "white",
     fontFamily: "K2D",
-    marginBottom: 20,
   },
   buttonList: {
     width: "100%",
     alignItems: "center",
-    gap: 20,
   },
   buttonBase: {
-    width: "90%",
-    maxWidth: 500,
-    height: 110,
-    borderWidth: 4,
-    borderRadius: 20,
+    width: "92%",
     justifyContent: "center",
   },
   easy: {
@@ -209,12 +266,6 @@ const styles = StyleSheet.create({
   buttonContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 15,
-    gap: 10,
-  },
-  innerIcon: {
-    height: 50,
-    width: 50,
   },
   textContainer: {
     flex: 1,
@@ -222,11 +273,8 @@ const styles = StyleSheet.create({
   },
   difficultyText: {
     fontFamily: "DifficultyFont",
-    fontSize: 30,
-    fontWeight: "semibold",
-    letterSpacing: 3,
+    fontWeight: "600",
   },
-  subText: {
-    fontSize: 14,
-  },
+  subText: {},
 });
+

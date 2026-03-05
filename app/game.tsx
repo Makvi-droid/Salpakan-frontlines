@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
 
 const BOARD_WIDTH = 9;
 const BOARD_HEIGHT = 8;
@@ -17,6 +18,14 @@ const DOUBLE_TAP_MS = 300;
 
 export default function GameScreen() {
   const router = useRouter();
+  const tokens = useResponsiveTokens(700);
+  const { width, height, rs, rsv, rf, maxContentWidth, shouldUseScrollFallback } = tokens;
+  const contentWidth = Math.min(maxContentWidth, rs(500));
+  const setupBoxHeight = rsv(96);
+  const controlRowHeight = rsv(36);
+  const controlRowsHeight = controlRowHeight * 5 + rsv(8) * 4;
+  const boardHeightBudget = Math.max(rsv(170), height - (setupBoxHeight + controlRowsHeight + rsv(330)));
+  const boardWidth = clamp(boardHeightBudget * (9 / 8), rs(230), Math.min(contentWidth, width * 0.9));
   const [showQuitModal, setShowQuitModal] = useState(false);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [placedByTileIndex, setPlacedByTileIndex] = useState<Record<number, string>>({});
@@ -304,47 +313,59 @@ export default function GameScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.container}>
-          <View style={styles.topMenuRow}>
+      <ScrollView
+        scrollEnabled={shouldUseScrollFallback}
+        showsVerticalScrollIndicator={shouldUseScrollFallback}
+        contentContainerStyle={[
+          styles.scrollContainer,
+          {
+            flexGrow: 1,
+            justifyContent: shouldUseScrollFallback ? "flex-start" : "center",
+            paddingVertical: rsv(shouldUseScrollFallback ? 16 : 8),
+            paddingHorizontal: rs(10),
+          },
+        ]}
+      >
+        <View style={[styles.container, { maxWidth: contentWidth }]}>
+          <View style={[styles.topMenuRow, { marginBottom: rsv(10) }]}>
             <TouchableOpacity
-              style={styles.menuButton}
+              style={[styles.menuButton, { width: rs(96), paddingVertical: rsv(6) }]}
               onPress={() => setShowQuitModal(true)}
             >
               <View style={styles.menuArrowIcon}>
                 <View style={styles.menuArrowTip} />
                 <View style={styles.menuArrowBody} />
               </View>
-              <Text style={styles.menuButtonText}>Menu</Text>
+              <Text style={[styles.menuButtonText, { fontSize: rf(16) }]}>Menu</Text>
             </TouchableOpacity>
-            <Text style={styles.topRowTitle}>Salpakan</Text>
-            <View style={styles.menuSpacer} />
+            <Text style={[styles.topRowTitle, { fontSize: rf(30) }]}>Salpakan</Text>
+            <View style={[styles.menuSpacer, { width: rs(96) }]} />
           </View>
 
-          <View style={styles.setupBox}>
+          <View style={[styles.setupBox, { height: setupBoxHeight, marginBottom: rsv(10), paddingTop: rsv(8) }]}>
             <View style={styles.turnIndicatorRow}>
               <View style={styles.turnIndicatorItem}>
-                <View style={styles.turnDot} />
-                <Text style={styles.turnIndicatorText}>Your turn</Text>
+                <View style={[styles.turnDot, { width: rs(16), height: rs(16), borderRadius: rs(8) }]} />
+                <Text style={[styles.turnIndicatorText, { fontSize: rf(18) }]}>Your turn</Text>
               </View>
 
               <View style={styles.turnIndicatorItem}>
-                <View style={styles.turnDot} />
-                <Text style={styles.turnIndicatorText}>Enemy turn</Text>
+                <View style={[styles.turnDot, { width: rs(16), height: rs(16), borderRadius: rs(8) }]} />
+                <Text style={[styles.turnIndicatorText, { fontSize: rf(18) }]}>Enemy turn</Text>
               </View>
             </View>
           </View>
 
-          <Text style={styles.subtitle}>Set your pieces</Text>
+          <Text style={[styles.subtitle, { fontSize: rf(28), marginTop: rsv(8), marginBottom: rsv(8) }]}>Set your pieces</Text>
 
           <TouchableOpacity
-            style={styles.randomizeButton}
+            style={[styles.randomizeButton, { paddingVertical: rsv(8), paddingHorizontal: rs(14), marginBottom: rsv(10) }]}
             onPress={handleRandomizeSet}
           >
-            <Text style={styles.randomizeButtonText}>Random Set</Text>
+            <Text style={[styles.randomizeButtonText, { fontSize: rf(15) }]}>Random Set</Text>
           </TouchableOpacity>
 
-          <View style={styles.boardOuterShell}>
+          <View style={[styles.boardOuterShell, { width: boardWidth, padding: rs(12), marginBottom: rsv(8) }]}>
             <View style={styles.boardFrame}>
               <View style={styles.boardGrid}>
                 {boardTiles.map((tile) => {
@@ -377,20 +398,20 @@ export default function GameScreen() {
 
             {hasPlacedPieces ? (
               <TouchableOpacity
-                style={styles.boardResetButton}
+                style={[styles.boardResetButton, { width: rs(28), height: rs(28), borderRadius: rs(14), top: -rs(12), right: -rs(12) }]}
                 onPress={handleResetBoard}
                 activeOpacity={0.85}
               >
-                <MaterialIcons name="close" size={20} color="#E81300" />
+                <MaterialIcons name="close" size={rs(16)} color="#E81300" />
               </TouchableOpacity>
             ) : null}
           </View>
 
-          <Text style={styles.boardInstructionText}>
+          <Text style={[styles.boardInstructionText, { fontSize: rf(16), marginBottom: rsv(10) }]}>
             Drag and drop your pieces on the{"\n"}board
           </Text>
 
-          <View style={styles.controlButtonsContainer}>
+          <View style={[styles.controlButtonsContainer, { rowGap: rsv(8), columnGap: rs(8), marginBottom: rsv(10) }]}>
             {controlButtons.map((buttonNumber, index) => {
               const row = Math.floor(index / 3);
               const column = index % 3;
@@ -403,10 +424,11 @@ export default function GameScreen() {
               const pieceId = getPieceId(column, row, label);
 
               return (
-                <View key={buttonNumber} style={styles.controlButtonSlot}>
+                <View key={buttonNumber} style={[styles.controlButtonSlot, { height: controlRowHeight }]}>
                   <TouchableOpacity
                     style={[
                       styles.controlButton,
+                      { height: controlRowHeight },
                       selectedPieceId === pieceId && styles.controlButtonActive,
                       (pieceCountById[pieceId] ?? 0) <= 0 && styles.controlButtonDepleted,
                     ]}
@@ -419,14 +441,15 @@ export default function GameScreen() {
                         selectedPieceId === pieceId && styles.controlButtonTextActive,
                         (pieceCountById[pieceId] ?? 0) <= 0 && styles.controlButtonTextDepleted,
                         column === 2 && styles.controlButtonTextThirdColumn,
+                        column === 2 ? { fontSize: rf(11), lineHeight: rf(12) } : { fontSize: rf(14) },
                       ]}
                     >
                       {label}
                     </Text>
                   </TouchableOpacity>
 
-                  <View style={styles.controlButtonCountBox}>
-                    <Text style={styles.controlButtonCount}>
+                  <View style={[styles.controlButtonCountBox, { width: rs(28) }]}>
+                    <Text style={[styles.controlButtonCount, { fontSize: rf(16) }]}>
                       x{pieceCountById[pieceId] ?? 0}
                     </Text>
                   </View>
@@ -444,12 +467,12 @@ export default function GameScreen() {
         onRequestClose={() => setShowQuitModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalMessage}>
+          <View style={[styles.modalCard, { maxWidth: Math.min(rs(340), width * 0.9), padding: rs(16) }]}>
+            <Text style={[styles.modalMessage, { fontSize: rf(34), lineHeight: rf(38), marginBottom: rsv(28) }]}>
               Are you sure you{"\n"}want to quit?
             </Text>
 
-            <View style={styles.modalButtonsRow}>
+            <View style={[styles.modalButtonsRow, { marginBottom: rsv(20), gap: rs(16) }]}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.yesButton]}
                 onPress={() => {
@@ -461,14 +484,14 @@ export default function GameScreen() {
                   }
                 }}
               >
-                <Text style={styles.modalButtonText}>Yes</Text>
+                <Text style={[styles.modalButtonText, { fontSize: rf(15) }]}>Yes</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.modalButton, styles.noButton]}
                 onPress={() => setShowQuitModal(false)}
               >
-                <Text style={styles.modalButtonText}>No</Text>
+                <Text style={[styles.modalButtonText, { fontSize: rf(15) }]}>No</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -799,3 +822,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+
