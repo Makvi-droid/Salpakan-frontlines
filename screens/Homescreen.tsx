@@ -48,10 +48,22 @@ const difficultyOptions: DifficultyOption[] = [
 
 function Homescreen() {
   const router = useRouter();
-  const { maxContentWidth, rs, rsv, rf, isCompactHeight, isUltraCompactHeight } = useResponsiveTokens();
+  const {
+    safeHeight,
+    layoutWidth,
+    rs,
+    rsv,
+    rf,
+    contentPaddingX,
+    sectionGap,
+    cardGap,
+    cardPadding,
+    panelRadius,
+    isCompactHeight,
+    isUltraCompactHeight,
+  } = useResponsiveTokens();
 
-  const contentWidth = Math.min(maxContentWidth, rs(510));
-  const cardGap = rsv(isUltraCompactHeight ? 6 : isCompactHeight ? 8 : 10);
+  const contentWidth = Math.min(layoutWidth, rs(530));
   const showFooterNote = !isCompactHeight;
   const iconFrameSize = rs(isUltraCompactHeight ? 44 : isCompactHeight ? 48 : 56);
 
@@ -92,20 +104,20 @@ function Homescreen() {
       <ScreenShell
         style={styles.root}
         maxWidth={contentWidth}
-        horizontalPadding={rs(12)}
-        topPadding={rsv(isUltraCompactHeight ? 4 : isCompactHeight ? 6 : 10)}
-        bottomPadding={rsv(isUltraCompactHeight ? 4 : isCompactHeight ? 6 : 10)}
+        horizontalPadding={contentPaddingX}
+        topPadding={rsv(isUltraCompactHeight ? 8 : 14)}
+        bottomPadding={rsv(isUltraCompactHeight ? 10 : 16)}
+        scrollable={safeHeight < 720}
       >
         <View style={[styles.contentRoot, { maxWidth: contentWidth }]}>
           <View
             style={[
               styles.selectionShell,
               {
-                flex: 1,
-                borderRadius: rs(24),
-                paddingHorizontal: rs(14),
-                paddingTop: rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 12 : 14),
-                paddingBottom: rsv(isUltraCompactHeight ? 8 : isCompactHeight ? 8 : 10),
+                borderRadius: panelRadius,
+                paddingHorizontal: cardPadding,
+                paddingTop: rsv(isUltraCompactHeight ? 12 : 16),
+                paddingBottom: rsv(isUltraCompactHeight ? 10 : 14),
               },
             ]}
           >
@@ -119,7 +131,7 @@ function Homescreen() {
               </View>
             </View>
 
-            <View style={[styles.cardStack, { gap: cardGap }]}>
+            <View style={[styles.cardStack, { gap: cardGap, paddingBottom: sectionGap }]}>
               {difficultyOptions.map((option) => {
                 const tone = difficultyTones[option.key];
 
@@ -129,7 +141,6 @@ function Homescreen() {
                     style={[
                       styles.difficultyCard,
                       {
-                        flex: 1,
                         borderRadius: rs(18),
                         padding: rs(isUltraCompactHeight ? 8 : 10),
                         backgroundColor: tone.shell,
@@ -210,7 +221,7 @@ function Homescreen() {
                 {
                   borderRadius: rs(16),
                   paddingVertical: rsv(isUltraCompactHeight ? 10 : 12),
-                  marginTop: rsv(isUltraCompactHeight ? 8 : 10),
+                  marginTop: safeHeight < 720 ? rsv(4) : rsv(8),
                 },
               ]}
               onPress={() => router.replace("/")}
@@ -252,8 +263,6 @@ const styles = StyleSheet.create({
   },
   contentRoot: {
     width: "100%",
-    flex: 1,
-    minHeight: 0,
   },
   selectionShell: {
     backgroundColor: appTheme.colors.fieldRaised,
@@ -283,8 +292,7 @@ const styles = StyleSheet.create({
     borderColor: appTheme.colors.lineStrong,
   },
   cardStack: {
-    flex: 1,
-    minHeight: 0,
+    paddingTop: 2,
   },
   backButton: {
     width: "100%",
@@ -305,10 +313,10 @@ const styles = StyleSheet.create({
     borderWidth: appTheme.borderWidth.regular,
   },
   difficultyFace: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 6,
+    minHeight: 96,
+    paddingVertical: 8,
     paddingHorizontal: 10,
   },
   cardRail: {

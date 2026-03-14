@@ -17,9 +17,14 @@ export type ResponsiveTokens = {
   scale: number;
   verticalScale: number;
   textScale: number;
-  maxContentWidth: number;
+  layoutWidth: number;
   isCompactHeight: boolean;
   isUltraCompactHeight: boolean;
+  contentPaddingX: number;
+  sectionGap: number;
+  cardGap: number;
+  cardPadding: number;
+  panelRadius: number;
   insets: {
     top: number;
     right: number;
@@ -48,6 +53,12 @@ export function useResponsiveTokens(): ResponsiveTokens {
     const rs = (value: number) => Math.round(value * scale);
     const rsv = (value: number) => Math.round(value * verticalScale);
     const rf = (value: number) => Math.round(value * textScale);
+    const layoutWidth = Math.min(safeWidth * 0.96, rs(540));
+    const contentPaddingX = rs(safeWidth > 720 ? 24 : safeWidth > 480 ? 18 : 14);
+    const sectionGap = rsv(isNaN(safeHeight) ? 14 : safeHeight < 690 ? 10 : safeHeight < 820 ? 14 : 18);
+    const cardGap = rsv(safeHeight < 690 ? 8 : safeHeight < 820 ? 10 : 12);
+    const cardPadding = rs(safeHeight < 690 ? 12 : safeHeight < 820 ? 14 : 18);
+    const panelRadius = rs(safeWidth > 720 ? 28 : 24);
 
     return {
       width,
@@ -57,11 +68,16 @@ export function useResponsiveTokens(): ResponsiveTokens {
       scale,
       verticalScale,
       textScale,
-      maxContentWidth: Math.min(safeWidth * 0.96, rs(500)),
+      layoutWidth,
       // Shorter phones use denser spacing and smaller hero chrome instead of
       // falling back to page scrolling.
       isCompactHeight: safeHeight < 760,
       isUltraCompactHeight: safeHeight < 690,
+      contentPaddingX,
+      sectionGap,
+      cardGap,
+      cardPadding,
+      panelRadius,
       insets,
       rs,
       rsv,

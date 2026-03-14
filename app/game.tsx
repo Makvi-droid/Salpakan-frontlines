@@ -32,29 +32,36 @@ export default function GameScreen() {
   const [moveSourceTileIndex, setMoveSourceTileIndex] = useState<number | null>(null);
   const [lastTap, setLastTap] = useState<{ tileIndex: number; time: number } | null>(null);
 
-  const { width, safeHeight, rs, rsv, rf, maxContentWidth, isCompactHeight, isUltraCompactHeight, insets } = useResponsiveTokens();
-  const contentWidth = Math.min(maxContentWidth, rs(520));
-  const shellTopPadding = rsv(isUltraCompactHeight ? 4 : isCompactHeight ? 6 : 8);
-  const shellBottomPadding = rsv(isUltraCompactHeight ? 4 : isCompactHeight ? 6 : 8);
-  const verticalGap = rsv(isUltraCompactHeight ? 4 : 6);
-  const topMenuHeight = rsv(isUltraCompactHeight ? 34 : isCompactHeight ? 38 : 42);
-  const setupHeaderHeight = rsv(isUltraCompactHeight ? 74 : isCompactHeight ? 84 : 98);
-  const actionRowHeight = rsv(isUltraCompactHeight ? 38 : isCompactHeight ? 42 : 48);
-  const inventoryHeaderHeight = rsv(isUltraCompactHeight ? 42 : 48);
-  const inventoryExpandedHeight = rsv(isUltraCompactHeight ? 72 : isCompactHeight ? 84 : 98);
-  const instructionHeight = isUltraCompactHeight ? 0 : rsv(18);
-  const fixedSectionHeight =
-    topMenuHeight +
-    setupHeaderHeight +
-    actionRowHeight +
-    inventoryHeaderHeight +
-    instructionHeight +
-    verticalGap * 5 +
-    (isInventoryExpanded ? inventoryExpandedHeight + verticalGap : 0);
-  const contentHeightBudget = safeHeight - shellTopPadding - shellBottomPadding;
-  const boardAreaBudget = contentHeightBudget - fixedSectionHeight;
-  const boardHeightBudget = clamp(boardAreaBudget, rsv(232), rsv(isCompactHeight ? 340 : 392));
-  const boardWidth = clamp(boardHeightBudget * (9 / 8), rs(288), Math.min(contentWidth, width * 0.94));
+  const {
+    width,
+    safeWidth,
+    rs,
+    rsv,
+    rf,
+    layoutWidth,
+    contentPaddingX,
+    sectionGap,
+    cardGap,
+    cardPadding,
+    panelRadius,
+    isCompactHeight,
+    isUltraCompactHeight,
+    insets,
+  } = useResponsiveTokens();
+  const contentWidth = Math.min(layoutWidth, rs(540));
+  const boardWidth = clamp(
+    Math.min(contentWidth, safeWidth * (safeWidth > 720 ? 0.78 : 0.96)),
+    rs(286),
+    rs(safeWidth > 720 ? 460 : 420)
+  );
+  const topMenuHeight = rsv(isUltraCompactHeight ? 36 : isCompactHeight ? 40 : 44);
+  const setupHeaderMinHeight = rsv(isUltraCompactHeight ? 88 : isCompactHeight ? 96 : 104);
+  const actionRowMinHeight = rsv(isUltraCompactHeight ? 42 : 50);
+  const inventoryHeaderMinHeight = rsv(isUltraCompactHeight ? 44 : 50);
+  const inventoryExpandedMinHeight = rsv(isUltraCompactHeight ? 96 : isCompactHeight ? 110 : 124);
+  const shellTopPadding = rsv(isUltraCompactHeight ? 8 : 12);
+  const shellBottomPadding = rsv(isUltraCompactHeight ? 10 : 14);
+  const allowPageScroll = true;
 
   const boardTiles = Array.from({ length: BOARD_WIDTH * BOARD_HEIGHT }, (_, index) => ({ index }));
 
@@ -255,22 +262,23 @@ export default function GameScreen() {
   const difficultyLabel = level === "easy" ? "Recruit" : level === "medium" ? "Vanguard" : level === "hard" ? "Warlord" : "Command";
 
   useEffect(() => {
-    if (isCompactHeight) {
+    if (isUltraCompactHeight) {
       setIsInventoryExpanded(false);
     }
-  }, [isCompactHeight]);
+  }, [isUltraCompactHeight]);
 
   return (
     <View style={styles.safeArea}>
       <ScreenShell
         style={styles.pageFrame}
         maxWidth={contentWidth}
-        horizontalPadding={rs(10)}
+        horizontalPadding={contentPaddingX}
         topPadding={shellTopPadding}
         bottomPadding={shellBottomPadding}
+        scrollable={allowPageScroll}
       >
         <View style={[styles.container, { maxWidth: contentWidth }]}>
-          <View style={[styles.topMenuRow, { minHeight: topMenuHeight, marginBottom: verticalGap }]}>
+          <View style={[styles.topMenuRow, { minHeight: topMenuHeight, marginBottom: sectionGap }]}>
             <TouchableOpacity style={[styles.menuButton, { width: rs(86), paddingVertical: rsv(4) }]} onPress={() => setShowQuitModal(true)}>
               <View style={styles.menuArrowIcon}>
                 <View style={styles.menuArrowTip} />
@@ -282,8 +290,8 @@ export default function GameScreen() {
             <View style={[styles.menuSpacer, { width: rs(86) }]} />
           </View>
 
-          <View style={[styles.setupBox, { minHeight: setupHeaderHeight, marginBottom: verticalGap, paddingTop: rsv(8), paddingBottom: rsv(8) }]}>
-            <View style={[styles.setupHeaderRow, { marginBottom: rsv(isUltraCompactHeight ? 4 : 6) }]}>
+          <View style={[styles.setupBox, { minHeight: setupHeaderMinHeight, marginBottom: sectionGap, paddingHorizontal: cardPadding, paddingTop: rsv(10), paddingBottom: rsv(10), borderRadius: panelRadius }]}>
+            <View style={[styles.setupHeaderRow, { marginBottom: rsv(isUltraCompactHeight ? 6 : 8) }]}>
               <View>
                 <Text style={[styles.setupLabel, { fontSize: rf(10) }]}>FORMATION PHASE</Text>
                 <Text style={[styles.setupTitle, { fontSize: rf(isCompactHeight ? 20 : 24) }]}>Prepare the board</Text>
@@ -304,9 +312,9 @@ export default function GameScreen() {
             </View>
           </View>
 
-          <View style={[styles.actionRow, { minHeight: actionRowHeight, marginBottom: verticalGap }]}>
+          <View style={[styles.actionRow, { minHeight: actionRowMinHeight, marginBottom: sectionGap }]}>
             <Text style={[styles.subtitle, { fontSize: rf(isCompactHeight ? 18 : 21) }]}>Set your formation</Text>
-            <View style={[styles.actionButtons, { gap: rs(8) }]}>
+            <View style={[styles.actionButtons, { gap: cardGap }]}>
               <TouchableOpacity style={[styles.actionButton, { paddingVertical: rsv(5), paddingHorizontal: rs(12), borderRadius: rs(10) }]} onPress={handleRandomizeSet}>
                 <Text style={[styles.actionButtonText, { fontSize: rf(12) }]}>Random</Text>
               </TouchableOpacity>
@@ -326,7 +334,7 @@ export default function GameScreen() {
             </View>
           </View>
 
-          <View style={[styles.boardWrap, { marginBottom: verticalGap }]}>
+          <View style={[styles.boardWrap, { marginBottom: sectionGap }]}>
             <View style={[styles.boardOuterShell, { width: boardWidth, padding: rs(8) }]}>
               <View style={styles.boardFrame}>
                 <View style={styles.boardGrid}>
@@ -370,7 +378,7 @@ export default function GameScreen() {
             </View>
           </View>
 
-          <View style={[styles.inventoryHeader, { minHeight: inventoryHeaderHeight, marginBottom: isInventoryExpanded ? verticalGap : 0 }]}>
+          <View style={[styles.inventoryHeader, { minHeight: inventoryHeaderMinHeight, marginBottom: isInventoryExpanded ? cardGap : 0, paddingHorizontal: cardPadding }]}>
             <View style={styles.inventoryInfoBlock}>
               <Text style={[styles.inventoryInfoLabel, { fontSize: rf(11) }]}>{isUltraCompactHeight ? "Pick" : "Selected"}</Text>
               <Text style={[styles.inventoryInfoValue, { fontSize: rf(13) }]} numberOfLines={1}>
@@ -387,8 +395,8 @@ export default function GameScreen() {
           </View>
 
           {isInventoryExpanded ? (
-            <View style={[styles.inventoryRailContainer, { marginBottom: verticalGap, maxHeight: inventoryExpandedHeight }]}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.inventoryRailContent, { columnGap: rs(8), paddingRight: rs(8) }]}>
+            <View style={[styles.inventoryRailContainer, { marginBottom: sectionGap, minHeight: inventoryExpandedMinHeight }]}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.inventoryRailContent, { columnGap: cardGap, paddingRight: rs(8) }]}>
                 {pieceDefinitions.map((piece) => {
                   const remaining = pieceCountById[piece.id] ?? 0;
                   const isSelected = selectedPieceId === piece.id;
@@ -398,7 +406,7 @@ export default function GameScreen() {
                       key={piece.id}
                       style={[
                         styles.inventoryChip,
-                        { minWidth: rs(90), minHeight: rsv(70), paddingHorizontal: rs(8), paddingVertical: rsv(6), borderRadius: rs(10) },
+                        { minWidth: rs(92), minHeight: rsv(isUltraCompactHeight ? 82 : 90), paddingHorizontal: rs(8), paddingVertical: rsv(8), borderRadius: rs(10) },
                         isSelected && styles.inventoryChipSelected,
                         isDepleted && styles.inventoryChipDepleted,
                       ]}
@@ -427,7 +435,7 @@ export default function GameScreen() {
           ) : null}
 
           {!isUltraCompactHeight ? (
-            <Text style={[styles.boardInstructionText, { minHeight: instructionHeight, fontSize: rf(10) }]}>
+            <Text style={[styles.boardInstructionText, { fontSize: rf(10), marginTop: rsv(2) }]}>
               Expand the reserve to assign ranks, then place them in the red frontline zone.
             </Text>
           ) : null}
@@ -436,7 +444,7 @@ export default function GameScreen() {
 
       <Modal visible={showQuitModal} transparent animationType="fade" onRequestClose={() => setShowQuitModal(false)}>
         <View style={[styles.modalOverlay, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
-          <View style={[styles.modalCard, { maxWidth: Math.min(rs(330), width * 0.9), padding: rs(16) }]}>
+          <View style={[styles.modalCard, { maxWidth: Math.min(rs(360), width * 0.9), padding: rs(18) }]}>
             <Text style={[styles.modalMessage, { fontSize: rf(28), lineHeight: rf(32), marginBottom: rsv(20) }]}>Leave the frontline?</Text>
             <View style={[styles.modalButtonsRow, { marginBottom: rsv(14), gap: rs(16) }]}>
               <TouchableOpacity
@@ -462,7 +470,7 @@ export default function GameScreen() {
 
       <Modal visible={showReadyModal} transparent animationType="fade" onRequestClose={() => setShowReadyModal(false)}>
         <View style={[styles.modalOverlay, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
-          <View style={[styles.modalCard, { maxWidth: Math.min(rs(330), width * 0.9), padding: rs(16) }]}>
+          <View style={[styles.modalCard, { maxWidth: Math.min(rs(360), width * 0.9), padding: rs(18) }]}>
             <Text style={[styles.modalMessage, { fontSize: rf(24), lineHeight: rf(28), marginBottom: rsv(20) }]}>All ranks are in place.{"\n"}Confirm ready?</Text>
             <View style={[styles.modalButtonsRow, { marginBottom: rsv(14), gap: rs(16) }]}>
               <TouchableOpacity style={[styles.modalButton, styles.modalPrimaryButton]} onPress={() => setShowReadyModal(false)}>
@@ -482,7 +490,7 @@ export default function GameScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: appTheme.colors.background },
   pageFrame: { flex: 1, alignItems: "center" },
-  container: { width: "100%", flex: 1, minHeight: 0, alignItems: "center" },
+  container: { width: "100%", alignItems: "center" },
   topMenuRow: { width: "100%", flexDirection: "row", alignItems: "center" },
   topRowTitle: { flex: 1, textAlign: "center", color: appTheme.colors.ink, fontFamily: appTheme.fonts.display, letterSpacing: 0.15, textTransform: "uppercase" },
   menuButton: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start" },
@@ -491,19 +499,19 @@ const styles = StyleSheet.create({
   menuArrowTip: { width: 0, height: 0, borderTopWidth: 7, borderBottomWidth: 7, borderRightWidth: 12, borderTopColor: "transparent", borderBottomColor: "transparent", borderRightColor: appTheme.colors.brassBright },
   menuArrowBody: { width: 14, height: 3, backgroundColor: appTheme.colors.brassBright, marginLeft: -1, borderRadius: 2 },
   menuButtonText: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.body },
-  setupBox: { width: "100%", backgroundColor: appTheme.colors.field, borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.colors.lineStrong, borderRadius: appTheme.radius.lg, paddingHorizontal: 12, ...appTheme.shadow.soft },
-  setupHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  setupBox: { width: "100%", backgroundColor: appTheme.colors.field, borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.colors.lineStrong, ...appTheme.shadow.soft },
+  setupHeaderRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   setupLabel: { color: appTheme.colors.brassBright, fontFamily: appTheme.fonts.body, letterSpacing: 0.9 },
   setupTitle: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.display, letterSpacing: 0.15, textTransform: "uppercase" },
   difficultyBadge: { backgroundColor: appTheme.colors.alert, borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.colors.brassBright },
   difficultyBadgeText: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.body, letterSpacing: 0.7, textTransform: "uppercase" },
-  turnIndicatorRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  turnIndicatorRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", rowGap: 6, columnGap: 10 },
   turnIndicatorRowCompact: { gap: 8 },
   turnIndicatorItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   turnDot: { borderWidth: appTheme.borderWidth.thin, borderColor: appTheme.colors.brassBright, backgroundColor: appTheme.colors.alertBright },
   turnIndicatorText: { color: appTheme.colors.parchment, fontFamily: appTheme.fonts.body },
-  actionRow: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  actionButtons: { flexDirection: "row", alignItems: "center" },
+  actionRow: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", rowGap: 8, columnGap: 12 },
+  actionButtons: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
   subtitle: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.display, letterSpacing: 0.12, textTransform: "uppercase" },
   actionButton: { borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.colors.lineStrong, backgroundColor: appTheme.colors.fieldRaised },
   actionButtonText: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.body, letterSpacing: 0.2 },
@@ -511,7 +519,7 @@ const styles = StyleSheet.create({
   readyButtonDisabled: { borderColor: appTheme.colors.mono.disabledBorder, backgroundColor: appTheme.colors.mono.disabledBg },
   readyButtonTextEnabled: { color: appTheme.colors.ink },
   readyButtonTextDisabled: { color: appTheme.colors.mono.disabledText },
-  boardWrap: { width: "100%", flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" },
+  boardWrap: { width: "100%", alignItems: "center", justifyContent: "center" },
   boardOuterShell: { aspectRatio: 9 / 8, backgroundColor: appTheme.colors.board.shell, borderWidth: appTheme.borderWidth.thick, borderColor: appTheme.colors.board.shellBorder, borderRadius: appTheme.radius.lg, position: "relative", ...appTheme.shadow.hard },
   boardResetButton: { position: "absolute", backgroundColor: appTheme.colors.field, borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.colors.brassBright, alignItems: "center", justifyContent: "center", zIndex: 10, ...appTheme.shadow.soft },
   boardFrame: { flex: 1, borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.colors.board.frameBorder, backgroundColor: appTheme.colors.board.frame, overflow: "hidden", padding: 3 },
@@ -524,7 +532,7 @@ const styles = StyleSheet.create({
   placedTile: { backgroundColor: appTheme.colors.board.piece, borderColor: appTheme.colors.board.pieceEdge },
   moveSourceTile: { borderColor: appTheme.colors.brassBright, borderWidth: appTheme.borderWidth.thick },
   tilePieceText: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.body, textAlign: "center" },
-  inventoryHeader: { width: "100%", borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.colors.line, borderRadius: appTheme.radius.md, backgroundColor: appTheme.colors.fieldRaised, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8 },
+  inventoryHeader: { width: "100%", borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.colors.line, borderRadius: appTheme.radius.md, backgroundColor: appTheme.colors.fieldRaised, flexDirection: "row", alignItems: "center", justifyContent: "space-between", columnGap: 8 },
   inventoryInfoBlock: { flex: 1 },
   inventoryInfoLabel: { color: appTheme.colors.inkSoft, fontFamily: appTheme.fonts.body },
   inventoryInfoValue: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.body },
@@ -544,10 +552,10 @@ const styles = StyleSheet.create({
   inventoryCountTextSelected: { color: appTheme.colors.backgroundDeep },
   boardInstructionText: { color: appTheme.colors.inkMuted, fontFamily: appTheme.fonts.body, textAlign: "center" },
   modalOverlay: { flex: 1, backgroundColor: appTheme.colors.scrim, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
-  modalCard: { width: "100%", aspectRatio: 1, backgroundColor: appTheme.colors.field, borderRadius: appTheme.radius.lg, borderWidth: appTheme.borderWidth.thick, borderColor: appTheme.colors.lineStrong, justifyContent: "space-between" },
-  modalMessage: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.body, textAlign: "center", marginTop: 14 },
-  modalButtonsRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 8 },
-  modalButton: { width: "40%", aspectRatio: 11 / 6, borderRadius: appTheme.radius.sm, alignItems: "center", justifyContent: "center", borderWidth: appTheme.borderWidth.regular },
+  modalCard: { width: "100%", backgroundColor: appTheme.colors.field, borderRadius: appTheme.radius.lg, borderWidth: appTheme.borderWidth.thick, borderColor: appTheme.colors.lineStrong },
+  modalMessage: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.body, textAlign: "center", marginTop: 8 },
+  modalButtonsRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 4 },
+  modalButton: { minWidth: "44%", minHeight: 52, borderRadius: appTheme.radius.sm, alignItems: "center", justifyContent: "center", borderWidth: appTheme.borderWidth.regular },
   modalPrimaryButton: { backgroundColor: appTheme.colors.alert, borderColor: appTheme.colors.brassBright },
   modalSecondaryButton: { backgroundColor: appTheme.colors.fieldRaised, borderColor: appTheme.colors.line },
   modalButtonText: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.body },

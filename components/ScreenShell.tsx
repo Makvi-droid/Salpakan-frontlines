@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { StyleProp, StyleSheet, View, ViewStyle } from "react-native";
+import { ScrollView, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ScreenShellProps = {
@@ -10,6 +10,7 @@ type ScreenShellProps = {
   topPadding?: number;
   bottomPadding?: number;
   style?: StyleProp<ViewStyle>;
+  scrollable?: boolean;
 };
 
 export default function ScreenShell({
@@ -20,8 +21,31 @@ export default function ScreenShell({
   topPadding = 0,
   bottomPadding = 0,
   style,
+  scrollable = false,
 }: ScreenShellProps) {
   const insets = useSafeAreaInsets();
+
+  if (scrollable) {
+    return (
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.root,
+          style,
+          {
+            paddingLeft: insets.left + horizontalPadding,
+            paddingRight: insets.right + horizontalPadding,
+            paddingTop: insets.top + topPadding,
+            paddingBottom: insets.bottom + bottomPadding,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.scrollContent, { maxWidth }, contentStyle]}>{children}</View>
+      </ScrollView>
+    );
+  }
 
   return (
     <View
@@ -42,6 +66,9 @@ export default function ScreenShell({
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+  },
   root: {
     flex: 1,
     alignItems: "center",
@@ -49,5 +76,8 @@ const styles = StyleSheet.create({
   content: {
     width: "100%",
     flex: 1,
+  },
+  scrollContent: {
+    width: "100%",
   },
 });

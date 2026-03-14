@@ -33,12 +33,26 @@ const menuActions: MenuAction[] = [
 
 export default function MainMenuScreen() {
   const router = useRouter();
-  const { width, rs, rsv, rf, maxContentWidth, isCompactHeight, isUltraCompactHeight } = useResponsiveTokens();
+  const {
+    width,
+    safeHeight,
+    rs,
+    rsv,
+    rf,
+    layoutWidth,
+    contentPaddingX,
+    sectionGap,
+    cardGap,
+    cardPadding,
+    panelRadius,
+    isCompactHeight,
+    isUltraCompactHeight,
+  } = useResponsiveTokens();
 
-  const contentWidth = Math.min(maxContentWidth, rs(500));
-  const titleSize = clamp(width * 0.13, rf(40), rf(isCompactHeight ? 58 : 68));
-  const subtitleSize = clamp(width * 0.09, rf(32), rf(isCompactHeight ? 44 : 52));
-  const buttonGap = rsv(isUltraCompactHeight ? 10 : 14);
+  const contentWidth = Math.min(layoutWidth, rs(520));
+  const titleSize = clamp(width * 0.115, rf(38), rf(isCompactHeight ? 52 : 60));
+  const subtitleSize = clamp(width * 0.082, rf(28), rf(isCompactHeight ? 38 : 46));
+  const heroTopSpacing = rsv(safeHeight < 720 ? 10 : safeHeight < 860 ? 24 : 38);
 
   return (
     <View style={styles.safeArea}>
@@ -70,18 +84,19 @@ export default function MainMenuScreen() {
       <ScreenShell
         style={styles.root}
         maxWidth={contentWidth}
-        horizontalPadding={rs(16)}
-        topPadding={rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 14 : 18)}
-        bottomPadding={rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 12 : 16)}
+        horizontalPadding={contentPaddingX}
+        topPadding={rsv(isUltraCompactHeight ? 10 : 16)}
+        bottomPadding={rsv(isUltraCompactHeight ? 12 : 18)}
+        scrollable={safeHeight < 680}
       >
-        <View style={[styles.contentRoot, { maxWidth: contentWidth }]}>
+        <View style={[styles.contentRoot, { maxWidth: contentWidth, paddingTop: heroTopSpacing }]}>
           <View
             style={[
               styles.heroPanel,
               {
-                borderRadius: rs(28),
-                paddingHorizontal: rs(isUltraCompactHeight ? 16 : 22),
-                paddingVertical: rsv(isUltraCompactHeight ? 18 : isCompactHeight ? 24 : 32),
+                borderRadius: panelRadius,
+                paddingHorizontal: cardPadding,
+                paddingVertical: rsv(isUltraCompactHeight ? 18 : isCompactHeight ? 22 : 28),
               },
             ]}
           >
@@ -106,9 +121,9 @@ export default function MainMenuScreen() {
             style={[
               styles.actionPanel,
               {
-                marginTop: rsv(isUltraCompactHeight ? 14 : 18),
-                borderRadius: rs(24),
-                paddingHorizontal: rs(14),
+                marginTop: sectionGap,
+                borderRadius: rs(panelRadius - 2),
+                paddingHorizontal: cardPadding,
                 paddingVertical: rsv(isUltraCompactHeight ? 14 : 18),
               },
             ]}
@@ -116,7 +131,7 @@ export default function MainMenuScreen() {
             <Text style={[styles.sectionLabel, { fontSize: rf(10) }]}>MAIN MENU</Text>
             <Text style={[styles.sectionTitle, { fontSize: rf(isCompactHeight ? 24 : 28), marginBottom: rsv(10) }]}>Choose your next order</Text>
 
-            <View style={[styles.actionStack, { gap: buttonGap }]}>
+            <View style={[styles.actionStack, { gap: cardGap }]}>
               {menuActions.map((action) => (
                 <TouchableOpacity
                   key={action.label}
@@ -125,7 +140,7 @@ export default function MainMenuScreen() {
                     action.isPrimary ? styles.actionButtonPrimary : styles.actionButtonSecondary,
                     {
                       borderRadius: rs(20),
-                      paddingHorizontal: rs(14),
+                      paddingHorizontal: cardPadding,
                       paddingVertical: rsv(isUltraCompactHeight ? 12 : 14),
                     },
                   ]}
@@ -184,9 +199,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   contentRoot: {
-    flex: 1,
     width: "100%",
-    justifyContent: "center",
+    justifyContent: "flex-start",
   },
   heroPanel: {
     backgroundColor: appTheme.colors.field,
@@ -209,11 +223,12 @@ const styles = StyleSheet.create({
     color: appTheme.colors.brassBright,
   },
   heroCopy: {
-    maxWidth: "92%",
+    maxWidth: "94%",
     color: appTheme.colors.parchmentSoft,
     fontFamily: appTheme.fonts.body,
   },
   actionPanel: {
+    width: "100%",
     backgroundColor: appTheme.colors.fieldRaised,
     borderWidth: appTheme.borderWidth.regular,
     borderColor: appTheme.colors.line,
@@ -238,6 +253,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: appTheme.borderWidth.regular,
+    minHeight: 92,
   },
   actionButtonPrimary: {
     backgroundColor: appTheme.colors.alert,

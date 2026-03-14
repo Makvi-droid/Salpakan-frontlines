@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { appTheme } from "@/constants/theme";
@@ -43,9 +43,21 @@ const guideCards: GuideCard[] = [
 
 export default function GuideScreen() {
   const router = useRouter();
-  const { rs, rsv, rf, maxContentWidth, isCompactHeight, isUltraCompactHeight } = useResponsiveTokens();
+  const {
+    layoutWidth,
+    rs,
+    rsv,
+    rf,
+    contentPaddingX,
+    sectionGap,
+    cardGap,
+    cardPadding,
+    panelRadius,
+    isCompactHeight,
+    isUltraCompactHeight,
+  } = useResponsiveTokens();
 
-  const contentWidth = Math.min(maxContentWidth, rs(520));
+  const contentWidth = Math.min(layoutWidth, rs(540));
 
   return (
     <View style={styles.safeArea}>
@@ -65,13 +77,14 @@ export default function GuideScreen() {
       <ScreenShell
         style={styles.root}
         maxWidth={contentWidth}
-        horizontalPadding={rs(12)}
-        topPadding={rsv(isUltraCompactHeight ? 6 : isCompactHeight ? 8 : 12)}
-        bottomPadding={rsv(isUltraCompactHeight ? 6 : isCompactHeight ? 8 : 12)}
+        horizontalPadding={contentPaddingX}
+        topPadding={rsv(isUltraCompactHeight ? 8 : 12)}
+        bottomPadding={rsv(isUltraCompactHeight ? 10 : 16)}
+        scrollable
       >
         <View style={[styles.contentRoot, { maxWidth: contentWidth }]}>
           <TouchableOpacity
-            style={[styles.backButton, { marginBottom: rsv(12), borderRadius: rs(14), paddingHorizontal: rs(12), paddingVertical: rsv(8) }]}
+            style={[styles.backButton, { marginBottom: sectionGap, borderRadius: rs(14), paddingHorizontal: rs(12), paddingVertical: rsv(8) }]}
             onPress={() => router.replace("/")}
             activeOpacity={0.85}
           >
@@ -83,10 +96,10 @@ export default function GuideScreen() {
             style={[
               styles.headerPanel,
               {
-                borderRadius: rs(24),
-                paddingHorizontal: rs(16),
+                borderRadius: panelRadius,
+                paddingHorizontal: cardPadding,
                 paddingVertical: rsv(isUltraCompactHeight ? 12 : 16),
-                marginBottom: rsv(12),
+                marginBottom: sectionGap,
               },
             ]}
           >
@@ -97,7 +110,7 @@ export default function GuideScreen() {
             </Text>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: rsv(12), rowGap: rsv(10) }]}>
+          <View style={[styles.scrollContent, { paddingBottom: rsv(12), rowGap: cardGap }]}>
             {guideCards.map((card) => (
               <View
                 key={card.title}
@@ -105,7 +118,7 @@ export default function GuideScreen() {
                   styles.guideCard,
                   {
                     borderRadius: rs(20),
-                    paddingHorizontal: rs(14),
+                    paddingHorizontal: cardPadding,
                     paddingVertical: rsv(isUltraCompactHeight ? 12 : 14),
                   },
                 ]}
@@ -119,7 +132,7 @@ export default function GuideScreen() {
                 </View>
               </View>
             ))}
-          </ScrollView>
+          </View>
         </View>
       </ScreenShell>
     </View>
@@ -140,7 +153,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   contentRoot: {
-    flex: 1,
     width: "100%",
   },
   backButton: {
@@ -184,6 +196,7 @@ const styles = StyleSheet.create({
   guideCard: {
     flexDirection: "row",
     alignItems: "flex-start",
+    minHeight: 104,
     backgroundColor: appTheme.colors.fieldRaised,
     borderWidth: appTheme.borderWidth.regular,
     borderColor: appTheme.colors.line,
