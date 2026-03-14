@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   mainPanel: {
     backgroundColor: appTheme.colors.field,
     borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.colors.lineStrong,
+    borderColor: appTheme.surfaces.section.borderColor,
     ...appTheme.shadow.hard,
   },
   heroContent: {

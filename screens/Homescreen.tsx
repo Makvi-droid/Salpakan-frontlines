@@ -49,13 +49,11 @@ const difficultyOptions: DifficultyOption[] = [
 function Homescreen() {
   const router = useRouter();
   const {
-    safeHeight,
     layoutWidth,
     rs,
     rsv,
     rf,
     contentPaddingX,
-    sectionGap,
     cardGap,
     cardPadding,
     panelRadius,
@@ -65,7 +63,13 @@ function Homescreen() {
 
   const contentWidth = Math.min(layoutWidth, rs(530));
   const iconFrameSize = rs(isUltraCompactHeight ? 44 : isCompactHeight ? 50 : 58);
-  const scrollable = safeHeight < 760;
+  const shellTopPadding = rsv(isUltraCompactHeight ? 8 : isCompactHeight ? 12 : 18);
+  const shellBottomPadding = rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 14 : 20);
+  const mergedPanelPaddingTop = rsv(isUltraCompactHeight ? 12 : isCompactHeight ? 16 : 22);
+  const mergedPanelPaddingBottom = rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 14 : 18);
+  const mergedSectionGap = rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 12 : 16);
+  const optionCardPadding = rs(isUltraCompactHeight ? 7 : isCompactHeight ? 8 : 10);
+  const optionMinHeight = rsv(isUltraCompactHeight ? 90 : isCompactHeight ? 96 : 102);
 
   const handleStartGame = (chosenDifficulty: Difficulty) => {
     router.push({
@@ -105,42 +109,31 @@ function Homescreen() {
         style={styles.root}
         maxWidth={contentWidth}
         horizontalPadding={contentPaddingX}
-        topPadding={rsv(isUltraCompactHeight ? 10 : 18)}
-        bottomPadding={rsv(isUltraCompactHeight ? 12 : 20)}
-        scrollable={scrollable}
+        topPadding={shellTopPadding}
+        bottomPadding={shellBottomPadding}
+        scrollable={false}
       >
-        <View style={[styles.contentRoot, !scrollable && styles.contentRootCentered, { maxWidth: contentWidth }]}>
+        <View style={[styles.contentRoot, styles.contentRootCentered, { maxWidth: contentWidth }]}>
           <View
             style={[
-              styles.heroPanel,
+              styles.mainPanel,
               {
                 borderRadius: panelRadius,
                 paddingHorizontal: cardPadding,
-                paddingTop: rsv(isUltraCompactHeight ? 16 : 22),
-                paddingBottom: rsv(isUltraCompactHeight ? 14 : 18),
+                paddingTop: mergedPanelPaddingTop,
+                paddingBottom: mergedPanelPaddingBottom,
               },
             ]}
           >
-            <Text style={[styles.heroLabel, { fontSize: rf(10) }]}>COMMAND SELECTION</Text>
-            <Text style={[styles.heroTitle, { fontSize: rf(isCompactHeight ? 26 : 30), marginTop: rsv(4) }]}>Choose your command</Text>
-            <Text style={[styles.heroCopy, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(8) }]}>
-              Pick your opening pressure, then deploy to the frontline.
-            </Text>
-          </View>
+            <View style={styles.heroContent}>
+              <Text style={[styles.heroLabel, { fontSize: rf(10) }]}>COMMAND SELECTION</Text>
+              <Text style={[styles.heroTitle, { fontSize: rf(isCompactHeight ? 26 : 30), marginTop: rsv(4) }]}>Choose your command</Text>
+              <Text style={[styles.heroCopy, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(8) }]}>
+                Pick your opening pressure, then deploy to the frontline.
+              </Text>
+            </View>
 
-          <View
-            style={[
-              styles.selectionShell,
-              {
-                borderRadius: panelRadius,
-                paddingHorizontal: cardPadding,
-                paddingTop: rsv(isUltraCompactHeight ? 14 : 18),
-                paddingBottom: rsv(isUltraCompactHeight ? 14 : 18),
-                marginTop: sectionGap,
-              },
-            ]}
-          >
-            <View style={[styles.cardStack, { gap: cardGap }]}>
+            <View style={[styles.cardStack, { gap: cardGap, marginTop: mergedSectionGap }]}>
               {difficultyOptions.map((option) => {
                 const tone = difficultyTones[option.key];
 
@@ -151,7 +144,7 @@ function Homescreen() {
                       styles.difficultyCard,
                       {
                         borderRadius: rs(20),
-                        padding: rs(isUltraCompactHeight ? 8 : 10),
+                        padding: optionCardPadding,
                         backgroundColor: tone.shell,
                         borderColor: tone.line,
                       },
@@ -159,7 +152,7 @@ function Homescreen() {
                     onPress={() => handleStartGame(option.key)}
                     activeOpacity={0.88}
                   >
-                    <View style={[styles.difficultyFace, { borderRadius: rs(18), backgroundColor: tone.face }]}>
+                    <View style={[styles.difficultyFace, { minHeight: optionMinHeight, borderRadius: rs(18), backgroundColor: tone.face }]}>
                       <View style={[styles.cardRail, { width: rs(8), borderRadius: rs(8), backgroundColor: tone.accent }]} />
 
                       <View
@@ -220,7 +213,7 @@ function Homescreen() {
                 {
                   borderRadius: rs(16),
                   paddingVertical: rsv(isUltraCompactHeight ? 10 : 12),
-                  marginTop: sectionGap,
+                  marginTop: mergedSectionGap,
                 },
               ]}
               onPress={() => router.replace("/")}
@@ -261,32 +254,32 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
   },
-  heroPanel: {
+  mainPanel: {
     backgroundColor: appTheme.surfaces.hero.backgroundColor,
     borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.surfaces.hero.borderColor,
+    borderColor: appTheme.surfaces.section.borderColor,
     ...appTheme.shadow.hard,
+  },
+  heroContent: {
+    alignItems: "center",
   },
   heroLabel: {
     color: appTheme.colors.brassBright,
     fontFamily: appTheme.fonts.body,
     letterSpacing: 1.1,
+    textAlign: "center",
   },
   heroTitle: {
     color: appTheme.colors.ink,
     fontFamily: appTheme.fonts.display,
     textTransform: "uppercase",
     letterSpacing: 0.15,
+    textAlign: "center",
   },
   heroCopy: {
     color: appTheme.colors.parchmentSoft,
     fontFamily: appTheme.fonts.body,
-  },
-  selectionShell: {
-    backgroundColor: appTheme.surfaces.section.backgroundColor,
-    borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.surfaces.section.borderColor,
-    ...appTheme.shadow.soft,
+    textAlign: "center",
   },
   cardStack: {
     paddingTop: 2,
@@ -297,7 +290,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: appTheme.surfaces.commandSecondary.backgroundColor,
     borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.surfaces.commandSecondary.borderColor,
+    borderColor: appTheme.surfaces.section.borderColor,
   },
   backButtonText: {
     color: appTheme.surfaces.commandSecondary.textColor,
@@ -313,7 +306,6 @@ const styles = StyleSheet.create({
   difficultyFace: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 102,
     paddingVertical: 10,
     paddingHorizontal: 10,
   },

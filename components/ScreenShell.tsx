@@ -30,7 +30,7 @@ export default function ScreenShell({
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
-          styles.root,
+          styles.scrollRoot,
           style,
           {
             paddingLeft: insets.left + horizontalPadding,
@@ -71,6 +71,9 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
+    alignItems: "center",
+  },
+  scrollRoot: {
     alignItems: "center",
   },
   content: {

@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { appTheme } from "@/constants/theme";
@@ -58,6 +58,10 @@ export default function GuideScreen() {
   } = useResponsiveTokens();
 
   const contentWidth = Math.min(layoutWidth, rs(540));
+  const guideIconColor = "#6B4616";
+  const shellTopPadding = rsv(isUltraCompactHeight ? 8 : 12);
+  const shellBottomPadding = rsv(isUltraCompactHeight ? 10 : 16);
+  const manualGap = rsv(isUltraCompactHeight ? 8 : 10);
 
   return (
     <View style={styles.safeArea}>
@@ -90,9 +94,8 @@ export default function GuideScreen() {
         style={styles.root}
         maxWidth={contentWidth}
         horizontalPadding={contentPaddingX}
-        topPadding={rsv(isUltraCompactHeight ? 10 : 16)}
-        bottomPadding={rsv(isUltraCompactHeight ? 12 : 20)}
-        scrollable
+        topPadding={shellTopPadding}
+        bottomPadding={shellBottomPadding}
       >
         <View style={[styles.contentRoot, { maxWidth: contentWidth }]}>
           <TouchableOpacity
@@ -100,68 +103,80 @@ export default function GuideScreen() {
             onPress={() => router.replace("/")}
             activeOpacity={0.85}
           >
-            <MaterialCommunityIcons name="arrow-left" size={rf(18)} color={appTheme.colors.brassBright} />
+            <MaterialCommunityIcons name="arrow-left" size={rf(18)} color={guideIconColor} />
             <Text style={[styles.backButtonText, { fontSize: rf(12) }]}>Back to Menu</Text>
           </TouchableOpacity>
 
-          <View
-            style={[
-              styles.headerPanel,
+          <ScrollView
+            style={styles.manualScroll}
+            contentContainerStyle={[
+              styles.manualScrollContent,
               {
-                borderRadius: panelRadius,
-                paddingHorizontal: cardPadding,
-                paddingVertical: rsv(isUltraCompactHeight ? 14 : 18),
-                marginBottom: sectionGap,
+                rowGap: manualGap,
+                paddingBottom: rsv(8),
               },
             ]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            <Text style={[styles.headerLabel, { fontSize: rf(10) }]}>FIELD MANUAL</Text>
-            <Text style={[styles.headerTitle, { fontSize: rf(isCompactHeight ? 26 : 30), marginTop: rsv(4) }]}>Learn the opening drill</Text>
-            <Text style={[styles.headerCopy, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(8) }]}>
-              Follow these orders to build a legal formation and get into the match without guesswork.
-            </Text>
-          </View>
+            <View
+              style={[
+                styles.manualPanel,
+                {
+                  borderRadius: panelRadius,
+                  paddingHorizontal: cardPadding,
+                  paddingVertical: rsv(isUltraCompactHeight ? 12 : 16),
+                },
+              ]}
+            >
+              <Text style={[styles.headerLabel, { fontSize: rf(10) }]}>FIELD MANUAL</Text>
+              <Text style={[styles.headerTitle, { fontSize: rf(isCompactHeight ? 26 : 30), marginTop: rsv(4) }]}>Learn the opening drill</Text>
+              <Text style={[styles.headerCopy, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(6) }]}>
+                Follow these orders to build a legal formation and get into the match without guesswork.
+              </Text>
 
-          <View
-            style={[
-              styles.tipPanel,
-              {
-                borderRadius: rs(panelRadius - 2),
-                paddingHorizontal: cardPadding,
-                paddingVertical: rsv(isUltraCompactHeight ? 12 : 14),
-                marginBottom: sectionGap,
-              },
-            ]}
-          >
-            <Text style={[styles.tipLabel, { fontSize: rf(10) }]}>QUICK READ</Text>
-            <Text style={[styles.tipText, { fontSize: rf(12), lineHeight: rf(16), marginTop: rsv(4) }]}>
-              The red-highlighted rows are your setup zone. Every rank must be placed there before Ready becomes available.
-            </Text>
-          </View>
-
-          <View style={[styles.scrollContent, { paddingBottom: rsv(12), rowGap: cardGap }]}>
-            {guideCards.map((card) => (
               <View
-                key={card.title}
                 style={[
-                  styles.guideCard,
+                  styles.tipPanel,
                   {
-                    borderRadius: rs(20),
+                    borderRadius: rs(panelRadius - 6),
                     paddingHorizontal: cardPadding,
-                    paddingVertical: rsv(isUltraCompactHeight ? 12 : 14),
+                    paddingVertical: rsv(isUltraCompactHeight ? 10 : 12),
+                    marginTop: manualGap,
                   },
                 ]}
               >
-                <View style={[styles.guideIconWrap, { width: rs(44), height: rs(44), borderRadius: rs(14) }]}>
-                  <MaterialCommunityIcons name={card.icon} size={rf(20)} color={appTheme.colors.brassBright} />
-                </View>
-                <View style={styles.guideTextBlock}>
-                  <Text style={[styles.guideTitle, { fontSize: rf(isCompactHeight ? 18 : 20) }]}>{card.title}</Text>
-                  <Text style={[styles.guideBody, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(4) }]}>{card.body}</Text>
-                </View>
+                <Text style={[styles.tipLabel, { fontSize: rf(10) }]}>QUICK READ</Text>
+                <Text style={[styles.tipText, { fontSize: rf(12), lineHeight: rf(16), marginTop: rsv(4) }]}>
+                  The red-highlighted rows are your setup zone. Every rank must be placed there before Ready becomes available.
+                </Text>
               </View>
-            ))}
-          </View>
+
+              <View style={[styles.guideStack, { rowGap: manualGap, marginTop: manualGap }]}>
+                {guideCards.map((card) => (
+                  <View
+                    key={card.title}
+                    style={[
+                      styles.guideCard,
+                      {
+                        borderRadius: rs(18),
+                        paddingHorizontal: cardPadding,
+                        paddingVertical: rsv(isUltraCompactHeight ? 10 : 12),
+                      },
+                    ]}
+                  >
+                    <View style={[styles.guideIconWrap, { width: rs(42), height: rs(42), borderRadius: rs(13) }]}>
+                      <MaterialCommunityIcons name={card.icon} size={rf(20)} color={guideIconColor} />
+                    </View>
+                    <View style={styles.guideTextBlock}>
+                      <Text style={[styles.guideTitle, { fontSize: rf(isCompactHeight ? 18 : 20) }]}>{card.title}</Text>
+                      <Text style={[styles.guideBody, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(3) }]}>{card.body}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
         </View>
       </ScreenShell>
     </View>
@@ -187,6 +202,10 @@ const styles = StyleSheet.create({
   },
   contentRoot: {
     width: "100%",
+    flex: 1,
+  },
+  manualScroll: {
+    flex: 1,
   },
   backButton: {
     alignSelf: "flex-start",
@@ -202,70 +221,71 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     letterSpacing: 0.5,
   },
-  headerPanel: {
-    backgroundColor: appTheme.surfaces.hero.backgroundColor,
+  manualScrollContent: {
+    flexGrow: 1,
+  },
+  manualPanel: {
+    backgroundColor: "#E3D2A7",
     borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.surfaces.hero.borderColor,
+    borderColor: "#A58A56",
     ...appTheme.shadow.soft,
   },
   headerLabel: {
-    color: appTheme.colors.brassBright,
+    color: "#765A29",
     fontFamily: appTheme.fonts.body,
     letterSpacing: 1,
   },
   headerTitle: {
-    color: appTheme.colors.ink,
+    color: "#241A10",
     fontFamily: appTheme.fonts.display,
     textTransform: "uppercase",
     letterSpacing: 0.15,
   },
   headerCopy: {
-    color: appTheme.colors.parchmentSoft,
+    color: "#4A3C24",
     fontFamily: appTheme.fonts.body,
   },
   tipPanel: {
-    backgroundColor: appTheme.surfaces.inset.backgroundColor,
+    backgroundColor: "#EADDBA",
     borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.surfaces.inset.borderColor,
+    borderColor: "#B49A66",
   },
   tipLabel: {
-    color: appTheme.surfaces.instruction.accentColor,
+    color: "#7D5F2A",
     fontFamily: appTheme.fonts.body,
     letterSpacing: 1,
   },
   tipText: {
-    color: appTheme.surfaces.instruction.textColor,
+    color: "#4D3E24",
     fontFamily: appTheme.fonts.body,
   },
-  scrollContent: {
-    paddingTop: 2,
-  },
+  guideStack: {},
   guideCard: {
     flexDirection: "row",
     alignItems: "flex-start",
-    minHeight: 108,
-    backgroundColor: appTheme.surfaces.section.backgroundColor,
+    minHeight: 96,
+    backgroundColor: "#EFE2BE",
     borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.surfaces.section.borderColor,
+    borderColor: "#A88D58",
     ...appTheme.shadow.soft,
   },
   guideIconWrap: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: appTheme.surfaces.inset.backgroundColor,
-    marginRight: 12,
+    backgroundColor: "#D9C08E",
+    marginRight: 10,
   },
   guideTextBlock: {
     flex: 1,
   },
   guideTitle: {
-    color: appTheme.colors.ink,
+    color: "#241A10",
     fontFamily: appTheme.fonts.display,
     textTransform: "uppercase",
     letterSpacing: 0.12,
   },
   guideBody: {
-    color: appTheme.colors.parchmentSoft,
+    color: "#524329",
     fontFamily: appTheme.fonts.body,
   },
 });

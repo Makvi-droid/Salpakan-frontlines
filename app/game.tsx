@@ -56,9 +56,11 @@ export default function GameScreen() {
     rs(safeWidth > 720 ? 460 : 420)
   );
   const topMenuHeight = rsv(isUltraCompactHeight ? 36 : isCompactHeight ? 40 : 44);
-  const shellTopPadding = rsv(isUltraCompactHeight ? 10 : 16);
-  const shellBottomPadding = rsv(isUltraCompactHeight ? 12 : 18);
-  const allowPageScroll = true;
+  const shellTopPadding = rsv(isUltraCompactHeight ? 6 : isCompactHeight ? 10 : 16);
+  const shellBottomPadding = rsv(isUltraCompactHeight ? 8 : isCompactHeight ? 12 : 18);
+  const verticalSectionGap = rsv(isUltraCompactHeight ? 8 : isCompactHeight ? 10 : sectionGap);
+  const compactCardGap = rsv(isUltraCompactHeight ? 6 : isCompactHeight ? 8 : cardGap);
+  const allowPageScroll = false;
 
   const boardTiles = Array.from({ length: BOARD_WIDTH * BOARD_HEIGHT }, (_, index) => ({ index }));
 
@@ -301,7 +303,7 @@ export default function GameScreen() {
         scrollable={allowPageScroll}
       >
         <View style={[styles.container, { maxWidth: contentWidth }]}>
-          <View style={[styles.topMenuRow, { minHeight: topMenuHeight, marginBottom: sectionGap }]}>
+          <View style={[styles.topMenuRow, { minHeight: topMenuHeight, marginBottom: verticalSectionGap }]}>
             <TouchableOpacity
               style={[styles.menuButton, { paddingVertical: rsv(6), paddingHorizontal: rs(10), borderRadius: rs(12) }]}
               onPress={() => setShowQuitModal(true)}
@@ -325,10 +327,10 @@ export default function GameScreen() {
             style={[
               styles.setupBox,
               {
-                marginBottom: sectionGap,
+                marginBottom: verticalSectionGap,
                 paddingHorizontal: cardPadding,
-                paddingTop: rsv(12),
-                paddingBottom: rsv(12),
+                paddingTop: rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 11 : 12),
+                paddingBottom: rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 11 : 12),
                 borderRadius: panelRadius,
               },
             ]}
@@ -338,7 +340,7 @@ export default function GameScreen() {
               Select a rank from the reserve, then place it inside the marked deployment rows.
             </Text>
 
-            <View style={[styles.statusStrip, { gap: cardGap, marginTop: rsv(10) }]}>
+            <View style={[styles.statusStrip, { gap: compactCardGap, marginTop: rsv(isUltraCompactHeight ? 8 : 10) }]}>
               <View style={styles.statusItem}>
                 <Text style={[styles.statusLabel, { fontSize: rf(10) }]}>Selected</Text>
                 <Text style={[styles.statusValue, { fontSize: rf(13) }]} numberOfLines={1}>
@@ -356,7 +358,7 @@ export default function GameScreen() {
             </View>
           </View>
 
-          <View style={[styles.actionRow, { marginBottom: sectionGap, gap: cardGap }]}>
+          <View style={[styles.actionRow, { marginBottom: verticalSectionGap, gap: compactCardGap }]}>
             <TouchableOpacity
               style={[styles.commandButton, styles.commandButtonSecondary, { borderRadius: rs(14), paddingVertical: rsv(9), paddingHorizontal: rs(14) }]}
               onPress={handleRandomizeSet}
@@ -387,7 +389,7 @@ export default function GameScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.boardWrap, { marginBottom: sectionGap }]}>
+          <View style={[styles.boardWrap, { marginBottom: verticalSectionGap }]}>
             <Text style={[styles.boardLabel, { fontSize: rf(10), marginBottom: rsv(8) }]}>DEPLOYMENT BOARD</Text>
             <View style={[styles.boardOuterShell, { width: boardWidth, padding: rs(8) }]}>
               <View style={styles.boardFrame}>
@@ -443,8 +445,8 @@ export default function GameScreen() {
               {
                 borderRadius: panelRadius,
                 paddingHorizontal: cardPadding,
-                paddingTop: rsv(12),
-                paddingBottom: rsv(isInventoryExpanded ? 14 : 12),
+                paddingTop: rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 11 : 12),
+                paddingBottom: rsv(isInventoryExpanded ? (isUltraCompactHeight ? 10 : isCompactHeight ? 12 : 14) : isUltraCompactHeight ? 10 : 12),
               },
             ]}
           >
@@ -463,11 +465,11 @@ export default function GameScreen() {
             </View>
 
             {isInventoryExpanded ? (
-              <View style={[styles.inventoryRailContainer, { marginTop: sectionGap }]}>
+              <View style={[styles.inventoryRailContainer, { marginTop: verticalSectionGap }]}>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={[styles.inventoryRailContent, { columnGap: cardGap, paddingRight: rs(8) }]}
+                  contentContainerStyle={[styles.inventoryRailContent, { columnGap: compactCardGap, paddingRight: rs(8) }]}
                 >
                   {pieceDefinitions.map((piece) => {
                     const remaining = pieceCountById[piece.id] ?? 0;
