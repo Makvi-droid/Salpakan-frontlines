@@ -1,5 +1,5 @@
-import Homescreen from "@/screens/Homescreen";
+import MainMenuScreen from "@/screens/MainMenuScreen";
 
 export default function Index() {
-  return <Homescreen />;
+  return <MainMenuScreen />;
 }
