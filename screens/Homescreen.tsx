@@ -6,7 +6,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { appTheme, difficultyTones } from "@/constants/theme";
-import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
+import { useResponsiveTokens } from "@/hooks/useResponsiveTokens";
 
 type Difficulty = "easy" | "medium" | "hard";
 
@@ -48,13 +48,10 @@ const difficultyOptions: DifficultyOption[] = [
 
 function Homescreen() {
   const router = useRouter();
-  const { width, maxContentWidth, rs, rsv, rf, isCompactHeight, isUltraCompactHeight } = useResponsiveTokens();
+  const { maxContentWidth, rs, rsv, rf, isCompactHeight, isUltraCompactHeight } = useResponsiveTokens();
 
   const contentWidth = Math.min(maxContentWidth, rs(510));
-  const titleSize = clamp(width * 0.104, rf(28), rf(isCompactHeight ? 44 : 50));
   const cardGap = rsv(isUltraCompactHeight ? 6 : isCompactHeight ? 8 : 10);
-  const showHeroCopy = !isUltraCompactHeight;
-  const showSummary = !isCompactHeight;
   const showFooterNote = !isCompactHeight;
   const iconFrameSize = rs(isUltraCompactHeight ? 44 : isCompactHeight ? 48 : 56);
 
@@ -100,68 +97,6 @@ function Homescreen() {
         bottomPadding={rsv(isUltraCompactHeight ? 4 : isCompactHeight ? 6 : 10)}
       >
         <View style={[styles.contentRoot, { maxWidth: contentWidth }]}>
-          <View
-            style={[
-              styles.heroShell,
-              {
-                paddingHorizontal: rs(16),
-                paddingVertical: rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 12 : 16),
-                borderRadius: rs(24),
-                marginBottom: rsv(isUltraCompactHeight ? 8 : isCompactHeight ? 10 : 14),
-              },
-            ]}
-          >
-            <View style={styles.bannerRow}>
-              <Text style={[styles.eyebrow, { fontSize: rf(10) }]}>TACTICAL BOARD WAR</Text>
-              <View
-                style={[
-                  styles.bannerChip,
-                  {
-                    paddingHorizontal: rs(10),
-                    paddingVertical: rsv(4),
-                    borderRadius: rs(12),
-                  },
-                ]}
-              >
-                <Text style={[styles.bannerChipText, { fontSize: rf(10) }]}>MOBILE READY</Text>
-              </View>
-            </View>
-
-            <Text style={[styles.title, { fontSize: titleSize, lineHeight: titleSize * 0.8 }]}>Salpakan</Text>
-            <Text style={[styles.title, styles.titleAccent, { fontSize: titleSize * 0.9, lineHeight: titleSize * 0.8 }]}>
-              Frontlines
-            </Text>
-
-            {showHeroCopy ? (
-              <Text
-                style={[
-                  styles.heroCopy,
-                  {
-                    fontSize: rf(isCompactHeight ? 12 : 13),
-                    lineHeight: rf(isCompactHeight ? 16 : 18),
-                    marginTop: rsv(6),
-                    marginBottom: showSummary ? rsv(isCompactHeight ? 10 : 14) : 0,
-                  },
-                ]}
-              >
-                Command the opening, read the frontline, and lock your formation before the first clash.
-              </Text>
-            ) : null}
-
-            {showSummary ? (
-              <View style={[styles.summaryRow, { gap: rs(8) }]}>
-                <View style={[styles.summaryChip, { borderRadius: rs(14), paddingHorizontal: rs(10), paddingVertical: rsv(6) }]}>
-                  <Text style={[styles.summaryLabel, { fontSize: rf(10) }]}>FIELD</Text>
-                  <Text style={[styles.summaryValue, { fontSize: rf(12) }]}>9 x 8 command board</Text>
-                </View>
-                <View style={[styles.summaryChip, { borderRadius: rs(14), paddingHorizontal: rs(10), paddingVertical: rsv(6) }]}>
-                  <Text style={[styles.summaryLabel, { fontSize: rf(10) }]}>STYLE</Text>
-                  <Text style={[styles.summaryValue, { fontSize: rf(12) }]}>Brass, wood, and fire</Text>
-                </View>
-              </View>
-            ) : null}
-          </View>
-
           <View
             style={[
               styles.selectionShell,
@@ -269,6 +204,21 @@ function Homescreen() {
               })}
             </View>
 
+            <TouchableOpacity
+              style={[
+                styles.backButton,
+                {
+                  borderRadius: rs(16),
+                  paddingVertical: rsv(isUltraCompactHeight ? 10 : 12),
+                  marginTop: rsv(isUltraCompactHeight ? 8 : 10),
+                },
+              ]}
+              onPress={() => router.replace("/")}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.backButtonText, { fontSize: rf(13) }]}>Back to Main Menu</Text>
+            </TouchableOpacity>
+
             {showFooterNote ? (
               <Text style={[styles.footerNote, { fontSize: rf(10), marginTop: rsv(8) }]}>
                 Lock a difficulty and take your place on the frontline.
@@ -305,64 +255,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
-  heroShell: {
-    backgroundColor: appTheme.colors.field,
-    borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.colors.lineStrong,
-    ...appTheme.shadow.hard,
-  },
-  bannerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  eyebrow: {
-    color: appTheme.colors.brassBright,
-    fontFamily: appTheme.fonts.body,
-    letterSpacing: 1.1,
-  },
-  bannerChip: {
-    backgroundColor: appTheme.colors.alert,
-    borderWidth: appTheme.borderWidth.thin,
-    borderColor: appTheme.colors.brassBright,
-  },
-  bannerChipText: {
-    color: appTheme.colors.ink,
-    fontFamily: appTheme.fonts.body,
-    letterSpacing: 0.8,
-  },
-  title: {
-    color: appTheme.colors.ink,
-    fontFamily: appTheme.fonts.display,
-    letterSpacing: 0.2,
-    textTransform: "uppercase",
-  },
-  titleAccent: {
-    color: appTheme.colors.brassBright,
-  },
-  heroCopy: {
-    maxWidth: "92%",
-    color: appTheme.colors.parchmentSoft,
-    fontFamily: appTheme.fonts.body,
-  },
-  summaryRow: {
-    flexDirection: "row",
-  },
-  summaryChip: {
-    flex: 1,
-    backgroundColor: appTheme.colors.fieldInset,
-    borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.colors.line,
-  },
-  summaryLabel: {
-    color: appTheme.colors.brassBright,
-    fontFamily: appTheme.fonts.body,
-    letterSpacing: 0.9,
-  },
-  summaryValue: {
-    color: appTheme.colors.ink,
-    fontFamily: appTheme.fonts.body,
-  },
   selectionShell: {
     backgroundColor: appTheme.colors.fieldRaised,
     borderWidth: appTheme.borderWidth.regular,
@@ -393,6 +285,20 @@ const styles = StyleSheet.create({
   cardStack: {
     flex: 1,
     minHeight: 0,
+  },
+  backButton: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.colors.fieldInset,
+    borderWidth: appTheme.borderWidth.regular,
+    borderColor: appTheme.colors.lineStrong,
+  },
+  backButtonText: {
+    color: appTheme.colors.ink,
+    fontFamily: appTheme.fonts.body,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
   difficultyCard: {
     width: "100%",
