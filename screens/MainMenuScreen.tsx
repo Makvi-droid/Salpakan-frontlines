@@ -38,7 +38,6 @@ export default function MainMenuScreen() {
     rf,
     layoutWidth,
     contentPaddingX,
-    sectionGap,
     cardGap,
     cardPadding,
     panelRadius,
@@ -51,6 +50,7 @@ export default function MainMenuScreen() {
   const subtitleSize = clamp(width * 0.084, rf(30), rf(isCompactHeight ? 42 : 50));
   const crestSize = rs(isUltraCompactHeight ? 104 : isCompactHeight ? 120 : 134);
   const isScrollable = safeHeight < 680;
+  const panelContentGap = rsv(isUltraCompactHeight ? 18 : isCompactHeight ? 22 : 28);
 
   return (
     <View style={styles.safeArea}>
@@ -96,7 +96,7 @@ export default function MainMenuScreen() {
         >
           <View
             style={[
-              styles.heroPanel,
+              styles.mainPanel,
               {
                 borderRadius: panelRadius,
                 paddingHorizontal: cardPadding,
@@ -105,66 +105,56 @@ export default function MainMenuScreen() {
               },
             ]}
           >
-            <View style={[styles.logoWrap, { marginBottom: rsv(isUltraCompactHeight ? 12 : 16) }]}>
-              <View
+            <View style={[styles.heroContent, { marginBottom: panelContentGap }]}>
+              <View style={[styles.logoWrap, { marginBottom: rsv(isUltraCompactHeight ? 12 : 16) }]}>
+                <View
+                  style={[
+                    styles.logoCrest,
+                    {
+                      width: crestSize,
+                      height: crestSize,
+                      borderRadius: rs(28),
+                    },
+                  ]}
+                >
+                  <View style={[styles.logoHalo, { borderRadius: crestSize / 2 }]} />
+                  <View style={[styles.logoBanner, { borderRadius: rs(12) }]} />
+                  <Image
+                    source={require("../assets/images/swords.png")}
+                    style={{ width: crestSize * 0.82, height: crestSize * 0.82 }}
+                    resizeMode="contain"
+                  />
+                </View>
+              </View>
+
+              <Text style={[styles.title, { fontSize: titleSize, lineHeight: titleSize * 0.82 }]}>Salpakan:</Text>
+              <Text
                 style={[
-                  styles.logoCrest,
+                  styles.title,
+                  styles.titleAccent,
                   {
-                    width: crestSize,
-                    height: crestSize,
-                    borderRadius: rs(28),
+                    fontSize: subtitleSize,
+                    lineHeight: subtitleSize * 0.9,
+                    marginTop: rsv(isUltraCompactHeight ? -2 : -4),
                   },
                 ]}
               >
-                <View style={[styles.logoHalo, { borderRadius: crestSize / 2 }]} />
-                <View style={[styles.logoBanner, { borderRadius: rs(12) }]} />
-                <Image
-                  source={require("../assets/images/swords.png")}
-                  style={{ width: crestSize * 0.82, height: crestSize * 0.82 }}
-                  resizeMode="contain"
-                />
-              </View>
+                Frontlines
+              </Text>
+
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  {
+                    fontSize: rf(isCompactHeight ? 20 : 24),
+                    marginTop: rsv(isUltraCompactHeight ? 12 : 16),
+                  },
+                ]}
+              >
+                Choose your next order
+              </Text>
             </View>
 
-            <Text style={[styles.title, { fontSize: titleSize, lineHeight: titleSize * 0.82 }]}>Salpakan:</Text>
-            <Text
-              style={[
-                styles.title,
-                styles.titleAccent,
-                {
-                  fontSize: subtitleSize,
-                  lineHeight: subtitleSize * 0.9,
-                  marginTop: rsv(isUltraCompactHeight ? -2 : -4),
-                },
-              ]}
-            >
-              Frontlines
-            </Text>
-
-            <Text
-              style={[
-                styles.sectionTitle,
-                {
-                  fontSize: rf(isCompactHeight ? 20 : 24),
-                  marginTop: rsv(isUltraCompactHeight ? 12 : 16),
-                },
-              ]}
-            >
-              Choose your next order
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.actionPanel,
-              {
-                marginTop: sectionGap,
-                borderRadius: rs(panelRadius - 2),
-                paddingHorizontal: cardPadding,
-                paddingVertical: rsv(isUltraCompactHeight ? 14 : 18),
-              },
-            ]}
-          >
             <View style={[styles.actionStack, { gap: cardGap }]}>
               {menuActions.map((action) => (
                 <TouchableOpacity
@@ -236,12 +226,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
   },
-  heroPanel: {
-    alignItems: "center",
+  mainPanel: {
     backgroundColor: appTheme.colors.field,
     borderWidth: appTheme.borderWidth.regular,
     borderColor: appTheme.colors.lineStrong,
     ...appTheme.shadow.hard,
+  },
+  heroContent: {
+    alignItems: "center",
   },
   logoWrap: {
     alignItems: "center",
@@ -251,8 +243,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: appTheme.colors.fieldRaised,
-    borderWidth: appTheme.borderWidth.emphasis,
-    borderColor: appTheme.colors.lineStrong,
     overflow: "hidden",
     ...appTheme.shadow.hard,
   },
@@ -285,13 +275,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1.4,
     textAlign: "center",
-  },
-  actionPanel: {
-    width: "100%",
-    backgroundColor: appTheme.colors.fieldRaised,
-    borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.colors.line,
-    ...appTheme.shadow.soft,
   },
   actionStack: {
     width: "100%",
