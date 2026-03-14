@@ -15,29 +15,29 @@ type GuideCard = {
 
 const guideCards: GuideCard[] = [
   {
-    title: "What is Salpakan?",
-    body: "Salpakan: Frontlines is a tactical board duel where your opening formation matters before the first clash even begins.",
+    title: "1. Know the match",
+    body: "Salpakan: Frontlines opens with a formation phase. You are arranging your ranks before the first clash begins.",
     icon: "flag-variant",
   },
   {
-    title: "Formation Phase",
-    body: "When the match begins, choose a difficulty, open your reserve, and place every rank inside the highlighted frontline setup rows.",
-    icon: "view-dashboard-outline",
+    title: "2. Open the reserve",
+    body: "Choose a difficulty, open the reserve, and review the pieces that still need a starting tile.",
+    icon: "archive-outline",
   },
   {
-    title: "Placing Units",
-    body: "Tap a rank from the reserve, tap a setup tile to place it, tap an occupied setup tile to move it, and double tap a piece to remove it.",
+    title: "3. Place each rank",
+    body: "Tap a rank, then tap a highlighted frontline tile. Tap a placed unit to reposition it inside the setup zone.",
     icon: "gesture-tap-button",
   },
   {
-    title: "Starting the Match",
-    body: "Use Random if you want a quick legal arrangement, then press Ready once every unit has been deployed.",
-    icon: "sword",
+    title: "4. Use quick commands",
+    body: "Use Random for a legal fast setup, or reset and adjust the formation until it feels right.",
+    icon: "lightning-bolt-outline",
   },
   {
-    title: "How to Begin",
-    body: "Return to the main menu, press Play, pick Recruit, Vanguard, or Warlord, then finish your setup on the game board.",
-    icon: "arrow-right-bold-circle-outline",
+    title: "5. Confirm ready",
+    body: "Once every rank is deployed, press Ready to lock the opening formation and proceed.",
+    icon: "check-circle-outline",
   },
 ];
 
@@ -65,11 +65,23 @@ export default function GuideScreen() {
         style={[
           styles.backgroundFog,
           {
-            width: rs(190),
-            height: rs(190),
-            borderRadius: rs(95),
-            top: -rsv(8),
-            right: -rs(24),
+            width: rs(210),
+            height: rs(210),
+            borderRadius: rs(105),
+            top: -rsv(10),
+            right: -rs(28),
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.backgroundEmber,
+          {
+            width: rs(240),
+            height: rs(240),
+            borderRadius: rs(120),
+            bottom: -rsv(60),
+            left: -rs(40),
           },
         ]}
       />
@@ -78,13 +90,13 @@ export default function GuideScreen() {
         style={styles.root}
         maxWidth={contentWidth}
         horizontalPadding={contentPaddingX}
-        topPadding={rsv(isUltraCompactHeight ? 8 : 12)}
-        bottomPadding={rsv(isUltraCompactHeight ? 10 : 16)}
+        topPadding={rsv(isUltraCompactHeight ? 10 : 16)}
+        bottomPadding={rsv(isUltraCompactHeight ? 12 : 20)}
         scrollable
       >
         <View style={[styles.contentRoot, { maxWidth: contentWidth }]}>
           <TouchableOpacity
-            style={[styles.backButton, { marginBottom: sectionGap, borderRadius: rs(14), paddingHorizontal: rs(12), paddingVertical: rsv(8) }]}
+            style={[styles.backButton, { marginBottom: sectionGap, borderRadius: rs(14), paddingHorizontal: rs(12), paddingVertical: rsv(9) }]}
             onPress={() => router.replace("/")}
             activeOpacity={0.85}
           >
@@ -98,15 +110,32 @@ export default function GuideScreen() {
               {
                 borderRadius: panelRadius,
                 paddingHorizontal: cardPadding,
-                paddingVertical: rsv(isUltraCompactHeight ? 12 : 16),
+                paddingVertical: rsv(isUltraCompactHeight ? 14 : 18),
                 marginBottom: sectionGap,
               },
             ]}
           >
-            <Text style={[styles.headerLabel, { fontSize: rf(10) }]}>SOLDIER'S GUIDE</Text>
-            <Text style={[styles.headerTitle, { fontSize: rf(isCompactHeight ? 26 : 30), marginTop: rsv(4) }]}>Know the frontline before you deploy</Text>
+            <Text style={[styles.headerLabel, { fontSize: rf(10) }]}>FIELD MANUAL</Text>
+            <Text style={[styles.headerTitle, { fontSize: rf(isCompactHeight ? 26 : 30), marginTop: rsv(4) }]}>Learn the opening drill</Text>
             <Text style={[styles.headerCopy, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(8) }]}>
-              This build focuses on pre-battle setup, reserve management, and getting your first formation onto the board cleanly.
+              Follow these orders to build a legal formation and get into the match without guesswork.
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.tipPanel,
+              {
+                borderRadius: rs(panelRadius - 2),
+                paddingHorizontal: cardPadding,
+                paddingVertical: rsv(isUltraCompactHeight ? 12 : 14),
+                marginBottom: sectionGap,
+              },
+            ]}
+          >
+            <Text style={[styles.tipLabel, { fontSize: rf(10) }]}>QUICK READ</Text>
+            <Text style={[styles.tipText, { fontSize: rf(12), lineHeight: rf(16), marginTop: rsv(4) }]}>
+              The red-highlighted rows are your setup zone. Every rank must be placed there before Ready becomes available.
             </Text>
           </View>
 
@@ -123,7 +152,7 @@ export default function GuideScreen() {
                   },
                 ]}
               >
-                <View style={[styles.guideIconWrap, { width: rs(42), height: rs(42), borderRadius: rs(14) }]}>
+                <View style={[styles.guideIconWrap, { width: rs(44), height: rs(44), borderRadius: rs(14) }]}>
                   <MaterialCommunityIcons name={card.icon} size={rf(20)} color={appTheme.colors.brassBright} />
                 </View>
                 <View style={styles.guideTextBlock}>
@@ -146,7 +175,11 @@ const styles = StyleSheet.create({
   },
   backgroundFog: {
     position: "absolute",
-    backgroundColor: "rgba(199, 163, 84, 0.08)",
+    backgroundColor: "rgba(199, 163, 84, 0.1)",
+  },
+  backgroundEmber: {
+    position: "absolute",
+    backgroundColor: "rgba(180, 67, 52, 0.16)",
   },
   root: {
     flex: 1,
@@ -159,20 +192,20 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: appTheme.colors.fieldInset,
+    backgroundColor: appTheme.surfaces.commandSecondary.backgroundColor,
     borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.colors.lineStrong,
+    borderColor: appTheme.surfaces.commandSecondary.borderColor,
     gap: 8,
   },
   backButtonText: {
-    color: appTheme.colors.ink,
+    color: appTheme.surfaces.commandSecondary.textColor,
     fontFamily: appTheme.fonts.body,
     letterSpacing: 0.5,
   },
   headerPanel: {
-    backgroundColor: appTheme.colors.field,
+    backgroundColor: appTheme.surfaces.hero.backgroundColor,
     borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.colors.lineStrong,
+    borderColor: appTheme.surfaces.hero.borderColor,
     ...appTheme.shadow.soft,
   },
   headerLabel: {
@@ -190,22 +223,36 @@ const styles = StyleSheet.create({
     color: appTheme.colors.parchmentSoft,
     fontFamily: appTheme.fonts.body,
   },
+  tipPanel: {
+    backgroundColor: appTheme.surfaces.inset.backgroundColor,
+    borderWidth: appTheme.borderWidth.regular,
+    borderColor: appTheme.surfaces.inset.borderColor,
+  },
+  tipLabel: {
+    color: appTheme.surfaces.instruction.accentColor,
+    fontFamily: appTheme.fonts.body,
+    letterSpacing: 1,
+  },
+  tipText: {
+    color: appTheme.surfaces.instruction.textColor,
+    fontFamily: appTheme.fonts.body,
+  },
   scrollContent: {
     paddingTop: 2,
   },
   guideCard: {
     flexDirection: "row",
     alignItems: "flex-start",
-    minHeight: 104,
-    backgroundColor: appTheme.colors.fieldRaised,
+    minHeight: 108,
+    backgroundColor: appTheme.surfaces.section.backgroundColor,
     borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.colors.line,
+    borderColor: appTheme.surfaces.section.borderColor,
     ...appTheme.shadow.soft,
   },
   guideIconWrap: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: appTheme.colors.fieldInset,
+    backgroundColor: appTheme.surfaces.inset.backgroundColor,
     marginRight: 12,
   },
   guideTextBlock: {

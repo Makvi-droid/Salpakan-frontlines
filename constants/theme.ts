@@ -66,6 +66,39 @@ export const appTheme = {
     thick: 3,
     emphasis: 4,
   },
+  surfaces: {
+    hero: {
+      backgroundColor: "#232A1C",
+      borderColor: "#D3B56A",
+    },
+    section: {
+      backgroundColor: "#2C3522",
+      borderColor: "#514729",
+    },
+    inset: {
+      backgroundColor: "#1A2014",
+      borderColor: "#D3B56A",
+    },
+    commandPrimary: {
+      backgroundColor: "#8B2E24",
+      borderColor: "#E2C67C",
+      textColor: "#F6EED8",
+    },
+    commandSecondary: {
+      backgroundColor: "#1A2014",
+      borderColor: "#D3B56A",
+      textColor: "#F6EED8",
+    },
+    badge: {
+      backgroundColor: "#8B2E24",
+      borderColor: "#E2C67C",
+      textColor: "#F6EED8",
+    },
+    instruction: {
+      textColor: "#C9B98D",
+      accentColor: "#E2C67C",
+    },
+  },
   shadow: {
     soft: {
       shadowColor: "#000000",
