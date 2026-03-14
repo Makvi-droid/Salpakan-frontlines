@@ -71,6 +71,10 @@ export const appTheme = {
       backgroundColor: "#232A1C",
       borderColor: "#D3B56A",
     },
+    formationBriefing: {
+      backgroundColor: "#232A1C",
+      borderColor: "#38412C",
+    },
     section: {
       backgroundColor: "#2C3522",
       borderColor: "#514729",

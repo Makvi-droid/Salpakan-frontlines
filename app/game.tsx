@@ -1,7 +1,6 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import ScreenShell from "@/components/ScreenShell";
@@ -60,7 +59,7 @@ export default function GameScreen() {
   const shellBottomPadding = rsv(isUltraCompactHeight ? 8 : isCompactHeight ? 12 : 18);
   const verticalSectionGap = rsv(isUltraCompactHeight ? 8 : isCompactHeight ? 10 : sectionGap);
   const compactCardGap = rsv(isUltraCompactHeight ? 6 : isCompactHeight ? 8 : cardGap);
-  const allowPageScroll = false;
+  const allowPageScroll = isUltraCompactHeight;
 
   const boardTiles = Array.from({ length: BOARD_WIDTH * BOARD_HEIGHT }, (_, index) => ({ index }));
 
@@ -261,12 +260,6 @@ export default function GameScreen() {
 
   const difficultyLabel = level === "easy" ? "Recruit" : level === "medium" ? "Vanguard" : level === "hard" ? "Warlord" : "Command";
 
-  useEffect(() => {
-    if (isUltraCompactHeight) {
-      setIsInventoryExpanded(false);
-    }
-  }, [isUltraCompactHeight]);
-
   return (
     <View style={styles.safeArea}>
       <View
@@ -302,7 +295,7 @@ export default function GameScreen() {
         bottomPadding={shellBottomPadding}
         scrollable={allowPageScroll}
       >
-        <View style={[styles.container, { maxWidth: contentWidth }]}>
+        <View style={[styles.container, { maxWidth: contentWidth, justifyContent: allowPageScroll ? "flex-start" : "center" }]}>
           <View style={[styles.topMenuRow, { minHeight: topMenuHeight, marginBottom: verticalSectionGap }]}>
             <TouchableOpacity
               style={[styles.menuButton, { paddingVertical: rsv(6), paddingHorizontal: rs(10), borderRadius: rs(12) }]}
@@ -335,8 +328,7 @@ export default function GameScreen() {
               },
             ]}
           >
-            <Text style={[styles.setupTitle, { fontSize: rf(isCompactHeight ? 20 : 24) }]}>Set your frontline</Text>
-            <Text style={[styles.setupInstruction, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(6) }]}>
+            <Text style={[styles.setupInstruction, { fontSize: rf(12), lineHeight: rf(17) }]}>
               Select a rank from the reserve, then place it inside the marked deployment rows.
             </Text>
 
@@ -358,39 +350,7 @@ export default function GameScreen() {
             </View>
           </View>
 
-          <View style={[styles.actionRow, { marginBottom: verticalSectionGap, gap: compactCardGap }]}>
-            <TouchableOpacity
-              style={[styles.commandButton, styles.commandButtonSecondary, { borderRadius: rs(14), paddingVertical: rsv(9), paddingHorizontal: rs(14) }]}
-              onPress={handleRandomizeSet}
-              activeOpacity={0.85}
-            >
-              <MaterialCommunityIcons name="shuffle-variant" size={rf(16)} color={appTheme.colors.ink} />
-              <Text style={[styles.commandButtonText, styles.commandButtonTextEnabled, { fontSize: rf(12) }]}>Random</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.commandButton,
-                isReadyEnabled ? styles.commandButtonPrimary : styles.commandButtonDisabled,
-                { borderRadius: rs(14), paddingVertical: rsv(9), paddingHorizontal: rs(14) },
-              ]}
-              disabled={!isReadyEnabled}
-              onPress={() => setShowReadyModal(true)}
-              activeOpacity={0.85}
-            >
-              <MaterialCommunityIcons
-                name="check-decagram"
-                size={rf(16)}
-                color={isReadyEnabled ? appTheme.colors.ink : appTheme.colors.mono.disabledText}
-              />
-              <Text style={[styles.commandButtonText, { fontSize: rf(12) }, isReadyEnabled ? styles.commandButtonTextEnabled : styles.commandButtonTextDisabled]}>
-                Ready
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={[styles.boardWrap, { marginBottom: verticalSectionGap }]}>
-            <Text style={[styles.boardLabel, { fontSize: rf(10), marginBottom: rsv(8) }]}>DEPLOYMENT BOARD</Text>
             <View style={[styles.boardOuterShell, { width: boardWidth, padding: rs(8) }]}>
               <View style={styles.boardFrame}>
                 <View style={styles.boardGrid}>
@@ -424,19 +384,50 @@ export default function GameScreen() {
                   })}
                 </View>
               </View>
-              {hasPlacedPieces ? (
-                <TouchableOpacity
-                  style={[styles.boardResetButton, { width: rs(28), height: rs(28), borderRadius: rs(14), top: -rs(10), right: -rs(10) }]}
-                  onPress={handleResetBoard}
-                  activeOpacity={0.85}
-                >
-                  <MaterialIcons name="close" size={rs(16)} color={appTheme.colors.ink} />
-                </TouchableOpacity>
-              ) : null}
             </View>
             <Text style={[styles.boardInstructionText, { fontSize: rf(10), marginTop: rsv(10) }]}>
               Tip: tap a placed unit to move it, or double tap it to return it to reserve.
             </Text>
+          </View>
+
+          <View style={[styles.actionRow, { marginBottom: verticalSectionGap, gap: compactCardGap }]}>
+            <TouchableOpacity
+              style={[styles.commandButton, styles.commandButtonSecondary, { borderRadius: rs(14), paddingVertical: rsv(9), paddingHorizontal: rs(14) }]}
+              onPress={handleResetBoard}
+              activeOpacity={0.85}
+            >
+              <MaterialCommunityIcons name="restart" size={rf(16)} color={appTheme.colors.ink} />
+              <Text style={[styles.commandButtonText, styles.commandButtonTextEnabled, { fontSize: rf(12) }]}>Reset</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.commandButton, styles.commandButtonSecondary, { borderRadius: rs(14), paddingVertical: rsv(9), paddingHorizontal: rs(14) }]}
+              onPress={handleRandomizeSet}
+              activeOpacity={0.85}
+            >
+              <MaterialCommunityIcons name="shuffle-variant" size={rf(16)} color={appTheme.colors.ink} />
+              <Text style={[styles.commandButtonText, styles.commandButtonTextEnabled, { fontSize: rf(12) }]}>Random</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.commandButton,
+                isReadyEnabled ? styles.commandButtonPrimary : styles.commandButtonDisabled,
+                { borderRadius: rs(14), paddingVertical: rsv(9), paddingHorizontal: rs(14) },
+              ]}
+              disabled={!isReadyEnabled}
+              onPress={() => setShowReadyModal(true)}
+              activeOpacity={0.85}
+            >
+              <MaterialCommunityIcons
+                name="check-decagram"
+                size={rf(16)}
+                color={isReadyEnabled ? appTheme.colors.ink : appTheme.colors.mono.disabledText}
+              />
+              <Text style={[styles.commandButtonText, { fontSize: rf(12) }, isReadyEnabled ? styles.commandButtonTextEnabled : styles.commandButtonTextDisabled]}>
+                Ready
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View
@@ -595,6 +586,7 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
     alignItems: "center",
+    flex: 1,
   },
   topMenuRow: {
     width: "100%",
@@ -606,6 +598,7 @@ const styles = StyleSheet.create({
   topRowCenter: {
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
   },
   topRowLabel: {
     color: appTheme.colors.brassBright,
@@ -643,9 +636,10 @@ const styles = StyleSheet.create({
   },
   setupBox: {
     width: "100%",
-    backgroundColor: appTheme.surfaces.hero.backgroundColor,
+    backgroundColor: appTheme.surfaces.formationBriefing.backgroundColor,
     borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.surfaces.hero.borderColor,
+    borderColor: appTheme.surfaces.formationBriefing.borderColor,
+    alignItems: "center",
     ...appTheme.shadow.soft,
   },
   setupTitle: {
@@ -657,8 +651,11 @@ const styles = StyleSheet.create({
   setupInstruction: {
     color: appTheme.colors.parchmentSoft,
     fontFamily: appTheme.fonts.body,
+    textAlign: "center",
+    maxWidth: 420,
   },
   statusStrip: {
+    width: "100%",
     flexDirection: "row",
     flexWrap: "wrap",
   },
@@ -686,7 +683,8 @@ const styles = StyleSheet.create({
   actionRow: {
     width: "100%",
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    alignItems: "center",
     flexWrap: "wrap",
   },
   commandButton: {
@@ -723,11 +721,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  boardLabel: {
-    color: appTheme.colors.brassBright,
-    fontFamily: appTheme.fonts.body,
-    letterSpacing: 1.2,
-  },
   boardOuterShell: {
     aspectRatio: 9 / 8,
     backgroundColor: appTheme.colors.board.shell,
@@ -736,16 +729,6 @@ const styles = StyleSheet.create({
     borderRadius: appTheme.radius.lg,
     position: "relative",
     ...appTheme.shadow.hard,
-  },
-  boardResetButton: {
-    position: "absolute",
-    backgroundColor: appTheme.surfaces.commandPrimary.backgroundColor,
-    borderWidth: appTheme.borderWidth.regular,
-    borderColor: appTheme.surfaces.commandPrimary.borderColor,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 10,
-    ...appTheme.shadow.soft,
   },
   boardFrame: {
     flex: 1,
@@ -841,6 +824,7 @@ const styles = StyleSheet.create({
   reserveInstruction: {
     color: appTheme.surfaces.instruction.textColor,
     fontFamily: appTheme.fonts.body,
+    textAlign: "center",
   },
   inventoryRailContainer: {
     width: "100%",
