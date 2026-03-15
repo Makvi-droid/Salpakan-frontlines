@@ -600,6 +600,7 @@ export default function GameScreen() {
   const [winner, setWinner] = useState<Side | null>(null);
   const [capturedByPlayer, setCapturedByPlayer] = useState<string[]>([]);
   const [capturedByAI, setCapturedByAI] = useState<string[]>([]);
+  const [endedBySurrender, setEndedBySurrender] = useState(false);
 
   const {
     width,
@@ -687,6 +688,7 @@ export default function GameScreen() {
     const timer = setTimeout(() => {
       const aiMove = chooseMoveForProfile(battleBoard, aiProfile, pieceById);
       if (!aiMove) {
+        setEndedBySurrender(false);
         setWinner("player");
         setPhase("ended");
         setBattleMessage("Enemy command is out of legal moves. You hold the field.");
@@ -700,9 +702,11 @@ export default function GameScreen() {
       setBattleMessage(resolution.message);
       setRevealMessage(resolution.revealMessage);
       if (resolution.winner) {
+        setEndedBySurrender(false);
         setWinner(resolution.winner);
         setPhase("ended");
       } else if (getLegalMoves(resolution.board, "player", pieceById).length === 0) {
+        setEndedBySurrender(false);
         setWinner("ai");
         setPhase("ended");
         setBattleMessage("Your line has no legal moves left. Enemy command takes the field.");
@@ -743,6 +747,27 @@ export default function GameScreen() {
     setMoveSourceTileIndex(null);
     setSelectedPieceId(null);
     setLastTap(null);
+  };
+
+  const handleRetryMatch = () => {
+    setShowQuitModal(false);
+    setShowReadyModal(false);
+    setEndedBySurrender(false);
+    setIsInventoryExpanded(false);
+    setPlacedByTileIndex({});
+    setMoveSourceTileIndex(null);
+    setSelectedPieceId(null);
+    setLastTap(null);
+    setPhase("formation");
+    setTurn("player");
+    setBattleBoard({});
+    setSelectedBattleTileIndex(null);
+    setBattleMessage("Build your line, then confirm to begin the clash.");
+    setRevealMessage(null);
+    setAIThinking(false);
+    setWinner(null);
+    setCapturedByPlayer([]);
+    setCapturedByAI([]);
   };
 
   // Double-tap sends a placed rank back to the reserve.
@@ -867,6 +892,7 @@ export default function GameScreen() {
     setRevealMessage(null);
     setCapturedByPlayer([]);
     setCapturedByAI([]);
+    setEndedBySurrender(false);
     setShowReadyModal(false);
     clearFormationSelectionState();
     setIsInventoryExpanded(false);
@@ -875,6 +901,7 @@ export default function GameScreen() {
   const handleForfeitMatch = () => {
     setShowQuitModal(false);
     setAIThinking(false);
+    setEndedBySurrender(true);
     setWinner("ai");
     setPhase("ended");
     setTurn("ai");
@@ -917,11 +944,13 @@ export default function GameScreen() {
     setRevealMessage(resolution.revealMessage);
     setSelectedBattleTileIndex(null);
     if (resolution.winner) {
+      setEndedBySurrender(false);
       setWinner(resolution.winner);
       setPhase("ended");
       return;
     }
     if (getLegalMoves(resolution.board, "ai", pieceById).length === 0) {
+      setEndedBySurrender(false);
       setWinner("player");
       setPhase("ended");
       setBattleMessage("Enemy command has no legal reply. You control the field.");
@@ -944,6 +973,14 @@ export default function GameScreen() {
   const turnLabel = winner ? (winner === "player" ? "Victory" : "Defeat") : turn === "player" ? "Your turn" : "Enemy turn";
   const topLeftActionLabel = phase === "formation" ? "Menu" : phase === "battle" ? "Surrender" : "Main Menu";
   const topLeftActionIcon = phase === "formation" ? "arrow-left" : phase === "battle" ? "flag-variant-outline" : "home-outline";
+  const resultModalLabel = winner === "player" ? "MISSION COMPLETE" : endedBySurrender ? "FORFEIT" : "MISSION LOST";
+  const resultModalTitle = winner === "player" ? "Victory" : "Defeat";
+  const resultModalBody =
+    winner === "player"
+      ? "You secured the field. Ready for another match?"
+      : endedBySurrender
+        ? "You forfeited the match. Want to set up another round?"
+        : "Enemy command took the field. Want to try again?";
   const boardHint =
     phase === "formation"
       ? "Tip: tap a placed unit to move it, or double tap it to return it to reserve."
@@ -1275,6 +1312,24 @@ export default function GameScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalButton, styles.modalSecondaryButton]} onPress={() => setShowReadyModal(false)}>
                 <Text style={[styles.modalButtonText, styles.modalSecondaryButtonText, { fontSize: rf(14) }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={phase === "ended"} transparent animationType="fade" onRequestClose={handleRetryMatch}>
+        <View style={[styles.modalOverlay, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+          <View style={[styles.modalCard, { maxWidth: Math.min(rs(360), width * 0.9), padding: rs(20) }]}>
+            <Text style={[styles.modalLabel, { fontSize: rf(10) }]}>{resultModalLabel}</Text>
+            <Text style={[styles.modalMessage, { fontSize: rf(24), lineHeight: rf(28), marginTop: rsv(8) }]}>{resultModalTitle}</Text>
+            <Text style={[styles.setupInstruction, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(10) }]}>{resultModalBody}</Text>
+            <View style={[styles.modalButtonsRow, { marginTop: rsv(18), gap: rs(14) }]}>
+              <TouchableOpacity style={[styles.modalButton, styles.modalPrimaryButton]} onPress={handleRetryMatch}>
+                <Text style={[styles.modalButtonText, { fontSize: rf(14) }]}>Retry</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalButton, styles.modalSecondaryButton]} onPress={returnToMainMenu}>
+                <Text style={[styles.modalButtonText, styles.modalSecondaryButtonText, { fontSize: rf(14) }]}>Main Menu</Text>
               </TouchableOpacity>
             </View>
           </View>
