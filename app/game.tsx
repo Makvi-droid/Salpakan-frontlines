@@ -14,6 +14,8 @@ const AI_THINKING_DELAY_MS = 800;
 const FIRST_COLUMN_LABELS = ["Flag", "Spy", "Private", "Sgt", "2nd Lt"] as const;
 const SECOND_COLUMN_LABELS = ["1st Lt", "Cpt", "Major", "Lt Col", "Col"] as const;
 const THIRD_COLUMN_LABELS = ["1 Star\nGeneral", "2 Star\nGeneral", "3 Star\nGeneral", "4 Star\nGeneral", "5 Star\nGeneral"] as const;
+// These are the only directions pieces can move in.
+// We reuse them in a few places so movement rules stay consistent.
 const ORTHOGONAL_DIRECTIONS = [
   { x: 1, y: 0 },
   { x: -1, y: 0 },
@@ -109,6 +111,8 @@ const PIECE_STRENGTH_BY_LABEL: Record<string, number> = {
   "5 Star\nGeneral": 14,
 };
 
+// This is where each difficulty level gets its personality.
+// The match rules stay the same, but these values change how the enemy sets up and chooses moves.
 const DIFFICULTY_PROFILES: Record<Difficulty, AIProfile> = {
   easy: {
     label: "Recruit",
@@ -224,6 +228,8 @@ function getLegalMoves(board: Record<number, BoardPiece>, side: Side, pieceById:
   return moves;
 }
 
+// When a piece is still hidden, we estimate its strength from the hidden ranks that are left.
+// This gives the AI a fair guess without letting it "see" unrevealed pieces.
 function getRemainingUnknownStrength(board: Record<number, BoardPiece>, opponent: Side, pieceById: Record<string, PieceDefinition>, viewer: Side) {
   const hiddenStrengths = Object.values(board)
     .filter((piece) => piece.side === opponent && (viewer === "player" ? !piece.revealedToPlayer : !piece.revealedToAI))
@@ -251,6 +257,8 @@ function compareCombat(attackerId: string, defenderId: string, pieceById: Record
   return attackerStrength > defenderStrength ? 1 : -1;
 }
 
+// This is the main battle result function.
+// Both the player and the enemy use this, so captures, reveals, and win checks all stay in one place.
 function resolveBattleMove(
   board: Record<number, BoardPiece>,
   move: BattleMove,
@@ -357,6 +365,8 @@ function getAdjacentFriendlyCount(board: Record<number, BoardPiece>, tileIndex: 
   }, 0);
 }
 
+// Here we check how dangerous a tile looks based on nearby enemy pieces.
+// It helps the enemy avoid stepping into obviously bad positions.
 function estimateThreatAtTile(
   board: Record<number, BoardPiece>,
   tileIndex: number,
@@ -391,6 +401,8 @@ function estimateThreatAtTile(
   }, 0);
 }
 
+// This scores each enemy move before one is picked.
+// It mixes short-term value like captures with simple board-position ideas.
 function scoreAIMove(board: Record<number, BoardPiece>, move: BattleMove, profile: AIProfile, pieceById: Record<string, PieceDefinition>) {
   const mover = board[move.from];
   if (!mover) {
@@ -424,6 +436,8 @@ function scoreAIMove(board: Record<number, BoardPiece>, move: BattleMove, profil
   return captureScore + revealScore + centerScore + advancementScore + supportScore - vulnerabilityPenalty;
 }
 
+// The enemy does not always take the single top-scoring move.
+// Instead, it picks from a small shortlist so easier levels feel less exact and harder levels feel more disciplined.
 function chooseMoveForProfile(board: Record<number, BoardPiece>, profile: AIProfile, pieceById: Record<string, PieceDefinition>) {
   const legalMoves = getLegalMoves(board, "ai", pieceById);
   if (legalMoves.length === 0) {
@@ -458,6 +472,8 @@ function chooseMoveForProfile(board: Record<number, BoardPiece>, profile: AIProf
   return weightedShortlist[0].move;
 }
 
+// Important ranks are placed first during enemy setup.
+// This gives them first pick of the better starting spots.
 function getFormationPriority(pieceId: string, pieceById: Record<string, PieceDefinition>) {
   const label = pieceById[pieceId]?.label;
   if (label === "Flag") {
@@ -469,6 +485,8 @@ function getFormationPriority(pieceId: string, pieceById: Record<string, PieceDe
   return getPieceStrength(pieceId, pieceById) >= 10 ? 90 : getPieceStrength(pieceId, pieceById);
 }
 
+// This scores where a piece should start before the battle begins.
+// Opening setup cares more about formation shape than immediate attacks.
 function scoreFormationTile(pieceId: string, tileIndex: number, difficulty: AIProfile["opening"], pieceById: Record<string, PieceDefinition>) {
   const row = getTileRow(tileIndex);
   const column = getTileColumn(tileIndex);
@@ -500,6 +518,8 @@ function scoreFormationTile(pieceId: string, tileIndex: number, difficulty: AIPr
   return score;
 }
 
+// This builds the enemy's starting formation.
+// Easy is looser and more random, while medium and hard try to build a stronger opening shape.
 function generateAIFormation(difficulty: AIProfile["opening"], pieceDefinitions: PieceDefinition[], pieceById: Record<string, PieceDefinition>) {
   const setupTiles = Array.from({ length: BOARD_WIDTH * 3 }, (_, index) => index);
   const formation: Record<number, string> = {};
@@ -545,6 +565,8 @@ function generateAIFormation(difficulty: AIProfile["opening"], pieceDefinitions:
   return formation;
 }
 
+// Once both sides are ready, we turn the saved formations into the live battle board.
+// Keeping setup and battle state separate makes the screen easier to manage.
 function buildBattleBoard(playerFormation: Record<number, string>, aiFormation: Record<number, string>) {
   const board: Record<number, BoardPiece> = {};
   Object.entries(playerFormation).forEach(([tileIndex, pieceId]) => {
@@ -610,6 +632,7 @@ export default function GameScreen() {
 
   const boardTiles = useMemo(() => Array.from({ length: BOARD_WIDTH * BOARD_HEIGHT }, (_, index) => ({ index })), []);
   const aiProfile = DIFFICULTY_PROFILES[difficulty];
+  // We build the full list of ranks once here so the UI, battle rules, and enemy logic all use the same piece data.
   const pieceDefinitions: PieceDefinition[] = useMemo(() => {
     const columns = [FIRST_COLUMN_LABELS, SECOND_COLUMN_LABELS, THIRD_COLUMN_LABELS];
     return columns.flatMap((labels, column) =>
@@ -621,6 +644,8 @@ export default function GameScreen() {
     );
   }, []);
   const pieceById = useMemo(() => Object.fromEntries(pieceDefinitions.map((piece) => [piece.id, piece])), [pieceDefinitions]);
+  // Reserve counts are based on what has already been placed on the board.
+  // That way we do not have to manually keep a second piece counter in sync.
   const initialPieceCountById = useMemo(() => {
     const counts: Record<string, number> = {};
     pieceDefinitions.forEach((piece) => {
@@ -641,6 +666,8 @@ export default function GameScreen() {
   const isReadyEnabled = totalUnplacedCount === 0;
   const selectedPiece = selectedPieceId ? pieceById[selectedPieceId] : null;
   const showSetupZoneHint = phase === "formation" && (selectedPieceId !== null || moveSourceTileIndex !== null);
+  // When the player selects a piece during battle, we precompute its legal targets.
+  // This keeps the board render simpler because each tile can just check this list.
   const selectedBattleMoves = useMemo(() => {
     if (phase !== "battle" || selectedBattleTileIndex === null) {
       return [];
@@ -650,6 +677,8 @@ export default function GameScreen() {
   const capturedPlayerNames = useMemo(() => capturedByPlayer.map((pieceId) => pieceById[pieceId]?.shortLabel ?? "?").join("  "), [capturedByPlayer, pieceById]);
   const capturedAINames = useMemo(() => capturedByAI.map((pieceId) => pieceById[pieceId]?.shortLabel ?? "?").join("  "), [capturedByAI, pieceById]);
 
+  // This effect handles the enemy turn after the player finishes a move.
+  // Keeping it here makes the turn handoff easier to follow during handoffs.
   useEffect(() => {
     if (phase !== "battle" || turn !== "ai" || winner) {
       return;
@@ -693,6 +722,14 @@ export default function GameScreen() {
     setSelectedPieceId(null);
   };
 
+  const returnToMainMenu = () => {
+    if (typeof router.canGoBack === "function" && router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/");
+    }
+  };
+
   const handlePieceButtonPress = (pieceId: string) => {
     if (phase !== "formation") {
       return;
@@ -708,6 +745,8 @@ export default function GameScreen() {
     setLastTap(null);
   };
 
+  // Double-tap sends a placed rank back to the reserve.
+  // The timing check helps avoid removing a piece by accident during normal setup taps.
   const tryHandleDoubleTapRemove = (tileIndex: number, now: number) => {
     if (!lastTap || lastTap.tileIndex !== tileIndex || now - lastTap.time >= DOUBLE_TAP_MS) {
       return false;
@@ -725,6 +764,8 @@ export default function GameScreen() {
     return true;
   };
 
+  // If the player is already moving a placed rank, the next tap finishes that move.
+  // It can either swap with another placed rank or move into an empty setup tile.
   const tryHandleMoveFromSource = (tileIndex: number) => {
     if (moveSourceTileIndex === null) {
       return false;
@@ -753,6 +794,8 @@ export default function GameScreen() {
     return true;
   };
 
+  // If nothing from the reserve is selected, tapping a placed tile means
+  // "pick this up and move it" instead of placing a new piece.
   const tryBeginMoveFromTile = (tileIndex: number) => {
     if (selectedPieceId) {
       return false;
@@ -774,6 +817,8 @@ export default function GameScreen() {
     clearFormationSelectionState();
   };
 
+  // Formation taps follow one path in this order:
+  // remove on double-tap, finish a move if one is in progress, start moving an existing rank, or place a reserve rank.
   const handleFormationTilePress = (tileIndex: number) => {
     if (!isPlayerSetupZoneTileIndex(tileIndex)) {
       return;
@@ -827,6 +872,19 @@ export default function GameScreen() {
     setIsInventoryExpanded(false);
   };
 
+  const handleForfeitMatch = () => {
+    setShowQuitModal(false);
+    setAIThinking(false);
+    setWinner("ai");
+    setPhase("ended");
+    setTurn("ai");
+    setSelectedBattleTileIndex(null);
+    setBattleMessage("You forfeited the match. Enemy command takes the field.");
+    setRevealMessage("The battle ended by surrender.");
+  };
+
+  // Battle taps are simpler than setup:
+  // first select one of your pieces, then tap a legal tile to move or attack. After that, the turn either ends the match or passes to the enemy.
   const handleBattleTilePress = (tileIndex: number) => {
     if (phase !== "battle" || turn !== "player" || winner || aiThinking) {
       return;
@@ -880,8 +938,12 @@ export default function GameScreen() {
     handleBattleTilePress(tileIndex);
   };
 
+  // These labels are derived from the current game state.
+  // Keeping them here makes the text easier to trace when someone updates the screen copy later.
   const phaseLabel = phase === "formation" ? "FORMATION PHASE" : phase === "battle" ? "BATTLE PHASE" : "MATCH RESOLVED";
   const turnLabel = winner ? (winner === "player" ? "Victory" : "Defeat") : turn === "player" ? "Your turn" : "Enemy turn";
+  const topLeftActionLabel = phase === "formation" ? "Menu" : phase === "battle" ? "Surrender" : "Main Menu";
+  const topLeftActionIcon = phase === "formation" ? "arrow-left" : phase === "battle" ? "flag-variant-outline" : "home-outline";
   const boardHint =
     phase === "formation"
       ? "Tip: tap a placed unit to move it, or double tap it to return it to reserve."
@@ -908,11 +970,17 @@ export default function GameScreen() {
           <View style={[styles.topMenuRow, { minHeight: topMenuHeight, marginBottom: verticalSectionGap }]}>
             <TouchableOpacity
               style={[styles.menuButton, { paddingVertical: rsv(6), paddingHorizontal: rs(10), borderRadius: rs(12) }]}
-              onPress={() => setShowQuitModal(true)}
+              onPress={() => {
+                if (phase === "ended") {
+                  returnToMainMenu();
+                  return;
+                }
+                setShowQuitModal(true);
+              }}
               activeOpacity={0.85}
             >
-              <MaterialCommunityIcons name="arrow-left" size={rf(18)} color={appTheme.colors.brassBright} />
-              <Text style={[styles.menuButtonText, { fontSize: rf(13) }]}>Menu</Text>
+              <MaterialCommunityIcons name={topLeftActionIcon} size={rf(18)} color={appTheme.colors.brassBright} />
+              <Text style={[styles.menuButtonText, { fontSize: rf(13) }]}>{topLeftActionLabel}</Text>
             </TouchableOpacity>
 
             <View style={styles.topRowCenter}>
@@ -952,12 +1020,6 @@ export default function GameScreen() {
                 <Text style={[styles.statusLabel, { fontSize: rf(10) }]}>{phase === "formation" ? "Unplaced" : "Intel"}</Text>
                 <Text style={[styles.statusValue, { fontSize: rf(13) }]} numberOfLines={2}>
                   {phase === "formation" ? totalUnplacedCount : revealMessage ?? "Enemy ranks stay hidden until contact."}
-                </Text>
-              </View>
-              <View style={styles.statusItem}>
-                <Text style={[styles.statusLabel, { fontSize: rf(10) }]}>{phase === "formation" ? "Zone" : "Doctrine"}</Text>
-                <Text style={[styles.statusValue, { fontSize: rf(13) }]} numberOfLines={2}>
-                  {phase === "formation" ? "Last 3 rows" : aiProfile.flavor}
                 </Text>
               </View>
             </View>
@@ -1171,12 +1233,6 @@ export default function GameScreen() {
                     {capturedAINames || "None"}
                   </Text>
                 </View>
-                <View style={styles.statusItem}>
-                  <Text style={[styles.statusLabel, { fontSize: rf(10) }]}>Difficulty</Text>
-                  <Text style={[styles.statusValue, { fontSize: rf(13) }]} numberOfLines={2}>
-                    {aiProfile.flavor}
-                  </Text>
-                </View>
               </View>
             </View>
           )}
@@ -1186,26 +1242,22 @@ export default function GameScreen() {
       <Modal visible={showQuitModal} transparent animationType="fade" onRequestClose={() => setShowQuitModal(false)}>
         <View style={[styles.modalOverlay, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
           <View style={[styles.modalCard, { maxWidth: Math.min(rs(360), width * 0.9), padding: rs(20) }]}>
-            <Text style={[styles.modalLabel, { fontSize: rf(10) }]}>EXIT COMMAND</Text>
+            <Text style={[styles.modalLabel, { fontSize: rf(10) }]}>{phase === "formation" ? "EXIT COMMAND" : "SURRENDER"}</Text>
             <Text style={[styles.modalMessage, { fontSize: rf(24), lineHeight: rf(28), marginTop: rsv(8) }]}>
-              {phase === "formation" ? "Leave the formation screen?" : "Leave the current match?"}
+              {phase === "formation" ? "Leave the formation screen?" : "Forfeit this match?"}
             </Text>
             <View style={[styles.modalButtonsRow, { marginTop: rsv(18), gap: rs(14) }]}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalPrimaryButton]}
-                onPress={() => {
+                onPress={phase === "formation" ? () => {
                   setShowQuitModal(false);
-                  if (typeof router.canGoBack === "function" && router.canGoBack()) {
-                    router.back();
-                  } else {
-                    router.replace("/");
-                  }
-                }}
+                  returnToMainMenu();
+                } : handleForfeitMatch}
               >
-                <Text style={[styles.modalButtonText, { fontSize: rf(14) }]}>Leave</Text>
+                <Text style={[styles.modalButtonText, { fontSize: rf(14) }]}>{phase === "formation" ? "Leave" : "Forfeit"}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalButton, styles.modalSecondaryButton]} onPress={() => setShowQuitModal(false)}>
-                <Text style={[styles.modalButtonText, styles.modalSecondaryButtonText, { fontSize: rf(14) }]}>Stay</Text>
+                <Text style={[styles.modalButtonText, styles.modalSecondaryButtonText, { fontSize: rf(14) }]}>{phase === "formation" ? "Stay" : "Keep Fighting"}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1249,7 +1301,7 @@ const styles = StyleSheet.create({
   setupBox: { width: "100%", backgroundColor: appTheme.surfaces.formationBriefing.backgroundColor, borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.surfaces.formationBriefing.borderColor, alignItems: "center", ...appTheme.shadow.soft },
   setupInstruction: { color: appTheme.colors.parchmentSoft, fontFamily: appTheme.fonts.body, textAlign: "center", maxWidth: 420 },
   statusStrip: { width: "100%", flexDirection: "row", flexWrap: "wrap" },
-  statusItem: { flex: 1, minWidth: 88, backgroundColor: appTheme.surfaces.inset.backgroundColor, borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.surfaces.inset.borderColor, borderRadius: appTheme.radius.md, paddingHorizontal: 10, paddingVertical: 8 },
+  statusItem: { flex: 1, minWidth: 120, backgroundColor: appTheme.surfaces.inset.backgroundColor, borderWidth: appTheme.borderWidth.regular, borderColor: appTheme.surfaces.inset.borderColor, borderRadius: appTheme.radius.md, paddingHorizontal: 10, paddingVertical: 8 },
   statusLabel: { color: appTheme.colors.inkSoft, fontFamily: appTheme.fonts.body, letterSpacing: 0.8, textTransform: "uppercase" },
   statusValue: { color: appTheme.colors.ink, fontFamily: appTheme.fonts.body, marginTop: 2 },
   actionRow: { width: "100%", flexDirection: "row", justifyContent: "center", alignItems: "center", flexWrap: "wrap" },
