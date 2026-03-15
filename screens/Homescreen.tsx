@@ -1,30 +1,75 @@
 import Entypo from "@expo/vector-icons/Entypo";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import Octicons from "@expo/vector-icons/Octicons";
 import { useRouter } from "expo-router";
 import React from "react";
-import {
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+
+import ScreenShell from "@/components/ScreenShell";
+import { appTheme, difficultyTones } from "@/constants/theme";
+import { useResponsiveTokens } from "@/hooks/useResponsiveTokens";
+
+type Difficulty = "easy" | "medium" | "hard";
+
+type DifficultyOption = {
+  key: Difficulty;
+  title: string;
+  subtitle: string;
+  command: string;
+  stars: number;
+  icon: React.ReactNode;
+};
+
+const difficultyOptions: DifficultyOption[] = [
+  {
+    key: "easy",
+    title: "Recruit",
+    subtitle: "Measured opening",
+    command: "Best for learning the board and reserve flow.",
+    stars: 1,
+    icon: <MaterialCommunityIcons name="shield-outline" size={24} color={difficultyTones.easy.icon} />,
+  },
+  {
+    key: "medium",
+    title: "Vanguard",
+    subtitle: "Balanced pressure",
+    command: "A steadier duel with sharper counters.",
+    stars: 2,
+    icon: <MaterialCommunityIcons name="chess-rook" size={24} color={difficultyTones.medium.icon} />,
+  },
+  {
+    key: "hard",
+    title: "Warlord",
+    subtitle: "No easy ground",
+    command: "For players who want immediate tension.",
+    stars: 3,
+    icon: <MaterialCommunityIcons name="sword-cross" size={24} color={difficultyTones.hard.icon} />,
+  },
+];
 
 function Homescreen() {
   const router = useRouter();
+  const {
+    layoutWidth,
+    rs,
+    rsv,
+    rf,
+    contentPaddingX,
+    cardGap,
+    cardPadding,
+    panelRadius,
+    isCompactHeight,
+    isUltraCompactHeight,
+  } = useResponsiveTokens();
 
-  type Difficulty = "easy" | "medium" | "hard";
-
-  const { width } = useWindowDimensions();
-
-  const titleSize = Math.min(width * 0.12, 60);
-  const mainImageSize = Math.min(width * 0.45, 200);
-  const starIconSize = Math.min(width * 0.08, 35);
-  const bigIconSize = Math.min(width * 0.1, 45);
+  const contentWidth = Math.min(layoutWidth, rs(530));
+  const iconFrameSize = rs(isUltraCompactHeight ? 44 : isCompactHeight ? 50 : 58);
+  const shellTopPadding = rsv(isUltraCompactHeight ? 8 : isCompactHeight ? 12 : 18);
+  const shellBottomPadding = rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 14 : 20);
+  const mergedPanelPaddingTop = rsv(isUltraCompactHeight ? 12 : isCompactHeight ? 16 : 22);
+  const mergedPanelPaddingBottom = rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 14 : 18);
+  const mergedSectionGap = rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 12 : 16);
+  const optionCardPadding = rs(isUltraCompactHeight ? 7 : isCompactHeight ? 8 : 10);
+  const optionMinHeight = rsv(isUltraCompactHeight ? 90 : isCompactHeight ? 96 : 102);
 
   const handleStartGame = (chosenDifficulty: Difficulty) => {
     router.push({
@@ -34,123 +79,152 @@ function Homescreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {/* Title Section */}
-        <View style={styles.headerSection}>
-          <Text
+    <View style={styles.safeArea}>
+      <View
+        style={[
+          styles.backgroundEmber,
+          {
+            width: rs(170),
+            height: rs(170),
+            borderRadius: rs(85),
+            top: rsv(6),
+            right: -rs(26),
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.backgroundFog,
+          {
+            width: rs(250),
+            height: rs(250),
+            borderRadius: rs(125),
+            bottom: -rs(84),
+            left: -rs(54),
+          },
+        ]}
+      />
+
+      <ScreenShell
+        style={styles.root}
+        maxWidth={contentWidth}
+        horizontalPadding={contentPaddingX}
+        topPadding={shellTopPadding}
+        bottomPadding={shellBottomPadding}
+        scrollable={false}
+      >
+        <View style={[styles.contentRoot, styles.contentRootCentered, { maxWidth: contentWidth }]}>
+          <View
             style={[
-              styles.title,
+              styles.mainPanel,
               {
-                color: "#E2F200",
-                fontSize: titleSize,
-                lineHeight: titleSize + 10,
+                borderRadius: panelRadius,
+                paddingHorizontal: cardPadding,
+                paddingTop: mergedPanelPaddingTop,
+                paddingBottom: mergedPanelPaddingBottom,
               },
             ]}
           >
-            Salpakan
-          </Text>
-          <Text
-            style={[
-              styles.title,
-              {
-                color: "#E2F200",
-                fontSize: titleSize,
-                lineHeight: titleSize + 10,
-              },
-            ]}
-          >
-            Frontlines
-          </Text>
+            <View style={styles.heroContent}>
+              <Text style={[styles.heroLabel, { fontSize: rf(10) }]}>COMMAND SELECTION</Text>
+              <Text style={[styles.heroTitle, { fontSize: rf(isCompactHeight ? 26 : 30), marginTop: rsv(4) }]}>Choose your command</Text>
+              <Text style={[styles.heroCopy, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(8) }]}>
+                Pick your opening pressure, then deploy to the frontline.
+              </Text>
+            </View>
+
+            <View style={[styles.cardStack, { gap: cardGap, marginTop: mergedSectionGap }]}>
+              {difficultyOptions.map((option) => {
+                const tone = difficultyTones[option.key];
+
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[
+                      styles.difficultyCard,
+                      {
+                        borderRadius: rs(20),
+                        padding: optionCardPadding,
+                        backgroundColor: tone.shell,
+                        borderColor: tone.line,
+                      },
+                    ]}
+                    onPress={() => handleStartGame(option.key)}
+                    activeOpacity={0.88}
+                  >
+                    <View style={[styles.difficultyFace, { minHeight: optionMinHeight, borderRadius: rs(18), backgroundColor: tone.face }]}>
+                      <View style={[styles.cardRail, { width: rs(8), borderRadius: rs(8), backgroundColor: tone.accent }]} />
+
+                      <View
+                        style={[
+                          styles.iconFrame,
+                          {
+                            width: iconFrameSize,
+                            height: iconFrameSize,
+                            borderRadius: rs(16),
+                            backgroundColor: tone.accent,
+                          },
+                        ]}
+                      >
+                        {option.icon}
+                      </View>
+
+                      <View style={styles.cardTextBlock}>
+                        <Text style={[styles.difficultyTitle, { color: tone.label, fontSize: rf(isCompactHeight ? 21 : 24) }]}>
+                          {option.title}
+                        </Text>
+                        <Text style={[styles.difficultySubtitle, { color: tone.note, fontSize: rf(12), marginTop: rsv(1) }]}>
+                          {option.subtitle}
+                        </Text>
+                        {!isUltraCompactHeight ? (
+                          <Text
+                            style={[
+                              styles.difficultyDescription,
+                              {
+                                color: tone.note,
+                                fontSize: rf(11),
+                                lineHeight: rf(15),
+                                marginTop: rsv(3),
+                              },
+                            ]}
+                          >
+                            {option.command}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <View style={styles.cardAside}>
+                        <View style={styles.starRow}>
+                          {Array.from({ length: option.stars }, (_, starIndex) => (
+                            <Entypo key={`${option.key}-${starIndex}`} name="star" size={rf(14)} color={tone.label} />
+                          ))}
+                        </View>
+                        <Text style={[styles.tapToEnter, { color: tone.label, fontSize: rf(10), marginTop: rsv(6) }]}>DEPLOY</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.backButton,
+                {
+                  borderRadius: rs(16),
+                  paddingVertical: rsv(isUltraCompactHeight ? 10 : 12),
+                  marginTop: mergedSectionGap,
+                },
+              ]}
+              onPress={() => router.replace("/")}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.backButtonText, { fontSize: rf(13) }]}>Back to Main Menu</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-
-        {/* Mascot/Icon Section */}
-        <Image
-          style={[
-            styles.mainIcon,
-            { width: mainImageSize, height: mainImageSize },
-          ]}
-          source={require("../assets/images/swords.png")}
-          resizeMode="contain"
-        />
-
-        <Text style={styles.subtitle}>Select Difficulty</Text>
-
-        {/* Buttons Container */}
-        <View style={styles.buttonList}>
-          {/* EASY BUTTON */}
-          <TouchableOpacity
-            style={[styles.buttonBase, styles.easy]}
-            onPress={() => handleStartGame("easy")}
-          >
-            <View style={styles.buttonContent}>
-              <Image
-                source={require("../assets/images/security.png")}
-                style={styles.innerIcon}
-              />
-              <View style={styles.textContainer}>
-                <Text style={[styles.difficultyText, { color: "#81FF81" }]}>
-                  EASY
-                </Text>
-                <Text style={[styles.subText, { color: "#018701" }]}>
-                  for recruits
-                </Text>
-              </View>
-              <Entypo name="star" size={bigIconSize} color="#00A700" />
-            </View>
-          </TouchableOpacity>
-
-          {/* MEDIUM BUTTON */}
-          <TouchableOpacity
-            style={[styles.buttonBase, styles.medium]}
-            onPress={() => handleStartGame("medium")}
-          >
-            <View style={styles.buttonContent}>
-              <MaterialCommunityIcons
-                name="sword-cross"
-                size={bigIconSize}
-                color="#E27A03"
-              />
-              <View style={styles.textContainer}>
-                <Text style={[styles.difficultyText, { color: "#FFFB79" }]}>
-                  MEDIUM
-                </Text>
-                <Text style={[styles.subText, { color: "#D0A700" }]}>
-                  for soldiers
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row" }}>
-                <Entypo name="star" size={starIconSize} color="#E27A03" />
-                <Entypo name="star" size={starIconSize} color="#E27A03" />
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          {/* HARD BUTTON */}
-          <TouchableOpacity
-            style={[styles.buttonBase, styles.hard]}
-            onPress={() => handleStartGame("hard")}
-          >
-            <View style={styles.buttonContent}>
-              <Octicons name="trophy" size={bigIconSize} color="#C80000" />
-              <View style={styles.textContainer}>
-                <Text style={[styles.difficultyText, { color: "#FFA4A9" }]}>
-                  HARD
-                </Text>
-                <Text style={[styles.subText, { color: "#FF2600" }]}>
-                  for generals
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row" }}>
-                <Entypo name="star" size={starIconSize} color="#C80000" />
-                <Entypo name="star" size={starIconSize} color="#C80000" />
-                <Entypo name="star" size={starIconSize} color="#C80000" />
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      </ScreenShell>
+    </View>
   );
 }
 
@@ -159,74 +233,120 @@ export default Homescreen;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#060D1F",
+    backgroundColor: appTheme.colors.background,
   },
-  scrollContainer: {
+  backgroundEmber: {
+    position: "absolute",
+    backgroundColor: "rgba(180, 67, 52, 0.2)",
+  },
+  backgroundFog: {
+    position: "absolute",
+    backgroundColor: "rgba(199, 163, 84, 0.1)",
+  },
+  root: {
+    flex: 1,
     alignItems: "center",
-    paddingVertical: 40,
   },
-  headerSection: {
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  title: {
-    fontWeight: "bold",
-  },
-  mainIcon: {
-    marginVertical: 10,
-  },
-  subtitle: {
-    fontSize: 22,
-    color: "white",
-    fontFamily: "K2D",
-    marginBottom: 20,
-  },
-  buttonList: {
+  contentRoot: {
     width: "100%",
-    alignItems: "center",
-    gap: 20,
   },
-  buttonBase: {
-    width: "90%",
-    maxWidth: 500,
-    height: 110,
-    borderWidth: 4,
-    borderRadius: 20,
+  contentRootCentered: {
+    flex: 1,
     justifyContent: "center",
   },
-  easy: {
-    borderColor: "#00D719",
-    backgroundColor: "#22352F",
+  mainPanel: {
+    backgroundColor: appTheme.surfaces.hero.backgroundColor,
+    borderWidth: appTheme.borderWidth.regular,
+    borderColor: appTheme.surfaces.section.borderColor,
+    ...appTheme.shadow.hard,
   },
-  medium: {
-    borderColor: "#E27A03",
-    backgroundColor: "#353322",
+  heroContent: {
+    alignItems: "center",
   },
-  hard: {
-    borderColor: "#C80000",
-    backgroundColor: "#352522",
+  heroLabel: {
+    color: appTheme.colors.brassBright,
+    fontFamily: appTheme.fonts.body,
+    letterSpacing: 1.1,
+    textAlign: "center",
   },
-  buttonContent: {
+  heroTitle: {
+    color: appTheme.colors.ink,
+    fontFamily: appTheme.fonts.display,
+    textTransform: "uppercase",
+    letterSpacing: 0.15,
+    textAlign: "center",
+  },
+  heroCopy: {
+    color: appTheme.colors.parchmentSoft,
+    fontFamily: appTheme.fonts.body,
+    textAlign: "center",
+  },
+  cardStack: {
+    paddingTop: 2,
+  },
+  backButton: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: appTheme.surfaces.commandSecondary.backgroundColor,
+    borderWidth: appTheme.borderWidth.regular,
+    borderColor: appTheme.surfaces.section.borderColor,
+  },
+  backButtonText: {
+    color: appTheme.surfaces.commandSecondary.textColor,
+    fontFamily: appTheme.fonts.body,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  difficultyCard: {
+    width: "100%",
+    borderWidth: appTheme.borderWidth.regular,
+    ...appTheme.shadow.soft,
+  },
+  difficultyFace: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 15,
-    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
   },
-  innerIcon: {
-    height: 50,
-    width: 50,
+  cardRail: {
+    alignSelf: "stretch",
+    marginRight: 8,
   },
-  textContainer: {
+  iconFrame: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  cardTextBlock: {
     flex: 1,
-    flexDirection: "column",
+    justifyContent: "center",
   },
-  difficultyText: {
-    fontFamily: "DifficultyFont",
-    fontSize: 30,
-    fontWeight: "semibold",
-    letterSpacing: 3,
+  difficultyTitle: {
+    fontFamily: appTheme.fonts.display,
+    letterSpacing: 0.15,
+    textTransform: "uppercase",
   },
-  subText: {
-    fontSize: 14,
+  difficultySubtitle: {
+    fontFamily: appTheme.fonts.body,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  difficultyDescription: {
+    fontFamily: appTheme.fonts.body,
+  },
+  cardAside: {
+    minWidth: 56,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    marginLeft: 8,
+  },
+  starRow: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  tapToEnter: {
+    fontFamily: appTheme.fonts.body,
+    letterSpacing: 0.8,
   },
 });

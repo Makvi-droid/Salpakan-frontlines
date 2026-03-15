@@ -2,6 +2,8 @@ import * as Font from "expo-font";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 export default function RootLayout() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -9,10 +11,8 @@ export default function RootLayout() {
   useEffect(() => {
     async function loadFonts() {
       await Font.loadAsync({
-        // 'GameFont' is the nickname you'll use in your CSS
-        DifficultyFont: require("../assets/fonts/Jersey10-Regular.ttf"),
-        K2D: require("../assets/fonts/K2D-Regular.ttf"),
-        Bebas: require("../assets/fonts/BebasNeue-Regular.ttf"),
+        BlackOpsDisplay: require("../assets/fonts/BlackOpsOne-Regular.ttf"),
+        RajdhaniBody: require("../assets/fonts/Rajdhani-Medium.ttf"),
       });
       setFontsLoaded(true);
     }
@@ -27,5 +27,10 @@ export default function RootLayout() {
     );
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <SafeAreaProvider>
+      <StatusBar style="light" />
+      <Stack screenOptions={{ headerShown: false }} />
+    </SafeAreaProvider>
+  );
 }
