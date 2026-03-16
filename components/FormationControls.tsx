@@ -9,7 +9,7 @@ import {
 } from "react-native";
 
 import { appTheme } from "@/constants/theme";
-import type { PieceDefinition } from "../app/types";
+import type { PieceDefinition } from "../scripts/types";
 
 type Props = {
   isReadyEnabled: boolean;

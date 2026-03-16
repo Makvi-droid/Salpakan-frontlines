@@ -1,22 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 
-import { chooseMoveForProfile, generateAIFormation } from "../app/aiLogic";
-import {
-  buildBattleBoard,
-  getLegalMoves,
-  getPieceId,
-  isPlayerSetupZoneTileIndex,
-  resolveBattleMove,
-  shuffleArray,
-} from "../app/gameLogic";
-import type {
-  BoardPiece,
-  Difficulty,
-  Phase,
-  PieceDefinition,
-  Side,
-} from "../app/types";
 import {
   AI_THINKING_DELAY_MS,
   BOARD_HEIGHT,
@@ -28,6 +12,24 @@ import {
   SHORT_LABEL_BY_NAME,
   THIRD_COLUMN_LABELS,
 } from "../constants/constants";
+import { chooseMoveForProfile, generateAIFormation } from "../scripts/aiLogic";
+import {
+  buildBattleBoard,
+  getLegalMoves,
+  getPieceId,
+  isPlayerSetupZoneTileIndex,
+  prepareChallengeEvent,
+  resolveBattleMove,
+  shuffleArray,
+} from "../scripts/gameLogic";
+import type {
+  BoardPiece,
+  ChallengeEvent,
+  Difficulty,
+  Phase,
+  PieceDefinition,
+  Side,
+} from "../scripts/types";
 
 /** Hook that owns all game state and exposes handlers to the screen. */
 export function useGameState(difficulty: Difficulty) {
@@ -97,6 +99,12 @@ export function useGameState(difficulty: Difficulty) {
   const [capturedByAI, setCapturedByAI] = useState<string[]>([]);
   const [endedBySurrender, setEndedBySurrender] = useState(false);
 
+  // ── Challenge state ─────────────────────────────────────────────────────────
+  // When a move targets an enemy piece we park the resolved outcome here.
+  // The board only updates once the player dismisses the ChallengeModal.
+  const [pendingChallenge, setPendingChallenge] =
+    useState<ChallengeEvent | null>(null);
+
   // ── Derived values ──────────────────────────────────────────────────────────
   const initialPieceCountById = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -133,6 +141,12 @@ export function useGameState(difficulty: Difficulty) {
       .map((m) => m.to);
   }, [battleBoard, phase, pieceById, selectedBattleTileIndex]);
 
+  // Subset of selectedBattleMoves that land on enemy pieces
+  const challengeTargetTiles = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return [];
+    return selectedBattleMoves.filter((to) => battleBoard[to]?.side === "ai");
+  }, [battleBoard, phase, selectedBattleTileIndex, selectedBattleMoves]);
+
   const capturedPlayerNames = useMemo(
     () =>
       capturedByPlayer.map((id) => pieceById[id]?.shortLabel ?? "?").join("  "),
@@ -151,9 +165,44 @@ export function useGameState(difficulty: Difficulty) {
     [],
   );
 
-  // ── AI turn effect ──────────────────────────────────────────────────────────
+  // ── Shared post-resolution logic ─────────────────────────────────────────────
+  const applyResolution = (
+    res: ReturnType<typeof resolveBattleMove>,
+    nextTurn: Side,
+  ) => {
+    setBattleBoard(res.board);
+    setCapturedByPlayer((c) => [...c, ...res.capturedByPlayer]);
+    setCapturedByAI((c) => [...c, ...res.capturedByAI]);
+    setBattleMessage(res.message);
+    setRevealMessage(res.revealMessage);
+    setSelectedBattleTileIndex(null);
+
+    if (res.winner) {
+      setWinner(res.winner);
+      setPhase("ended");
+      setEndedBySurrender(false);
+      return;
+    }
+    const opponentSide: Side = nextTurn === "player" ? "ai" : "player";
+    if (getLegalMoves(res.board, opponentSide, pieceById).length === 0) {
+      setWinner(nextTurn);
+      setPhase("ended");
+      setEndedBySurrender(false);
+      setBattleMessage(
+        nextTurn === "player"
+          ? "Enemy command has no legal reply. You control the field."
+          : "Your line has no legal moves left. Enemy command takes the field.",
+      );
+      return;
+    }
+    setTurn(nextTurn);
+  };
+
+  // ── AI turn effect ───────────────────────────────────────────────────────────
+  // Paused while a challenge modal is visible so the player reads it first.
   useEffect(() => {
-    if (phase !== "battle" || turn !== "ai" || winner) return;
+    if (phase !== "battle" || turn !== "ai" || winner || pendingChallenge)
+      return;
     setAIThinking(true);
     const timer = setTimeout(() => {
       const aiMove = chooseMoveForProfile(battleBoard, aiProfile, pieceById);
@@ -167,6 +216,19 @@ export function useGameState(difficulty: Difficulty) {
         setAIThinking(false);
         return;
       }
+
+      // AI attacking a player piece → show challenge modal
+      const target = battleBoard[aiMove.to];
+      if (target?.side === "player") {
+        const event = prepareChallengeEvent(battleBoard, aiMove, pieceById);
+        if (event) {
+          setAIThinking(false);
+          setPendingChallenge(event);
+          return;
+        }
+      }
+
+      // Non-combat move → apply immediately
       const res = resolveBattleMove(battleBoard, aiMove, pieceById);
       setBattleBoard(res.board);
       setCapturedByPlayer((c) => [...c, ...res.capturedByPlayer]);
@@ -191,7 +253,24 @@ export function useGameState(difficulty: Difficulty) {
       setAIThinking(false);
     }, AI_THINKING_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [aiProfile, battleBoard, phase, pieceById, turn, winner]);
+  }, [
+    aiProfile,
+    battleBoard,
+    phase,
+    pieceById,
+    turn,
+    winner,
+    pendingChallenge,
+  ]);
+
+  // ── Challenge modal dismiss ──────────────────────────────────────────────────
+  const handleChallengeDismiss = () => {
+    if (!pendingChallenge) return;
+    const { resolution, attackerSide } = pendingChallenge;
+    setPendingChallenge(null);
+    const nextTurn: Side = attackerSide === "player" ? "ai" : "player";
+    applyResolution(resolution, nextTurn);
+  };
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const clearFormationSelection = () => {
@@ -309,7 +388,14 @@ export function useGameState(difficulty: Difficulty) {
 
   // ── Battle handlers ─────────────────────────────────────────────────────────
   const handleBattleTilePress = (tileIndex: number) => {
-    if (phase !== "battle" || turn !== "player" || winner || aiThinking) return;
+    if (
+      phase !== "battle" ||
+      turn !== "player" ||
+      winner ||
+      aiThinking ||
+      pendingChallenge
+    )
+      return;
     const tappedPiece = battleBoard[tileIndex];
 
     if (selectedBattleTileIndex === null) {
@@ -333,30 +419,37 @@ export function useGameState(difficulty: Difficulty) {
       return;
     }
 
-    const res = resolveBattleMove(battleBoard, legalMove, pieceById);
-    setBattleBoard(res.board);
-    setCapturedByPlayer((c) => [...c, ...res.capturedByPlayer]);
-    setCapturedByAI((c) => [...c, ...res.capturedByAI]);
-    setBattleMessage(res.message);
-    setRevealMessage(res.revealMessage);
-    setSelectedBattleTileIndex(null);
+    // Combat tap on enemy tile → open challenge modal
+    if (tappedPiece?.side === "ai") {
+      const event = prepareChallengeEvent(battleBoard, legalMove, pieceById);
+      if (event) {
+        setPendingChallenge(event);
+        return;
+      }
+    }
 
-    if (res.winner) {
-      setWinner(res.winner);
-      setPhase("ended");
-      setEndedBySurrender(false);
+    // Non-combat move → apply immediately
+    const res = resolveBattleMove(battleBoard, legalMove, pieceById);
+    applyResolution(res, "ai");
+  };
+
+  /** Called from the "Challenge!" button overlay on enemy tiles. */
+  const handleChallengePress = (targetTileIndex: number) => {
+    if (
+      phase !== "battle" ||
+      turn !== "player" ||
+      winner ||
+      aiThinking ||
+      pendingChallenge
+    )
       return;
-    }
-    if (getLegalMoves(res.board, "ai", pieceById).length === 0) {
-      setWinner("player");
-      setPhase("ended");
-      setEndedBySurrender(false);
-      setBattleMessage(
-        "Enemy command has no legal reply. You control the field.",
-      );
-      return;
-    }
-    setTurn("ai");
+    if (selectedBattleTileIndex === null) return;
+    const legalMove = getLegalMoves(battleBoard, "player", pieceById).find(
+      (m) => m.from === selectedBattleTileIndex && m.to === targetTileIndex,
+    );
+    if (!legalMove) return;
+    const event = prepareChallengeEvent(battleBoard, legalMove, pieceById);
+    if (event) setPendingChallenge(event);
   };
 
   const handleTilePress = (tileIndex: number) =>
@@ -384,6 +477,7 @@ export function useGameState(difficulty: Difficulty) {
     setCapturedByPlayer([]);
     setCapturedByAI([]);
     setEndedBySurrender(false);
+    setPendingChallenge(null);
     setShowReadyModal(false);
     clearFormationSelection();
     setIsInventoryExpanded(false);
@@ -397,6 +491,7 @@ export function useGameState(difficulty: Difficulty) {
     setPhase("ended");
     setTurn("ai");
     setSelectedBattleTileIndex(null);
+    setPendingChallenge(null);
     setBattleMessage("You forfeited the match. Enemy command takes the field.");
     setRevealMessage("The battle ended by surrender.");
   };
@@ -420,6 +515,7 @@ export function useGameState(difficulty: Difficulty) {
     setWinner(null);
     setCapturedByPlayer([]);
     setCapturedByAI([]);
+    setPendingChallenge(null);
   };
 
   return {
@@ -443,6 +539,7 @@ export function useGameState(difficulty: Difficulty) {
     battleBoard,
     selectedBattleTileIndex,
     selectedBattleMoves,
+    challengeTargetTiles,
     battleMessage,
     revealMessage,
     aiThinking,
@@ -450,6 +547,9 @@ export function useGameState(difficulty: Difficulty) {
     endedBySurrender,
     capturedPlayerNames,
     capturedAINames,
+    // challenge
+    pendingChallenge,
+    handleChallengeDismiss,
     // UI
     isInventoryExpanded,
     setIsInventoryExpanded,
@@ -459,6 +559,7 @@ export function useGameState(difficulty: Difficulty) {
     setShowReadyModal,
     // handlers
     handleTilePress,
+    handleChallengePress,
     handlePieceButtonPress,
     handleResetBoard,
     handleRandomizeSet,

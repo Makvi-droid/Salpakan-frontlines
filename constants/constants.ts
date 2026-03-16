@@ -1,4 +1,4 @@
-import type { AIProfile, Difficulty } from "../app/types";
+import type { AIProfile, Difficulty } from "../scripts/types";
 
 export const BOARD_WIDTH = 9;
 export const BOARD_HEIGHT = 8;
@@ -89,7 +89,7 @@ export const DIFFICULTY_PROFILES: Record<Difficulty, AIProfile> = {
     },
   },
   medium: {
-    label: "Vanguard",
+    label: "Officer",
     flavor:
       "Stable and practical. It protects its shape and usually finds useful pressure.",
     opening: "medium",
@@ -106,7 +106,7 @@ export const DIFFICULTY_PROFILES: Record<Difficulty, AIProfile> = {
     },
   },
   hard: {
-    label: "Warlord",
+    label: "General",
     flavor:
       "Disciplined and forceful. It keeps strong layers, punishes soft moves, and converts pressure cleanly.",
     opening: "hard",

@@ -3,7 +3,7 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { appTheme } from "@/constants/theme";
-import type { AIProfile, Phase } from "../app/types";
+import type { AIProfile, Phase } from "../scripts/types";
 
 type Props = {
   phase: Phase;

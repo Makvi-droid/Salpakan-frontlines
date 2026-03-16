@@ -7,12 +7,13 @@ import { appTheme } from "@/constants/theme";
 import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
 import { BattleInfoPanel } from "../components/BattleInfoPanel";
 import { BoardGrid } from "../components/BoardGrid";
+import { ChallengeModal } from "../components/ChallengeModal";
 import { FormationControls } from "../components/FormationControls";
 import { GameModals } from "../components/GameModals";
 import { StatusBox } from "../components/StatusBox";
 import { TopMenuRow } from "../components/TopMenuRow";
 import { useGameState } from "../hooks/useGameState";
-import type { Difficulty } from "./types";
+import type { Difficulty } from "../scripts/types";
 
 export default function GameScreen() {
   const params = useLocalSearchParams<{ level?: string }>();
@@ -186,11 +187,13 @@ export default function GameScreen() {
             moveSourceTileIndex={game.moveSourceTileIndex}
             selectedBattleTileIndex={game.selectedBattleTileIndex}
             selectedBattleMoves={game.selectedBattleMoves}
+            challengeTargetTiles={game.challengeTargetTiles}
             showSetupZoneHint={game.showSetupZoneHint}
             boardWidth={boardWidth}
             pieceById={game.pieceById}
             marginBottom={verticalSectionGap}
             onTilePress={game.handleTilePress}
+            onChallengePress={game.handleChallengePress}
             boardHint={boardHint}
             rf={rf}
             rs={rs}
@@ -259,6 +262,16 @@ export default function GameScreen() {
         onConfirmReady={game.startBattle}
         onRetryMatch={game.handleRetryMatch}
         onReturnToMenu={game.returnToMainMenu}
+      />
+
+      <ChallengeModal
+        event={game.pendingChallenge}
+        insets={insets}
+        width={width}
+        rf={rf}
+        rs={rs}
+        rsv={rsv}
+        onDismiss={game.handleChallengeDismiss}
       />
     </View>
   );

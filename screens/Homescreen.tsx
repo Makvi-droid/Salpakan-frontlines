@@ -26,23 +26,41 @@ const difficultyOptions: DifficultyOption[] = [
     subtitle: "Measured opening",
     command: "Best for learning the board and reserve flow.",
     stars: 1,
-    icon: <MaterialCommunityIcons name="shield-outline" size={24} color={difficultyTones.easy.icon} />,
+    icon: (
+      <MaterialCommunityIcons
+        name="shield-outline"
+        size={24}
+        color={difficultyTones.easy.icon}
+      />
+    ),
   },
   {
     key: "medium",
-    title: "Vanguard",
+    title: "Officer",
     subtitle: "Balanced pressure",
     command: "A steadier duel with sharper counters.",
     stars: 2,
-    icon: <MaterialCommunityIcons name="chess-rook" size={24} color={difficultyTones.medium.icon} />,
+    icon: (
+      <MaterialCommunityIcons
+        name="chess-rook"
+        size={24}
+        color={difficultyTones.medium.icon}
+      />
+    ),
   },
   {
     key: "hard",
-    title: "Warlord",
+    title: "General",
     subtitle: "No easy ground",
     command: "For players who want immediate tension.",
     stars: 3,
-    icon: <MaterialCommunityIcons name="sword-cross" size={24} color={difficultyTones.hard.icon} />,
+    icon: (
+      <MaterialCommunityIcons
+        name="sword-cross"
+        size={24}
+        color={difficultyTones.hard.icon}
+      />
+    ),
   },
 ];
 
@@ -62,14 +80,30 @@ function Homescreen() {
   } = useResponsiveTokens();
 
   const contentWidth = Math.min(layoutWidth, rs(530));
-  const iconFrameSize = rs(isUltraCompactHeight ? 44 : isCompactHeight ? 50 : 58);
-  const shellTopPadding = rsv(isUltraCompactHeight ? 8 : isCompactHeight ? 12 : 18);
-  const shellBottomPadding = rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 14 : 20);
-  const mergedPanelPaddingTop = rsv(isUltraCompactHeight ? 12 : isCompactHeight ? 16 : 22);
-  const mergedPanelPaddingBottom = rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 14 : 18);
-  const mergedSectionGap = rsv(isUltraCompactHeight ? 10 : isCompactHeight ? 12 : 16);
-  const optionCardPadding = rs(isUltraCompactHeight ? 7 : isCompactHeight ? 8 : 10);
-  const optionMinHeight = rsv(isUltraCompactHeight ? 90 : isCompactHeight ? 96 : 102);
+  const iconFrameSize = rs(
+    isUltraCompactHeight ? 44 : isCompactHeight ? 50 : 58,
+  );
+  const shellTopPadding = rsv(
+    isUltraCompactHeight ? 8 : isCompactHeight ? 12 : 18,
+  );
+  const shellBottomPadding = rsv(
+    isUltraCompactHeight ? 10 : isCompactHeight ? 14 : 20,
+  );
+  const mergedPanelPaddingTop = rsv(
+    isUltraCompactHeight ? 12 : isCompactHeight ? 16 : 22,
+  );
+  const mergedPanelPaddingBottom = rsv(
+    isUltraCompactHeight ? 10 : isCompactHeight ? 14 : 18,
+  );
+  const mergedSectionGap = rsv(
+    isUltraCompactHeight ? 10 : isCompactHeight ? 12 : 16,
+  );
+  const optionCardPadding = rs(
+    isUltraCompactHeight ? 7 : isCompactHeight ? 8 : 10,
+  );
+  const optionMinHeight = rsv(
+    isUltraCompactHeight ? 90 : isCompactHeight ? 96 : 102,
+  );
 
   const handleStartGame = (chosenDifficulty: Difficulty) => {
     router.push({
@@ -113,7 +147,13 @@ function Homescreen() {
         bottomPadding={shellBottomPadding}
         scrollable={false}
       >
-        <View style={[styles.contentRoot, styles.contentRootCentered, { maxWidth: contentWidth }]}>
+        <View
+          style={[
+            styles.contentRoot,
+            styles.contentRootCentered,
+            { maxWidth: contentWidth },
+          ]}
+        >
           <View
             style={[
               styles.mainPanel,
@@ -126,14 +166,36 @@ function Homescreen() {
             ]}
           >
             <View style={styles.heroContent}>
-              <Text style={[styles.heroLabel, { fontSize: rf(10) }]}>COMMAND SELECTION</Text>
-              <Text style={[styles.heroTitle, { fontSize: rf(isCompactHeight ? 26 : 30), marginTop: rsv(4) }]}>Choose your command</Text>
-              <Text style={[styles.heroCopy, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(8) }]}>
+              <Text style={[styles.heroLabel, { fontSize: rf(10) }]}>
+                COMMAND SELECTION
+              </Text>
+              <Text
+                style={[
+                  styles.heroTitle,
+                  {
+                    fontSize: rf(isCompactHeight ? 26 : 30),
+                    marginTop: rsv(4),
+                  },
+                ]}
+              >
+                Choose your command
+              </Text>
+              <Text
+                style={[
+                  styles.heroCopy,
+                  { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(8) },
+                ]}
+              >
                 Pick your opening pressure, then deploy to the frontline.
               </Text>
             </View>
 
-            <View style={[styles.cardStack, { gap: cardGap, marginTop: mergedSectionGap }]}>
+            <View
+              style={[
+                styles.cardStack,
+                { gap: cardGap, marginTop: mergedSectionGap },
+              ]}
+            >
               {difficultyOptions.map((option) => {
                 const tone = difficultyTones[option.key];
 
@@ -152,8 +214,26 @@ function Homescreen() {
                     onPress={() => handleStartGame(option.key)}
                     activeOpacity={0.88}
                   >
-                    <View style={[styles.difficultyFace, { minHeight: optionMinHeight, borderRadius: rs(18), backgroundColor: tone.face }]}>
-                      <View style={[styles.cardRail, { width: rs(8), borderRadius: rs(8), backgroundColor: tone.accent }]} />
+                    <View
+                      style={[
+                        styles.difficultyFace,
+                        {
+                          minHeight: optionMinHeight,
+                          borderRadius: rs(18),
+                          backgroundColor: tone.face,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.cardRail,
+                          {
+                            width: rs(8),
+                            borderRadius: rs(8),
+                            backgroundColor: tone.accent,
+                          },
+                        ]}
+                      />
 
                       <View
                         style={[
@@ -170,10 +250,27 @@ function Homescreen() {
                       </View>
 
                       <View style={styles.cardTextBlock}>
-                        <Text style={[styles.difficultyTitle, { color: tone.label, fontSize: rf(isCompactHeight ? 21 : 24) }]}>
+                        <Text
+                          style={[
+                            styles.difficultyTitle,
+                            {
+                              color: tone.label,
+                              fontSize: rf(isCompactHeight ? 21 : 24),
+                            },
+                          ]}
+                        >
                           {option.title}
                         </Text>
-                        <Text style={[styles.difficultySubtitle, { color: tone.note, fontSize: rf(12), marginTop: rsv(1) }]}>
+                        <Text
+                          style={[
+                            styles.difficultySubtitle,
+                            {
+                              color: tone.note,
+                              fontSize: rf(12),
+                              marginTop: rsv(1),
+                            },
+                          ]}
+                        >
                           {option.subtitle}
                         </Text>
                         {!isUltraCompactHeight ? (
@@ -195,11 +292,30 @@ function Homescreen() {
 
                       <View style={styles.cardAside}>
                         <View style={styles.starRow}>
-                          {Array.from({ length: option.stars }, (_, starIndex) => (
-                            <Entypo key={`${option.key}-${starIndex}`} name="star" size={rf(14)} color={tone.label} />
-                          ))}
+                          {Array.from(
+                            { length: option.stars },
+                            (_, starIndex) => (
+                              <Entypo
+                                key={`${option.key}-${starIndex}`}
+                                name="star"
+                                size={rf(14)}
+                                color={tone.label}
+                              />
+                            ),
+                          )}
                         </View>
-                        <Text style={[styles.tapToEnter, { color: tone.label, fontSize: rf(10), marginTop: rsv(6) }]}>DEPLOY</Text>
+                        <Text
+                          style={[
+                            styles.tapToEnter,
+                            {
+                              color: tone.label,
+                              fontSize: rf(10),
+                              marginTop: rsv(6),
+                            },
+                          ]}
+                        >
+                          DEPLOY
+                        </Text>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -219,7 +335,9 @@ function Homescreen() {
               onPress={() => router.replace("/")}
               activeOpacity={0.85}
             >
-              <Text style={[styles.backButtonText, { fontSize: rf(13) }]}>Back to Main Menu</Text>
+              <Text style={[styles.backButtonText, { fontSize: rf(13) }]}>
+                Back to Main Menu
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

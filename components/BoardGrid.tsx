@@ -2,14 +2,14 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { appTheme } from "@/constants/theme";
+import { BOARD_HEIGHT, BOARD_WIDTH } from "../constants/constants";
 import {
   getTileColumn,
   getTileRow,
   getVisibleLabel,
   isPlayerSetupZoneTileIndex,
-} from "../app/gameLogic";
-import type { BoardPiece, Phase, PieceDefinition } from "../app/types";
-import { BOARD_HEIGHT, BOARD_WIDTH } from "../constants/constants";
+} from "../scripts/gameLogic";
+import type { BoardPiece, Phase, PieceDefinition } from "../scripts/types";
 
 type Props = {
   phase: Phase;
@@ -19,6 +19,7 @@ type Props = {
   moveSourceTileIndex: number | null;
   selectedBattleTileIndex: number | null;
   selectedBattleMoves: number[];
+  challengeTargetTiles: number[];
   showSetupZoneHint: boolean;
   boardWidth: number;
   pieceById: Record<string, PieceDefinition>;
@@ -27,6 +28,7 @@ type Props = {
   rsv: (size: number) => number;
   marginBottom: number;
   onTilePress: (tileIndex: number) => void;
+  onChallengePress: (tileIndex: number) => void;
   boardHint: string;
 };
 
@@ -38,6 +40,7 @@ export function BoardGrid({
   moveSourceTileIndex,
   selectedBattleTileIndex,
   selectedBattleMoves,
+  challengeTargetTiles,
   showSetupZoneHint,
   boardWidth,
   pieceById,
@@ -46,6 +49,7 @@ export function BoardGrid({
   rsv,
   marginBottom,
   onTilePress,
+  onChallengePress,
   boardHint,
 }: Props) {
   return (
@@ -75,6 +79,9 @@ export function BoardGrid({
               const isBattleTarget =
                 phase !== "formation" &&
                 selectedBattleMoves.includes(tile.index);
+              const isChallengeTarget =
+                phase !== "formation" &&
+                challengeTargetTiles.includes(tile.index);
 
               const visiblePiece = battlePiece
                 ? getVisibleLabel(battlePiece, pieceById, "player")
@@ -94,6 +101,7 @@ export function BoardGrid({
                     battlePiece?.side === "ai" && styles.aiTile,
                     (isMoveSource || isSelectedBattle) && styles.sourceSelected,
                     isBattleTarget && styles.battleTarget,
+                    isChallengeTarget && styles.challengeTarget,
                   ]}
                   onPress={() => onTilePress(tile.index)}
                   activeOpacity={0.8}
@@ -115,6 +123,32 @@ export function BoardGrid({
                     >
                       {visiblePiece}
                     </Text>
+                  ) : null}
+
+                  {/* Challenge button — floats above the enemy tile */}
+                  {isChallengeTarget ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.challengeBtn,
+                        {
+                          borderRadius: rf(5),
+                          paddingHorizontal: rf(3),
+                          paddingVertical: rf(1.5),
+                        },
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        onChallengePress(tile.index);
+                      }}
+                      activeOpacity={0.85}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Text
+                        style={[styles.challengeBtnText, { fontSize: rf(7) }]}
+                      >
+                        ⚔ CHALLENGE
+                      </Text>
+                    </TouchableOpacity>
                   ) : null}
                 </TouchableOpacity>
               );
@@ -185,6 +219,26 @@ const styles = StyleSheet.create({
   battleTarget: {
     borderColor: appTheme.colors.brassBright,
     borderWidth: appTheme.borderWidth.thick,
+  },
+  challengeTarget: {
+    borderColor: "#CF5A52",
+    borderWidth: appTheme.borderWidth.thick,
+  },
+  challengeBtn: {
+    position: "absolute",
+    top: 2,
+    left: 2,
+    right: 2,
+    backgroundColor: "#CF5A52",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  challengeBtnText: {
+    color: "#FFF8EE",
+    fontFamily: appTheme.fonts.body,
+    letterSpacing: 0.3,
+    fontWeight: "700",
   },
   pieceText: {
     color: appTheme.colors.ink,

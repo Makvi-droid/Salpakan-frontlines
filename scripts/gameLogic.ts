@@ -8,6 +8,7 @@ import type {
   BattleMove,
   BattleResolution,
   BoardPiece,
+  ChallengeEvent,
   PieceDefinition,
   Side,
 } from "./types";
@@ -111,20 +112,15 @@ export function compareCombat(
   defenderId: string,
   pieceById: Record<string, PieceDefinition>,
 ) {
+  const attackerLabel = pieceById[attackerId]?.label;
+  const defenderLabel = pieceById[defenderId]?.label;
   const attackerStrength = getPieceStrength(attackerId, pieceById);
   const defenderStrength = getPieceStrength(defenderId, pieceById);
-  if (
-    pieceById[attackerId]?.label === "Spy" &&
-    isGeneralPiece(defenderId, pieceById)
-  ) {
-    return 1;
-  }
-  if (
-    pieceById[defenderId]?.label === "Spy" &&
-    isGeneralPiece(attackerId, pieceById)
-  ) {
-    return -1;
-  }
+
+  // Spy beats every rank except Private. Private beats Spy.
+  if (attackerLabel === "Spy" && defenderLabel !== "Private") return 1;
+  if (defenderLabel === "Spy" && attackerLabel !== "Private") return -1;
+
   if (attackerStrength === defenderStrength) return 0;
   return attackerStrength > defenderStrength ? 1 : -1;
 }
@@ -148,7 +144,7 @@ export function resolveBattleMove(
 
   const nextBoard = { ...board };
   const target = nextBoard[move.to];
-  const actorLabel = move.side === "player" ? "You" : "Enemy";
+  const isPlayerMove = move.side === "player";
 
   if (!target) {
     delete nextBoard[move.from];
@@ -156,7 +152,10 @@ export function resolveBattleMove(
     return {
       board: nextBoard,
       winner: null,
-      message: `${actorLabel} advanced ${formatPieceName(attacker.pieceId, pieceById)}.`,
+      // Only name the piece when the player moved it — never leak the AI's rank.
+      message: isPlayerMove
+        ? `You advanced ${formatPieceName(attacker.pieceId, pieceById)}.`
+        : "Enemy advanced a rank.",
       revealMessage: null,
       capturedByPlayer: [],
       capturedByAI: [],
@@ -164,40 +163,51 @@ export function resolveBattleMove(
   }
 
   const outcome = compareCombat(attacker.pieceId, target.pieceId, pieceById);
-  const attackerName = formatPieceName(attacker.pieceId, pieceById);
-  const defenderName = formatPieceName(target.pieceId, pieceById);
-  const revealedAttacker: BoardPiece = {
-    ...attacker,
-    revealedToAI: true,
-    revealedToPlayer: true,
-  };
-  const revealedDefender: BoardPiece = {
-    ...target,
-    revealedToAI: true,
-    revealedToPlayer: true,
-  };
+  // Only compute names for messages where we're allowed to show them.
+  const playerAttackerName = isPlayerMove
+    ? formatPieceName(attacker.pieceId, pieceById)
+    : null;
+  const playerDefenderName = !isPlayerMove
+    ? formatPieceName(target.pieceId, pieceById)
+    : null;
+
+  // Preserve each piece's original reveal flags — neither side learns the
+  // rank of the surviving piece just because a challenge occurred.
   delete nextBoard[move.from];
 
   let winner: Side | null = null;
-  let message = `${actorLabel} engaged ${defenderName}.`;
+  let message: string;
   const capturedByPlayer: string[] = [];
   const capturedByAI: string[] = [];
 
   if (outcome > 0) {
-    nextBoard[move.to] = revealedAttacker;
+    // Attacker wins — place it at the target tile with its original visibility.
+    nextBoard[move.to] = { ...attacker };
     target.side === "player"
       ? capturedByPlayer.push(target.pieceId)
       : capturedByAI.push(target.pieceId);
-    message = `${actorLabel} won the clash. ${attackerName} removed ${defenderName}.`;
+    if (isPlayerMove) {
+      message = `You won the clash. ${playerAttackerName} removed an enemy rank.`;
+    } else {
+      // AI won — only reveal that the player's defending piece was removed.
+      message = `Enemy won the clash. Your ${formatPieceName(target.pieceId, pieceById)} was removed.`;
+    }
     if (pieceById[target.pieceId]?.label === "Flag") winner = move.side;
   } else if (outcome < 0) {
-    nextBoard[move.to] = revealedDefender;
+    // Defender wins — it stays in place with its original visibility.
+    nextBoard[move.to] = { ...target };
     attacker.side === "player"
       ? capturedByPlayer.push(attacker.pieceId)
       : capturedByAI.push(attacker.pieceId);
-    message = `${actorLabel} lost the clash. ${defenderName} held the line.`;
+    if (isPlayerMove) {
+      message = `You lost the clash. Your ${playerAttackerName} was removed.`;
+    } else {
+      // AI lost — only reveal that the player's piece held.
+      message = `Enemy lost the clash. Your ${formatPieceName(target.pieceId, pieceById)} held the line.`;
+    }
     if (pieceById[attacker.pieceId]?.label === "Flag") winner = target.side;
   } else {
+    // Draw — both pieces are removed.
     delete nextBoard[move.to];
     attacker.side === "player"
       ? capturedByPlayer.push(attacker.pieceId)
@@ -205,7 +215,11 @@ export function resolveBattleMove(
     target.side === "player"
       ? capturedByPlayer.push(target.pieceId)
       : capturedByAI.push(target.pieceId);
-    message = "Both ranks were eliminated in the clash.";
+    if (isPlayerMove) {
+      message = `Both ranks eliminated. Your ${playerAttackerName} and an enemy rank were removed.`;
+    } else {
+      message = `Both ranks eliminated. Your ${formatPieceName(target.pieceId, pieceById)} and an enemy rank were removed.`;
+    }
     if (pieceById[attacker.pieceId]?.label === "Flag") winner = target.side;
     if (pieceById[target.pieceId]?.label === "Flag")
       winner = winner ?? attacker.side;
@@ -215,7 +229,8 @@ export function resolveBattleMove(
     board: nextBoard,
     winner,
     message,
-    revealMessage: `${attackerName} met ${defenderName}. Both ranks are now known.`,
+    // No reveal message — ranks stay hidden on the board after a challenge.
+    revealMessage: null,
     capturedByPlayer,
     capturedByAI,
   };
@@ -264,4 +279,35 @@ export function getPieceId(column: number, row: number, label: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")}`;
+}
+
+/**
+ * Builds a ChallengeEvent for a move that lands on an enemy piece.
+ * Does NOT mutate the board — call resolveBattleMove separately (it is
+ * already embedded in the returned resolution).
+ */
+export function prepareChallengeEvent(
+  board: Record<number, BoardPiece>,
+  move: BattleMove,
+  pieceById: Record<string, PieceDefinition>,
+): ChallengeEvent | null {
+  const attacker = board[move.from];
+  const defender = board[move.to];
+  if (!attacker || !defender || attacker.side === defender.side) return null;
+
+  const resolution = resolveBattleMove(board, move, pieceById);
+  const outcome = compareCombat(attacker.pieceId, defender.pieceId, pieceById);
+
+  return {
+    attackerSide: attacker.side,
+    attackerPieceId: attacker.pieceId,
+    attackerName: formatPieceName(attacker.pieceId, pieceById),
+    attackerShortLabel: pieceById[attacker.pieceId]?.shortLabel ?? "?",
+    defenderSide: defender.side,
+    defenderPieceId: defender.pieceId,
+    defenderName: formatPieceName(defender.pieceId, pieceById),
+    defenderShortLabel: pieceById[defender.pieceId]?.shortLabel ?? "?",
+    outcome,
+    resolution,
+  };
 }

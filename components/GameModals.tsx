@@ -2,7 +2,7 @@ import React from "react";
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { appTheme } from "@/constants/theme";
-import type { Phase, Side } from "../app/types";
+import type { Phase, Side } from "../scripts/types";
 
 type Props = {
   phase: Phase;

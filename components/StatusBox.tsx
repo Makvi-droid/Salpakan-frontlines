@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { appTheme } from "@/constants/theme";
-import type { Phase, PieceDefinition } from "../app/types";
+import type { Phase, PieceDefinition } from "../scripts/types";
 
 type Props = {
   phase: Phase;
@@ -56,7 +56,7 @@ export function StatusBox({
   const rightValue =
     phase === "formation"
       ? String(totalUnplacedCount)
-      : (revealMessage ?? "Enemy ranks stay hidden until contact.");
+      : (revealMessage ?? "Ranks stay hidden until the Flag is captured.");
 
   return (
     <View

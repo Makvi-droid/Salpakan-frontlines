@@ -51,3 +51,23 @@ export type BattleResolution = {
   capturedByPlayer: string[];
   capturedByAI: string[];
 };
+
+/**
+ * Carries everything the ChallengeModal needs to animate and display,
+ * plus the pre-computed resolution that gets applied once dismissed.
+ */
+export type ChallengeEvent = {
+  /** Who initiated the challenge */
+  attackerSide: Side;
+  attackerPieceId: string;
+  attackerName: string;
+  attackerShortLabel: string;
+  defenderSide: Side;
+  defenderPieceId: string;
+  defenderName: string;
+  defenderShortLabel: string;
+  /** outcome > 0 attacker wins, < 0 defender wins, 0 draw */
+  outcome: number;
+  /** The fully resolved board/state, applied when modal is dismissed */
+  resolution: BattleResolution;
+};

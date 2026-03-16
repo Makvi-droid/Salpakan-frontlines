@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { appTheme } from "@/constants/theme";
-import type { Side } from "../app/types";
+import type { Side } from "../scripts/types";
 
 type Props = {
   winner: Side | null;
