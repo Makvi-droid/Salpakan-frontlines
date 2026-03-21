@@ -3,11 +3,13 @@ import React from "react";
 import { StyleSheet, View } from "react-native";
 
 import ScreenShell from "@/components/ScreenShell";
+import { UpgradeRollModal } from "@/components/UpgradeRollModal";
 import { appTheme } from "@/constants/theme";
 import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
 import { BattleInfoPanel } from "../components/BattleInfoPanel";
 import { BoardGrid } from "../components/BoardGrid";
 import { ChallengeModal } from "../components/ChallengeModal";
+import { CrateChoiceModal } from "../components/CrateChoiceModal";
 import { FormationControls } from "../components/FormationControls";
 import { GameModals } from "../components/GameModals";
 import { StatusBox } from "../components/StatusBox";
@@ -187,7 +189,9 @@ export default function GameScreen() {
             moveSourceTileIndex={game.moveSourceTileIndex}
             selectedBattleTileIndex={game.selectedBattleTileIndex}
             selectedBattleMoves={game.selectedBattleMoves}
+            lastMoveTrail={game.lastMoveTrail}
             challengeTargetTiles={game.challengeTargetTiles}
+            crateTiles={game.crateTiles}
             showSetupZoneHint={game.showSetupZoneHint}
             boardWidth={boardWidth}
             pieceById={game.pieceById}
@@ -272,6 +276,34 @@ export default function GameScreen() {
         rs={rs}
         rsv={rsv}
         onDismiss={game.handleChallengeDismiss}
+      />
+
+      <UpgradeRollModal
+        event={game.pendingUpgradeRoll}
+        insets={insets}
+        width={width}
+        rf={rf}
+        rs={rs}
+        rsv={rsv}
+        onDismiss={game.handleUpgradeRollDismiss}
+      />
+
+      <CrateChoiceModal
+        event={
+          game.pendingCrateChoice
+            ? {
+                currentUpgrade: game.pendingCrateChoice.currentUpgrade,
+                newUpgrade: game.pendingCrateChoice.newUpgrade,
+              }
+            : null
+        }
+        insets={insets}
+        width={width}
+        rf={rf}
+        rs={rs}
+        rsv={rsv}
+        onTake={game.handleCrateChoiceTake}
+        onDestroy={game.handleCrateChoiceDestroy}
       />
     </View>
   );

@@ -98,6 +98,7 @@ export function scoreAIMove(
   move: BattleMove,
   profile: AIProfile,
   pieceById: Record<string, PieceDefinition>,
+  crateTileSet?: Set<number>,
 ) {
   const mover = board[move.from];
   if (!mover) return Number.NEGATIVE_INFINITY;
@@ -118,6 +119,7 @@ export function scoreAIMove(
 
   let captureScore = 0;
   let revealScore = 0;
+  let crateScore = 0;
   if (target?.side === "player") {
     const targetStrength = target.revealedToAI
       ? getPieceStrength(target.pieceId, pieceById)
@@ -125,6 +127,12 @@ export function scoreAIMove(
     captureScore += targetStrength * profile.weights.capture;
     revealScore += target.revealedToAI ? 0 : profile.weights.reveal * 3;
     if (!target.revealedToAI && moverStrength <= 3) captureScore += 1.5;
+  }
+
+  // Aggressive crate pressure: prioritize stepping on crate tiles to gain upgrades.
+  if (crateTileSet?.has(move.to)) {
+    const hasUpgrade = mover.upgrade !== undefined;
+    crateScore += hasUpgrade ? 4.5 : 8.5;
   }
 
   const vulnerabilityPenalty =
@@ -135,6 +143,7 @@ export function scoreAIMove(
 
   return (
     captureScore +
+    crateScore +
     revealScore +
     centerScore +
     advancementScore +
@@ -147,14 +156,16 @@ export function chooseMoveForProfile(
   board: Record<number, BoardPiece>,
   profile: AIProfile,
   pieceById: Record<string, PieceDefinition>,
+  crateTiles: number[] = [],
 ): BattleMove | null {
   const legalMoves = getLegalMoves(board, "ai", pieceById);
   if (legalMoves.length === 0) return null;
+  const crateTileSet = new Set(crateTiles);
 
   const scored = legalMoves
     .map((move) => ({
       move,
-      score: scoreAIMove(board, move, profile, pieceById),
+      score: scoreAIMove(board, move, profile, pieceById, crateTileSet),
     }))
     .sort((a, b) => b.score - a.score);
 

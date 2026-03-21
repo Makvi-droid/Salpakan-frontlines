@@ -1,9 +1,22 @@
-import type { AIProfile, Difficulty } from "../scripts/types";
+import type { AIProfile, Difficulty, PieceUpgradeId } from "../scripts/types";
 
 export const BOARD_WIDTH = 9;
 export const BOARD_HEIGHT = 8;
 export const DOUBLE_TAP_MS = 300;
 export const AI_THINKING_DELAY_MS = 800;
+export const CRATE_DROP_CHANCE = 0.3;
+export const CRATE_DROP_MIN_COUNT = 1;
+export const CRATE_DROP_MAX_COUNT = 2;
+export const CRATE_UPGRADES: PieceUpgradeId[] = [
+  "iron-veil",
+  "double-blind",
+  "martyrs-eye",
+];
+export const CRATE_UPGRADE_LABELS: Record<PieceUpgradeId, string> = {
+  "iron-veil": "Iron Veil",
+  "double-blind": "Double-Blind",
+  "martyrs-eye": "Martyr's Eye",
+};
 
 export const FIRST_COLUMN_LABELS = [
   "Flag",

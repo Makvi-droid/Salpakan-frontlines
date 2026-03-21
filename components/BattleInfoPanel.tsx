@@ -104,10 +104,7 @@ export function BattleInfoPanel({
           <Text style={[styles.itemLabel, { fontSize: rf(10) }]}>
             Your losses
           </Text>
-          <Text
-            style={[styles.itemValue, { fontSize: rf(13) }]}
-            numberOfLines={2}
-          >
+          <Text style={[styles.itemValue, { fontSize: rf(13) }]}>
             {capturedPlayerNames || "None"}
           </Text>
         </View>
@@ -115,10 +112,7 @@ export function BattleInfoPanel({
           <Text style={[styles.itemLabel, { fontSize: rf(10) }]}>
             Enemy losses
           </Text>
-          <Text
-            style={[styles.itemValue, { fontSize: rf(13) }]}
-            numberOfLines={2}
-          >
+          <Text style={[styles.itemValue, { fontSize: rf(13) }]}>
             {capturedAINames || "None"}
           </Text>
         </View>
