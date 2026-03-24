@@ -1,15 +1,21 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { PanGestureHandler, State } from "react-native-gesture-handler";
 
 import { appTheme } from "@/constants/theme";
 import { BOARD_HEIGHT, BOARD_WIDTH } from "../constants/constants";
 import {
-    getTileColumn,
-    getTileRow,
-    getVisibleLabel,
-    isPlayerSetupZoneTileIndex,
+  getTileColumn,
+  getTileRow,
+  getVisibleLabel,
+  isPlayerSetupZoneTileIndex,
 } from "../scripts/gameLogic";
-import type { BoardPiece, Phase, PieceDefinition, Side } from "../scripts/types";
+import type {
+  BoardPiece,
+  Phase,
+  PieceDefinition,
+  Side,
+} from "../scripts/types";
 
 const CLOSED_EYE_ICON = require("../assets/images/closed-eye.png");
 const CHALLENGE_ICON = require("../assets/images/challenge.png");
@@ -39,10 +45,98 @@ type Props = {
   rs: (size: number) => number;
   rsv: (size: number) => number;
   marginBottom: number;
+  // drag props
+  draggingPieceId: string | null;
+  draggingFromTile: number | null;
+  dragOverTileIndex: number | null;
+  onDragStartFromBoard: (tileIndex: number) => void;
+  onDragEnterTile: (tileIndex: number) => void;
+  onDragEnd: (targetTileIndex: number | null) => void;
   onTilePress: (tileIndex: number) => void;
   onChallengePress: (tileIndex: number) => void;
   boardHint: string;
 };
+
+/**
+ * DropZoneTile
+ * Wraps each formation-phase tile with a PanGestureHandler that fires
+ * onDragEnterTile when a finger passes over it and onDragEnd when released.
+ * Long-pressing a placed piece starts a board-to-board drag via onDragStartFromBoard.
+ */
+function DropZoneTile({
+  tileIndex,
+  isSetupZone,
+  isDragOver,
+  isDraggingSource,
+  isDragging,
+  children,
+  style,
+  onPress,
+  onDragStartFromBoard,
+  onDragEnterTile,
+  onDragEnd,
+}: {
+  tileIndex: number;
+  isSetupZone: boolean;
+  isDragOver: boolean;
+  isDraggingSource: boolean;
+  isDragging: boolean;
+  children: React.ReactNode;
+  style: any;
+  onPress: () => void;
+  onDragStartFromBoard: (tileIndex: number) => void;
+  onDragEnterTile: (tileIndex: number) => void;
+  onDragEnd: (tileIndex: number | null) => void;
+}) {
+  const entered = useRef(false);
+
+  const handlePan = ({ nativeEvent }: any) => {
+    if (!isDragging) return;
+
+    if (
+      nativeEvent.state === State.BEGAN ||
+      nativeEvent.state === State.ACTIVE
+    ) {
+      if (!entered.current) {
+        entered.current = true;
+        onDragEnterTile(tileIndex);
+      }
+    }
+
+    if (
+      nativeEvent.state === State.END ||
+      nativeEvent.state === State.CANCELLED ||
+      nativeEvent.state === State.FAILED
+    ) {
+      entered.current = false;
+      if (nativeEvent.state === State.END) {
+        onDragEnd(tileIndex);
+      }
+    }
+  };
+
+  return (
+    <PanGestureHandler
+      onHandlerStateChange={handlePan}
+      enabled={isDragging && isSetupZone}
+      minDist={0}
+    >
+      <TouchableOpacity
+        style={[
+          style,
+          isDragOver && styles.dropZoneHovered,
+          isDraggingSource && styles.draggingSourceTile,
+        ]}
+        onPress={onPress}
+        onLongPress={() => onDragStartFromBoard(tileIndex)}
+        delayLongPress={220}
+        activeOpacity={0.8}
+      >
+        {children}
+      </TouchableOpacity>
+    </PanGestureHandler>
+  );
+}
 
 export function BoardGrid({
   phase,
@@ -62,10 +156,18 @@ export function BoardGrid({
   rs,
   rsv,
   marginBottom,
+  draggingPieceId,
+  draggingFromTile,
+  dragOverTileIndex,
+  onDragStartFromBoard,
+  onDragEnterTile,
+  onDragEnd,
   onTilePress,
   onChallengePress,
   boardHint,
 }: Props) {
+  const isDragging = draggingPieceId !== null;
+
   return (
     <View style={[styles.wrap, { marginBottom }]}>
       <View style={[styles.outerShell, { width: boardWidth, padding: rs(8) }]}>
@@ -110,6 +212,10 @@ export function BoardGrid({
               const visiblePiece = battlePiece
                 ? getVisibleLabel(battlePiece, pieceById, "player")
                 : null;
+
+              const isHiddenAI =
+                battlePiece?.side === "ai" && !battlePiece.revealedToPlayer;
+
               const playerUpgradeTag =
                 phase !== "formation" && battlePiece?.side === "player"
                   ? getUpgradeAbbrev(battlePiece.upgrade)
@@ -121,38 +227,77 @@ export function BoardGrid({
                 battlePiece.upgrade === "iron-veil" &&
                 battlePiece.ironVeilKnownToPlayer === true;
 
+              // Drag-specific flags
+              const isDragOver =
+                isDragging && dragOverTileIndex === tile.index && isSetupZone;
+              const isDraggingSource =
+                isDragging && draggingFromTile === tile.index;
+
+              const tileStyle = [
+                styles.tile,
+                isDark ? styles.tileDark : styles.tileLight,
+                isSetupZone && styles.setupZoneBase,
+                showSetupZoneHint && isSetupZone && styles.setupZoneHint,
+                showSetupZoneHint && !isSetupZone && styles.restrictedHint,
+                formationPiece && styles.placedTile,
+                battlePiece?.side === "player" && styles.playerTile,
+                isHiddenAI && styles.aiTileHidden,
+                battlePiece?.side === "ai" &&
+                  battlePiece.revealedToPlayer &&
+                  styles.aiTileRevealed,
+                isCrateTile && styles.crateTile,
+                isTrailFrom && styles.trailFrom,
+                isTrailTo && styles.trailTo,
+                (isMoveSource || isSelectedBattle) && styles.sourceSelected,
+                isBattleTarget && styles.battleTarget,
+                isChallengeTarget && styles.challengeTarget,
+              ];
+
+              // ── Formation phase: DropZoneTile ────────────────────────────
+              if (phase === "formation") {
+                return (
+                  <DropZoneTile
+                    key={tile.index}
+                    tileIndex={tile.index}
+                    isSetupZone={isSetupZone}
+                    isDragOver={isDragOver}
+                    isDraggingSource={isDraggingSource}
+                    isDragging={isDragging}
+                    style={tileStyle}
+                    onPress={() => onTilePress(tile.index)}
+                    onDragStartFromBoard={onDragStartFromBoard}
+                    onDragEnterTile={onDragEnterTile}
+                    onDragEnd={onDragEnd}
+                  >
+                    {formationPiece ? (
+                      <Text style={[styles.pieceText, { fontSize: rf(10) }]}>
+                        {formationPiece.shortLabel}
+                      </Text>
+                    ) : null}
+
+                    {/* Glowing drop target indicator on empty hovered tile */}
+                    {isDragOver && !formationPiece ? (
+                      <View style={styles.dropIndicator} />
+                    ) : null}
+                  </DropZoneTile>
+                );
+              }
+
+              // ── Battle phase: plain TouchableOpacity (unchanged) ─────────
               return (
                 <TouchableOpacity
                   key={tile.index}
-                  style={[
-                    styles.tile,
-                    isDark ? styles.tileDark : styles.tileLight,
-                    isSetupZone && styles.setupZoneBase,
-                    showSetupZoneHint && isSetupZone && styles.setupZoneHint,
-                    showSetupZoneHint && !isSetupZone && styles.restrictedHint,
-                    formationPiece && styles.placedTile,
-                    battlePiece?.side === "player" && styles.playerTile,
-                    battlePiece?.side === "ai" && styles.aiTile,
-                    isCrateTile && styles.crateTile,
-                    isTrailFrom && styles.trailFrom,
-                    isTrailTo && styles.trailTo,
-                    (isMoveSource || isSelectedBattle) && styles.sourceSelected,
-                    isBattleTarget && styles.battleTarget,
-                    isChallengeTarget && styles.challengeTarget,
-                  ]}
+                  style={tileStyle}
                   onPress={() => onTilePress(tile.index)}
                   activeOpacity={0.8}
                 >
-                  {formationPiece ? (
-                    <Text style={[styles.pieceText, { fontSize: rf(10) }]}> 
-                      {formationPiece.shortLabel}
-                    </Text>
-                  ) : null}
                   {battlePiece ? (
                     showIronVeilIconOnBoard ? (
                       <Image
                         source={CLOSED_EYE_ICON}
-                        style={[{ width: rf(16), height: rf(16), tintColor: "white" }]}
+                        style={[
+                          { width: rf(16), height: rf(16), tintColor: "white" },
+                        ]}
                         resizeMode="contain"
                       />
                     ) : isChallengeTarget ? null : (
@@ -160,9 +305,10 @@ export function BoardGrid({
                         style={[
                           styles.pieceText,
                           { fontSize: rf(10) },
-                          battlePiece.side === "ai" &&
-                            !battlePiece.revealedToPlayer &&
-                            styles.hiddenEnemyText,
+                          isHiddenAI && styles.hiddenEnemyText,
+                          !isHiddenAI &&
+                            battlePiece.side === "ai" &&
+                            styles.revealedEnemyText,
                           isChallengeTarget && styles.challengeTargetPieceText,
                         ]}
                       >
@@ -170,13 +316,20 @@ export function BoardGrid({
                       </Text>
                     )
                   ) : null}
+
                   {playerUpgradeTag ? (
                     <View style={styles.playerUpgradeBadge}>
-                      <Text style={[styles.playerUpgradeText, { fontSize: rf(6.5) }]}>
+                      <Text
+                        style={[
+                          styles.playerUpgradeText,
+                          { fontSize: rf(6.5) },
+                        ]}
+                      >
                         {playerUpgradeTag}
                       </Text>
                     </View>
                   ) : null}
+
                   {isCrateTile ? (
                     <Image
                       source={require("../assets/images/crate-box.png")}
@@ -185,15 +338,9 @@ export function BoardGrid({
                     />
                   ) : null}
 
-                  {/* Challenge button — floats above the enemy tile */}
                   {isChallengeTarget ? (
                     <TouchableOpacity
-                      style={[
-                        styles.challengeBtn,
-                        {
-                          borderRadius: rf(2),
-                        },
-                      ]}
+                      style={[styles.challengeBtn, { borderRadius: rf(2) }]}
                       onPress={(e) => {
                         e.stopPropagation?.();
                         onChallengePress(tile.index);
@@ -214,8 +361,11 @@ export function BoardGrid({
           </View>
         </View>
       </View>
+
       <Text style={[styles.hint, { fontSize: rf(10), marginTop: rsv(10) }]}>
-        {boardHint}
+        {isDragging
+          ? "Drag over a deployment tile and release to place."
+          : boardHint}
       </Text>
     </View>
   );
@@ -296,16 +446,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.2,
   },
-  aiTile: { backgroundColor: "#ffebee", borderColor: "#E0B55D" },
+  aiTileHidden: { backgroundColor: "#1A0008", borderColor: "#7A2A3A" },
+  aiTileRevealed: { backgroundColor: "#750012", borderColor: "#E0B55D" },
   crateTile: {
     backgroundColor: "#2D2A20",
     borderColor: "#D5B46E",
     borderWidth: appTheme.borderWidth.regular,
   },
-  crateImage: {
-    width: "96%",
-    height: "96%",
-  },
+  crateImage: { width: "96%", height: "96%" },
   sourceSelected: {
     borderColor: appTheme.colors.brassBright,
     borderWidth: appTheme.borderWidth.thick,
@@ -315,10 +463,7 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderWidth: appTheme.borderWidth.regular,
   },
-  trailTo: {
-    borderColor: "#eee600",
-    borderWidth: appTheme.borderWidth.thick,
-  },
+  trailTo: { borderColor: "#eee600", borderWidth: appTheme.borderWidth.thick },
   battleTarget: {
     borderColor: "#008000",
     borderWidth: appTheme.borderWidth.thick,
@@ -352,7 +497,14 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     textAlign: "center",
   },
-  hiddenEnemyText: { color: appTheme.colors.parchment },
+  hiddenEnemyText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    textShadowColor: "rgba(255, 200, 200, 0.5)",
+    textShadowRadius: 4,
+    textShadowOffset: { width: 0, height: 0 },
+  },
+  revealedEnemyText: { color: appTheme.colors.parchment },
   challengeTargetPieceText: {
     color: "#FFF4DA",
     fontWeight: "800",
@@ -364,5 +516,22 @@ const styles = StyleSheet.create({
     color: appTheme.surfaces.instruction.textColor,
     fontFamily: appTheme.fonts.body,
     textAlign: "center",
+  },
+  // ── Drag & drop ─────────────────────────────────────────────────────────────
+  dropZoneHovered: {
+    borderColor: appTheme.colors.brassBright,
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(199, 163, 84, 0.28)",
+  },
+  draggingSourceTile: {
+    opacity: 0.35,
+  },
+  dropIndicator: {
+    width: "45%",
+    aspectRatio: 1,
+    borderRadius: 999,
+    backgroundColor: "rgba(199, 163, 84, 0.55)",
+    borderWidth: 1,
+    borderColor: appTheme.colors.brassBright,
   },
 });

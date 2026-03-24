@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Image,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Image,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { appTheme } from "@/constants/theme";
@@ -120,7 +120,17 @@ export function ChallengeModal({
       scaleBadge.setValue(0.4);
       Animated.parallel([fadeIn(220), popIn(scaleBadge)]).start();
     }
-  }, [stage, event, fadeAnim, fadeIn, popIn, scaleBadge, slideAttacker, slideDefender, slideIn]);
+  }, [
+    stage,
+    event,
+    fadeAnim,
+    fadeIn,
+    popIn,
+    scaleBadge,
+    slideAttacker,
+    slideDefender,
+    slideIn,
+  ]);
 
   // Auto-advance stages 1 → 2 → 3
   useEffect(() => {
@@ -172,10 +182,12 @@ export function ChallengeModal({
   const enemyDisplayLabel = enemyPiece.hidden
     ? "?"
     : (enemyPiece.decoyLabel ?? enemyPiece.label);
-  const enemyDisplayName = enemyPiece.hidden || enemyPiece.decoyLabel
-    ? "Unknown"
-    : enemyPiece.name;
-  const enemyResolvedName = enemyPiece.hidden ? "an enemy rank" : enemyPiece.name;
+  const enemyDisplayName =
+    enemyPiece.hidden || enemyPiece.decoyLabel ? "Unknown" : enemyPiece.name;
+  const enemyResolvedName =
+    enemyPiece.hidden || enemyPiece.decoyLabel
+      ? "an enemy rank"
+      : enemyPiece.name;
   const showIronVeilConcealIcon =
     enemyPiece.hidden && enemyPiece.upgrade === "iron-veil";
 
@@ -211,7 +223,9 @@ export function ChallengeModal({
   const showEnemyUpgradeBadge =
     !!enemyPiece.upgrade &&
     (enemyPiece.upgrade === "iron-veil" ||
-      (enemyPiece.upgrade === "double-blind" ? enemyDefeated : !enemyPiece.hidden));
+      (enemyPiece.upgrade === "double-blind"
+        ? enemyDefeated
+        : !enemyPiece.hidden));
 
   const overlayPadding = {
     paddingTop: Math.max(insets.top, insets.bottom) + 16,
@@ -248,7 +262,9 @@ export function ChallengeModal({
                       style={{ width: rf(10), height: rf(10) }}
                       resizeMode="contain"
                     />
-                    <Text style={[styles.upgradeBadgeText, { fontSize: rf(7) }]}>
+                    <Text
+                      style={[styles.upgradeBadgeText, { fontSize: rf(7) }]}
+                    >
                       {CRATE_UPGRADE_LABELS[playerPiece.upgrade]}
                     </Text>
                   </View>
@@ -342,7 +358,9 @@ export function ChallengeModal({
                       style={{ width: rf(10), height: rf(10) }}
                       resizeMode="contain"
                     />
-                    <Text style={[styles.upgradeBadgeText, { fontSize: rf(7) }]}>
+                    <Text
+                      style={[styles.upgradeBadgeText, { fontSize: rf(7) }]}
+                    >
                       {CRATE_UPGRADE_LABELS[playerPiece.upgrade]}
                     </Text>
                   </View>
@@ -381,14 +399,16 @@ export function ChallengeModal({
                   },
                 ]}
               >
-                {showEnemyUpgradeBadge ? (
+                {showEnemyUpgradeBadge && enemyPiece.upgrade ? (
                   <View style={styles.upgradeBadge}>
                     <Image
                       source={getUpgradeIcon(enemyPiece.upgrade)}
                       style={{ width: rf(10), height: rf(10) }}
                       resizeMode="contain"
                     />
-                    <Text style={[styles.upgradeBadgeText, { fontSize: rf(7) }]}> 
+                    <Text
+                      style={[styles.upgradeBadgeText, { fontSize: rf(7) }]}
+                    >
                       {CRATE_UPGRADE_LABELS[enemyPiece.upgrade]}
                     </Text>
                   </View>
@@ -407,7 +427,12 @@ export function ChallengeModal({
                 {showIronVeilConcealIcon ? (
                   <Image
                     source={CLOSED_EYE_ICON}
-                    style={{ width: rf(30), height: rf(30), marginTop: rsv(4), tintColor: "white" }}
+                    style={{
+                      width: rf(30),
+                      height: rf(30),
+                      marginTop: rsv(4),
+                      tintColor: "white",
+                    }}
                     resizeMode="contain"
                   />
                 ) : null}
@@ -428,7 +453,7 @@ export function ChallengeModal({
                 ? "Enemy rank remains concealed."
                 : enemyPiece.decoyLabel
                   ? "Enemy rank appears distorted."
-                : "Deciding the outcome…"}
+                  : "Deciding the outcome…"}
             </Text>
           </Animated.View>
         )}
@@ -498,7 +523,12 @@ export function ChallengeModal({
                 {showIronVeilConcealIcon ? (
                   <Image
                     source={CLOSED_EYE_ICON}
-                    style={{ width: rf(30), height: rf(30), marginTop: rsv(4), tintColor: "white" }}
+                    style={{
+                      width: rf(30),
+                      height: rf(30),
+                      marginTop: rsv(4),
+                      tintColor: "white",
+                    }}
                     resizeMode="contain"
                   />
                 ) : null}
