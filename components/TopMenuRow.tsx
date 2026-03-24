@@ -49,27 +49,29 @@ export function TopMenuRow({
 
   return (
     <View style={[styles.row, { minHeight: topMenuHeight, marginBottom }]}>
-      <TouchableOpacity
-        style={[
-          styles.menuButton,
-          {
-            paddingVertical: rsv(6),
-            paddingHorizontal: rs(10),
-            borderRadius: rs(12),
-          },
-        ]}
-        onPress={onLeftAction}
-        activeOpacity={0.85}
-      >
-        <MaterialCommunityIcons
-          name={leftIcon}
-          size={rf(18)}
-          color={appTheme.colors.brassBright}
-        />
-        <Text style={[styles.menuButtonText, { fontSize: rf(13) }]}>
-          {leftLabel}
-        </Text>
-      </TouchableOpacity>
+      <View style={[styles.sideSlot, styles.sideLeft]}>
+        <TouchableOpacity
+          style={[
+            styles.menuButton,
+            {
+              paddingVertical: rsv(6),
+              paddingHorizontal: rs(10),
+              borderRadius: rs(12),
+            },
+          ]}
+          onPress={onLeftAction}
+          activeOpacity={0.85}
+        >
+          <MaterialCommunityIcons
+            name={leftIcon}
+            size={rf(18)}
+            color={appTheme.colors.brassBright}
+          />
+          <Text style={[styles.menuButtonText, { fontSize: rf(13) }]}> 
+            {leftLabel}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.center}>
         <Text style={[styles.phaseLabel, { fontSize: rf(9) }]}>
@@ -78,19 +80,21 @@ export function TopMenuRow({
         <Text style={[styles.title, { fontSize: rf(24) }]}>Salpakan</Text>
       </View>
 
-      <View
-        style={[
-          styles.badge,
-          {
-            paddingHorizontal: rs(10),
-            paddingVertical: rsv(6),
-            borderRadius: rs(14),
-          },
-        ]}
-      >
-        <Text style={[styles.badgeText, { fontSize: rf(10) }]}>
-          {aiProfile.label}
-        </Text>
+      <View style={[styles.sideSlot, styles.sideRight]}>
+        <View
+          style={[
+            styles.badge,
+            {
+              paddingHorizontal: rs(10),
+              paddingVertical: rsv(6),
+              borderRadius: rs(14),
+            },
+          ]}
+        >
+          <Text style={[styles.badgeText, { fontSize: rf(10) }]}> 
+            {aiProfile.label}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -101,8 +105,17 @@ const styles = StyleSheet.create({
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     gap: 8,
+  },
+  sideSlot: {
+    flex: 1,
+  },
+  sideLeft: {
+    alignItems: "flex-start",
+  },
+  sideRight: {
+    alignItems: "flex-end",
   },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   phaseLabel: {

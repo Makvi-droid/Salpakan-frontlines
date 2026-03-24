@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Image,
   Modal,
   StyleSheet,
   Text,
@@ -9,7 +10,8 @@ import {
 } from "react-native";
 
 import { appTheme } from "@/constants/theme";
-import type { ChallengeEvent } from "../scripts/types";
+import { CRATE_UPGRADE_LABELS } from "../constants/constants";
+import type { ChallengeEvent, PieceUpgradeId } from "../scripts/types";
 
 // How long each stage lingers before the next auto-advances.
 // Stage 3 (result) never auto-advances — the player must tap Continue.
@@ -26,6 +28,18 @@ type Props = {
   rsv: (size: number) => number;
   onDismiss: () => void;
 };
+
+function getUpgradeIcon(upgrade: PieceUpgradeId) {
+  if (upgrade === "iron-veil") {
+    return require("../assets/images/iron-veil.png");
+  }
+  if (upgrade === "double-blind") {
+    return require("../assets/images/double-blind.png");
+  }
+  return require("../assets/images/martyr's-eye.png");
+}
+
+const CLOSED_EYE_ICON = require("../assets/images/closed-eye.png");
 
 export function ChallengeModal({
   event,
@@ -46,28 +60,37 @@ export function ChallengeModal({
   // Scale pop for the result badge
   const scaleBadge = useRef(new Animated.Value(0.4)).current;
 
-  const fadeIn = (duration = 320) =>
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration,
-      useNativeDriver: true,
-    });
+  const fadeIn = useCallback(
+    (duration = 320) =>
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration,
+        useNativeDriver: true,
+      }),
+    [fadeAnim],
+  );
 
-  const slideIn = (anim: Animated.Value, delay = 0) =>
-    Animated.timing(anim, {
-      toValue: 0,
-      duration: 380,
-      delay,
-      useNativeDriver: true,
-    });
+  const slideIn = useCallback(
+    (anim: Animated.Value, delay = 0) =>
+      Animated.timing(anim, {
+        toValue: 0,
+        duration: 380,
+        delay,
+        useNativeDriver: true,
+      }),
+    [],
+  );
 
-  const popIn = (anim: Animated.Value) =>
-    Animated.spring(anim, {
-      toValue: 1,
-      friction: 5,
-      tension: 120,
-      useNativeDriver: true,
-    });
+  const popIn = useCallback(
+    (anim: Animated.Value) =>
+      Animated.spring(anim, {
+        toValue: 1,
+        friction: 5,
+        tension: 120,
+        useNativeDriver: true,
+      }),
+    [],
+  );
 
   // Reset and replay animations whenever the stage changes or modal opens.
   useEffect(() => {
@@ -97,7 +120,17 @@ export function ChallengeModal({
       scaleBadge.setValue(0.4);
       Animated.parallel([fadeIn(220), popIn(scaleBadge)]).start();
     }
-  }, [stage, event]);
+  }, [
+    stage,
+    event,
+    fadeAnim,
+    fadeIn,
+    popIn,
+    scaleBadge,
+    slideAttacker,
+    slideDefender,
+    slideIn,
+  ]);
 
   // Auto-advance stages 1 → 2 → 3
   useEffect(() => {
@@ -118,11 +151,45 @@ export function ChallengeModal({
 
   const attackerIsPlayer = event.attackerSide === "player";
   const playerPiece = attackerIsPlayer
-    ? { name: event.attackerName, label: event.attackerShortLabel }
-    : { name: event.defenderName, label: event.defenderShortLabel };
+    ? {
+        name: event.attackerName,
+        label: event.attackerShortLabel,
+        hidden: event.attackerHiddenFromPlayer,
+        upgrade: event.attackerUpgrade,
+      }
+    : {
+        name: event.defenderName,
+        label: event.defenderShortLabel,
+        hidden: event.defenderHiddenFromPlayer,
+        upgrade: event.defenderUpgrade,
+      };
   const enemyPiece = attackerIsPlayer
-    ? { name: event.defenderName, label: event.defenderShortLabel }
-    : { name: event.attackerName, label: event.attackerShortLabel };
+    ? {
+        name: event.defenderName,
+        label: event.defenderShortLabel,
+        hidden: event.defenderHiddenFromPlayer,
+        upgrade: event.defenderUpgrade,
+        decoyLabel: event.defenderDecoyShortLabelForPlayer,
+      }
+    : {
+        name: event.attackerName,
+        label: event.attackerShortLabel,
+        hidden: event.attackerHiddenFromPlayer,
+        upgrade: event.attackerUpgrade,
+        decoyLabel: event.attackerDecoyShortLabelForPlayer,
+      };
+
+  const enemyDisplayLabel = enemyPiece.hidden
+    ? "?"
+    : (enemyPiece.decoyLabel ?? enemyPiece.label);
+  const enemyDisplayName =
+    enemyPiece.hidden || enemyPiece.decoyLabel ? "Unknown" : enemyPiece.name;
+  const enemyResolvedName =
+    enemyPiece.hidden || enemyPiece.decoyLabel
+      ? "an enemy rank"
+      : enemyPiece.name;
+  const showIronVeilConcealIcon =
+    enemyPiece.hidden && enemyPiece.upgrade === "iron-veil";
 
   // Outcome from the player's perspective
   // outcome > 0 means attacker won; < 0 defender won; 0 draw
@@ -141,10 +208,28 @@ export function ChallengeModal({
     : playerWon
       ? "#6DBF82"
       : "#CF5A52";
+  const continueBtnBackground = isDraw
+    ? "#B89245"
+    : playerWon
+      ? "#2F8F4E"
+      : "#B53E38";
+  const continueBtnBorder = isDraw
+    ? "#E6C67E"
+    : playerWon
+      ? "#7FD39A"
+      : "#E08B85";
+
+  const enemyDefeated = playerWon || isDraw;
+  const showEnemyUpgradeBadge =
+    !!enemyPiece.upgrade &&
+    (enemyPiece.upgrade === "iron-veil" ||
+      (enemyPiece.upgrade === "double-blind"
+        ? enemyDefeated
+        : !enemyPiece.hidden));
 
   const overlayPadding = {
-    paddingTop: insets.top + 16,
-    paddingBottom: insets.bottom + 16,
+    paddingTop: Math.max(insets.top, insets.bottom) + 16,
+    paddingBottom: Math.max(insets.top, insets.bottom) + 16,
   };
   const cardMaxWidth = Math.min(rs(340), width * 0.9);
 
@@ -170,6 +255,20 @@ export function ChallengeModal({
                   { padding: rs(14), borderRadius: rs(12) },
                 ]}
               >
+                {playerPiece.upgrade ? (
+                  <View style={styles.upgradeBadge}>
+                    <Image
+                      source={getUpgradeIcon(playerPiece.upgrade)}
+                      style={{ width: rf(10), height: rf(10) }}
+                      resizeMode="contain"
+                    />
+                    <Text
+                      style={[styles.upgradeBadgeText, { fontSize: rf(7) }]}
+                    >
+                      {CRATE_UPGRADE_LABELS[playerPiece.upgrade]}
+                    </Text>
+                  </View>
+                ) : null}
                 <Text style={[styles.pieceCardSide, { fontSize: rf(9) }]}>
                   YOUR RANK
                 </Text>
@@ -252,6 +351,20 @@ export function ChallengeModal({
                   },
                 ]}
               >
+                {playerPiece.upgrade ? (
+                  <View style={styles.upgradeBadge}>
+                    <Image
+                      source={getUpgradeIcon(playerPiece.upgrade)}
+                      style={{ width: rf(10), height: rf(10) }}
+                      resizeMode="contain"
+                    />
+                    <Text
+                      style={[styles.upgradeBadgeText, { fontSize: rf(7) }]}
+                    >
+                      {CRATE_UPGRADE_LABELS[playerPiece.upgrade]}
+                    </Text>
+                  </View>
+                ) : null}
                 <Text style={[styles.pieceCardSide, { fontSize: rf(9) }]}>
                   YOUR RANK
                 </Text>
@@ -286,6 +399,20 @@ export function ChallengeModal({
                   },
                 ]}
               >
+                {showEnemyUpgradeBadge && enemyPiece.upgrade ? (
+                  <View style={styles.upgradeBadge}>
+                    <Image
+                      source={getUpgradeIcon(enemyPiece.upgrade)}
+                      style={{ width: rf(10), height: rf(10) }}
+                      resizeMode="contain"
+                    />
+                    <Text
+                      style={[styles.upgradeBadgeText, { fontSize: rf(7) }]}
+                    >
+                      {CRATE_UPGRADE_LABELS[enemyPiece.upgrade]}
+                    </Text>
+                  </View>
+                ) : null}
                 <Text style={[styles.pieceCardSide, { fontSize: rf(9) }]}>
                   ENEMY RANK
                 </Text>
@@ -295,22 +422,38 @@ export function ChallengeModal({
                     { fontSize: rf(28), marginTop: rsv(4) },
                   ]}
                 >
-                  {enemyPiece.label}
+                  {showIronVeilConcealIcon ? "" : enemyDisplayLabel}
                 </Text>
+                {showIronVeilConcealIcon ? (
+                  <Image
+                    source={CLOSED_EYE_ICON}
+                    style={{
+                      width: rf(30),
+                      height: rf(30),
+                      marginTop: rsv(4),
+                      tintColor: "white",
+                    }}
+                    resizeMode="contain"
+                  />
+                ) : null}
                 <Text
                   style={[
                     styles.pieceCardName,
                     { fontSize: rf(10), marginTop: rsv(4) },
                   ]}
                 >
-                  {enemyPiece.name}
+                  {enemyDisplayName}
                 </Text>
               </Animated.View>
             </View>
             <Text
               style={[styles.subNote, { fontSize: rf(10), marginTop: rsv(16) }]}
             >
-              Deciding the outcome…
+              {enemyPiece.hidden
+                ? "Enemy rank remains concealed."
+                : enemyPiece.decoyLabel
+                  ? "Enemy rank appears distorted."
+                  : "Deciding the outcome…"}
             </Text>
           </Animated.View>
         )}
@@ -375,15 +518,27 @@ export function ChallengeModal({
                     { fontSize: rf(28), marginTop: rsv(4) },
                   ]}
                 >
-                  {enemyPiece.label}
+                  {showIronVeilConcealIcon ? "" : enemyDisplayLabel}
                 </Text>
+                {showIronVeilConcealIcon ? (
+                  <Image
+                    source={CLOSED_EYE_ICON}
+                    style={{
+                      width: rf(30),
+                      height: rf(30),
+                      marginTop: rsv(4),
+                      tintColor: "white",
+                    }}
+                    resizeMode="contain"
+                  />
+                ) : null}
                 <Text
                   style={[
                     styles.pieceCardName,
                     { fontSize: rf(10), marginTop: rsv(4) },
                   ]}
                 >
-                  {enemyPiece.name}
+                  {enemyDisplayName}
                 </Text>
               </View>
             </View>
@@ -413,14 +568,16 @@ export function ChallengeModal({
               {isDraw
                 ? "Both ranks are removed from the field."
                 : playerWon
-                  ? `${playerPiece.name} removes ${enemyPiece.name}.`
-                  : `${enemyPiece.name} holds the line.`}
+                  ? `${playerPiece.name} removes ${enemyResolvedName}.`
+                  : `${enemyResolvedName} holds the line.`}
             </Text>
 
             <TouchableOpacity
               style={[
                 styles.continueBtn,
                 {
+                  backgroundColor: continueBtnBackground,
+                  borderColor: continueBtnBorder,
                   marginTop: rsv(20),
                   paddingVertical: rsv(12),
                   borderRadius: rs(14),
@@ -429,7 +586,12 @@ export function ChallengeModal({
               onPress={onDismiss}
               activeOpacity={0.85}
             >
-              <Text style={[styles.continueBtnText, { fontSize: rf(13) }]}>
+              <Text
+                style={[
+                  styles.continueBtnText,
+                  { fontSize: rf(13), color: "#FFF8EE" },
+                ]}
+              >
                 Continue
               </Text>
             </TouchableOpacity>
@@ -447,6 +609,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
+  },
+  upgradeBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: "rgba(0, 0, 0, 0.24)",
+    borderWidth: 1,
+    borderColor: appTheme.colors.brassBright,
+    marginBottom: 6,
+  },
+  upgradeBadgeText: {
+    color: appTheme.colors.parchment,
+    fontFamily: appTheme.fonts.body,
+    letterSpacing: 0.2,
+    fontWeight: "700",
   },
   card: {
     width: "100%",

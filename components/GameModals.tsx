@@ -58,8 +58,8 @@ export function GameModals({
         : "Enemy command took the field. Want to try again?";
 
   const overlayPadding = {
-    paddingTop: insets.top + 24,
-    paddingBottom: insets.bottom + 24,
+    paddingTop: Math.max(insets.top, insets.bottom) + 24,
+    paddingBottom: Math.max(insets.top, insets.bottom) + 24,
   };
   const cardStyle = {
     maxWidth: Math.min(rs(360), width * 0.9),
