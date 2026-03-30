@@ -38,6 +38,49 @@ import type {
   Side,
 } from "../scripts/types";
 
+// ─── Veteran System ───────────────────────────────────────────────────────────
+
+/** Chance that a piece earns Veteran status after a successful kill. */
+const VETERAN_PROC_CHANCE = 0.25;
+
+/**
+ * Given a resolution and the side that just moved, rolls veteran procs for
+ * any pieces that survived by winning their challenge. Returns an updated
+ * board with `isVeteran: true` set where the proc fires.
+ *
+ * Only the *winning* piece (the one that ended up on the destination tile)
+ * is eligible — pieces that moved to an empty tile are not.
+ */
+function rollVeteranProc(
+  boardAfterMove: Record<number, BoardPiece>,
+  movedToTileIndex: number | undefined,
+  capturedByPlayer: string[],
+  capturedByAI: string[],
+): Record<number, BoardPiece> {
+  if (movedToTileIndex === undefined) return boardAfterMove;
+
+  const winner = boardAfterMove[movedToTileIndex];
+  if (!winner) return boardAfterMove;
+
+  // A winner is confirmed only when the opposing side had a piece captured.
+  const opponentLostPiece =
+    winner.side === "player"
+      ? capturedByAI.length > 0
+      : capturedByPlayer.length > 0;
+
+  if (!opponentLostPiece) return boardAfterMove;
+
+  // Already a veteran — no double proc.
+  if (winner.isVeteran) return boardAfterMove;
+
+  if (Math.random() >= VETERAN_PROC_CHANCE) return boardAfterMove;
+
+  return {
+    ...boardAfterMove,
+    [movedToTileIndex]: { ...winner, isVeteran: true },
+  };
+}
+
 function getInitialUpgradeCharges(upgrade: PieceUpgradeId) {
   if (upgrade === "iron-veil" || upgrade === "double-blind") return 2;
   return undefined;
@@ -93,8 +136,6 @@ export function useGameState(difficulty: Difficulty) {
   } | null>(null);
 
   // ── Drag state ──────────────────────────────────────────────────────────────
-  // draggingPieceId  — the pieceId being dragged from the reserve rail
-  // draggingFromTile — the tile index being dragged from the board (re-arrange)
   const [draggingPieceId, setDraggingPieceId] = useState<string | null>(null);
   const [draggingFromTile, setDraggingFromTile] = useState<number | null>(null);
   const [dragOverTileIndex, setDragOverTileIndex] = useState<number | null>(
@@ -149,6 +190,14 @@ export function useGameState(difficulty: Difficulty) {
     boardAfterMove: Record<number, BoardPiece>;
     remainingCrates: Record<number, PieceUpgradeId>;
   } | null>(null);
+
+  // ── Veteran promo state ─────────────────────────────────────────────────────
+  const [pendingVeteranPromo, setPendingVeteranPromo] = useState<{
+    pieceShortLabel: string;
+    pieceName: string;
+  } | null>(null);
+
+  const handleVeteranPromoDismiss = () => setPendingVeteranPromo(null);
 
   // ── Derived values ──────────────────────────────────────────────────────────
   const initialPieceCountById = useMemo(() => {
@@ -371,7 +420,30 @@ export function useGameState(difficulty: Difficulty) {
     movedFromTileIndex?: number,
     movedToTileIndex?: number,
   ) => {
-    const nextBoard = applyDoubleBlindBoardDecoys(res.board);
+    // ── Veteran proc: roll after any combat resolution ──────────────────────
+    const boardWithVeteranProc = rollVeteranProc(
+      res.board,
+      movedToTileIndex,
+      res.capturedByPlayer,
+      res.capturedByAI,
+    );
+
+    // ── Detect a freshly promoted PLAYER veteran and queue the modal ────────
+    if (movedToTileIndex !== undefined) {
+      const before = res.board[movedToTileIndex];
+      const after = boardWithVeteranProc[movedToTileIndex];
+      if (after?.isVeteran && !before?.isVeteran && after.side === "player") {
+        const def = pieceById[after.pieceId];
+        if (def) {
+          setPendingVeteranPromo({
+            pieceShortLabel: def.shortLabel,
+            pieceName: def.label,
+          });
+        }
+      }
+    }
+
+    const nextBoard = applyDoubleBlindBoardDecoys(boardWithVeteranProc);
 
     setBattleBoard(nextBoard);
     if (movedFromTileIndex !== undefined && movedToTileIndex !== undefined) {
@@ -596,7 +668,8 @@ export function useGameState(difficulty: Difficulty) {
       pendingChallenge ||
       pendingUpgradeRoll ||
       pendingUpgradeActivation ||
-      pendingCrateChoice
+      pendingCrateChoice ||
+      pendingVeteranPromo // ← block AI turn while veteran modal is open
     )
       return;
     setAIThinking(true);
@@ -644,6 +717,7 @@ export function useGameState(difficulty: Difficulty) {
     pendingUpgradeRoll,
     pendingUpgradeActivation,
     pendingCrateChoice,
+    pendingVeteranPromo, // ← added to dep array
     crateTiles,
   ]);
 
@@ -705,7 +779,7 @@ export function useGameState(difficulty: Difficulty) {
     }
   };
 
-  // ── Formation tap handlers (unchanged) ──────────────────────────────────────
+  // ── Formation tap handlers ──────────────────────────────────────────────────
   const handlePieceButtonPress = (pieceId: string) => {
     if (phase !== "formation") return;
     setMoveSourceTileIndex(null);
@@ -812,11 +886,6 @@ export function useGameState(difficulty: Difficulty) {
   };
 
   // ── Drag handlers ────────────────────────────────────────────────────────────
-
-  /**
-   * Called when a chip in the reserve rail starts being dragged.
-   * pieceId — the piece being dragged from the reserve.
-   */
   const handleDragStartFromReserve = (pieceId: string) => {
     if (phase !== "formation") return;
     if ((pieceCountById[pieceId] ?? 0) <= 0) return;
@@ -826,10 +895,6 @@ export function useGameState(difficulty: Difficulty) {
     setMoveSourceTileIndex(null);
   };
 
-  /**
-   * Called when a placed piece on the board starts being dragged.
-   * tileIndex — the board tile it is being picked up from.
-   */
   const handleDragStartFromBoard = (tileIndex: number) => {
     if (phase !== "formation") return;
     const pieceId = placedByTileIndex[tileIndex];
@@ -840,20 +905,11 @@ export function useGameState(difficulty: Difficulty) {
     setMoveSourceTileIndex(null);
   };
 
-  /**
-   * Called as the finger moves over tile tileIndex during a drag.
-   * Used to highlight the hovered tile.
-   */
   const handleDragEnterTile = (tileIndex: number) => {
     if (draggingPieceId === null) return;
     setDragOverTileIndex(tileIndex);
   };
 
-  /**
-   * Called when the drag is released anywhere.
-   * If released over a valid setup-zone tile it places/swaps the piece.
-   * Always cleans up drag state.
-   */
   const handleDragEnd = (targetTileIndex: number | null) => {
     if (draggingPieceId === null) {
       setDraggingFromTile(null);
@@ -864,7 +920,6 @@ export function useGameState(difficulty: Difficulty) {
     const pieceId = draggingPieceId;
     const fromTile = draggingFromTile;
 
-    // Clean up first so state is consistent regardless of outcome
     setDraggingPieceId(null);
     setDraggingFromTile(null);
     setDragOverTileIndex(null);
@@ -877,19 +932,15 @@ export function useGameState(difficulty: Difficulty) {
     }
 
     if (fromTile !== null) {
-      // Moving an already-placed piece between board tiles
       if (targetTileIndex === fromTile) return;
       setPlacedByTileIndex((cur) => {
         const next = { ...cur };
         const displaced = next[targetTileIndex];
         next[targetTileIndex] = pieceId;
-        displaced
-          ? (next[fromTile] = displaced) // swap
-          : delete next[fromTile]; // simple move
+        displaced ? (next[fromTile] = displaced) : delete next[fromTile];
         return next;
       });
     } else {
-      // Placing a fresh piece from the reserve onto the board
       if ((pieceCountById[pieceId] ?? 0) <= 0) return;
       setPlacedByTileIndex((cur) => ({ ...cur, [targetTileIndex]: pieceId }));
     }
@@ -905,7 +956,8 @@ export function useGameState(difficulty: Difficulty) {
       pendingChallenge ||
       pendingUpgradeRoll ||
       pendingUpgradeActivation ||
-      pendingCrateChoice
+      pendingCrateChoice ||
+      pendingVeteranPromo // ← block tile interaction while modal is open
     )
       return;
     const tappedPiece = battleBoard[tileIndex];
@@ -952,7 +1004,8 @@ export function useGameState(difficulty: Difficulty) {
       pendingChallenge ||
       pendingUpgradeRoll ||
       pendingUpgradeActivation ||
-      pendingCrateChoice
+      pendingCrateChoice ||
+      pendingVeteranPromo // ← block challenge press while modal is open
     )
       return;
     if (selectedBattleTileIndex === null) return;
@@ -994,6 +1047,7 @@ export function useGameState(difficulty: Difficulty) {
     setPendingUpgradeRoll(null);
     setPendingUpgradeActivation(null);
     setPendingCrateChoice(null);
+    setPendingVeteranPromo(null);
     setShowReadyModal(false);
     clearFormationSelection();
     setIsInventoryExpanded(false);
@@ -1015,6 +1069,7 @@ export function useGameState(difficulty: Difficulty) {
     setPendingUpgradeRoll(null);
     setPendingUpgradeActivation(null);
     setPendingCrateChoice(null);
+    setPendingVeteranPromo(null);
     setBattleMessage("You forfeited the match. Enemy command takes the field.");
     setRevealMessage("The battle ended by surrender.");
     setCrateByTile({});
@@ -1045,6 +1100,7 @@ export function useGameState(difficulty: Difficulty) {
     setPendingUpgradeRoll(null);
     setPendingUpgradeActivation(null);
     setPendingCrateChoice(null);
+    setPendingVeteranPromo(null);
     setDraggingPieceId(null);
     setDraggingFromTile(null);
     setDragOverTileIndex(null);
@@ -1099,6 +1155,9 @@ export function useGameState(difficulty: Difficulty) {
     pendingCrateChoice,
     handleCrateChoiceTake,
     handleCrateChoiceDestroy,
+    // veteran promo
+    pendingVeteranPromo,
+    handleVeteranPromoDismiss,
     // UI
     isInventoryExpanded,
     setIsInventoryExpanded,

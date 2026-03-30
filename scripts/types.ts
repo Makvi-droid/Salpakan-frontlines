@@ -31,6 +31,13 @@ export type BoardPiece = {
   decoyShortLabelForPlayer?: string;
   /** Board decoy label shown to AI for marked Double-Blind pieces */
   decoyShortLabelForAI?: string;
+  /**
+   * Veteran System: true when this piece has earned Veteran status via the
+   * 25% proc after winning a challenge. Grants draw-immunity (same-rank clash
+   * becomes a win for the veteran) but the badge is consumed on use.
+   * Hidden on the board — only revealed inside the ChallengeModal.
+   */
+  isVeteran?: boolean;
 };
 
 export type BattleMove = {
@@ -97,4 +104,15 @@ export type ChallengeEvent = {
   outcome: number;
   /** The fully resolved board/state, applied when modal is dismissed */
   resolution: BattleResolution;
+  // ── Veteran System ──────────────────────────────────────────────────────────
+  /** True when the attacker holds Veteran status entering this challenge */
+  attackerIsVeteran: boolean;
+  /** True when the defender holds Veteran status entering this challenge */
+  defenderIsVeteran: boolean;
+  /**
+   * True when Veteran draw-immunity actually fired (same-rank clash where
+   * exactly one side was a veteran). Used by the modal to show the
+   * "Veteran's Edge" flavour text instead of the standard draw message.
+   */
+  veteranEdgeApplied: boolean;
 };

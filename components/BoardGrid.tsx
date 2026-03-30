@@ -220,6 +220,13 @@ export function BoardGrid({
                 phase !== "formation" && battlePiece?.side === "player"
                   ? getUpgradeAbbrev(battlePiece.upgrade)
                   : "";
+
+              // ── Veteran badge flag ──────────────────────────────────────
+              const isPlayerVeteran =
+                phase !== "formation" &&
+                battlePiece?.side === "player" &&
+                battlePiece.isVeteran === true;
+
               const showIronVeilIconOnBoard =
                 phase !== "formation" &&
                 battlePiece?.side === "ai" &&
@@ -251,6 +258,8 @@ export function BoardGrid({
                 (isMoveSource || isSelectedBattle) && styles.sourceSelected,
                 isBattleTarget && styles.battleTarget,
                 isChallengeTarget && styles.challengeTarget,
+                // Veteran tile gets a subtle gold border glow
+                isPlayerVeteran && styles.veteranTile,
               ];
 
               // ── Formation phase: DropZoneTile ────────────────────────────
@@ -283,7 +292,7 @@ export function BoardGrid({
                 );
               }
 
-              // ── Battle phase: plain TouchableOpacity (unchanged) ─────────
+              // ── Battle phase: plain TouchableOpacity ─────────────────────
               return (
                 <TouchableOpacity
                   key={tile.index}
@@ -317,6 +326,7 @@ export function BoardGrid({
                     )
                   ) : null}
 
+                  {/* Upgrade badge — top-right */}
                   {playerUpgradeTag ? (
                     <View style={styles.playerUpgradeBadge}>
                       <Text
@@ -326,6 +336,15 @@ export function BoardGrid({
                         ]}
                       >
                         {playerUpgradeTag}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Veteran badge — bottom-left, opposite the upgrade badge */}
+                  {isPlayerVeteran ? (
+                    <View style={styles.veteranBadge}>
+                      <Text style={[styles.veteranStar, { fontSize: rf(7) }]}>
+                        ★
                       </Text>
                     </View>
                   ) : null}
@@ -426,6 +445,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#2B1C14",
     borderColor: appTheme.colors.brassBright,
   },
+  // ── Veteran tile: subtle gold shimmer border (layered over playerTile) ──────
+  veteranTile: {
+    borderColor: "#F0C040",
+    borderWidth: appTheme.borderWidth.thick,
+    shadowColor: "#F0C040",
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
   playerUpgradeBadge: {
     position: "absolute",
     top: 2,
@@ -445,6 +474,31 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontWeight: "700",
     letterSpacing: 0.2,
+  },
+  // ── Veteran badge: bottom-left gold star pill ────────────────────────────────
+  veteranBadge: {
+    position: "absolute",
+    bottom: 2,
+    left: 2,
+    minWidth: 14,
+    paddingHorizontal: 2,
+    paddingVertical: 1,
+    borderRadius: 8,
+    backgroundColor: "#2B1C00",
+    borderWidth: 1,
+    borderColor: "#F0C040",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#F0C040",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.65,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  veteranStar: {
+    color: "#F0C040",
+    fontWeight: "700",
+    lineHeight: 12,
   },
   aiTileHidden: { backgroundColor: "#1A0008", borderColor: "#7A2A3A" },
   aiTileRevealed: { backgroundColor: "#750012", borderColor: "#E0B55D" },

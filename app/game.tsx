@@ -16,6 +16,7 @@ import { GameModals } from "../components/GameModals";
 import { StatusBox } from "../components/StatusBox";
 import { TopMenuRow } from "../components/TopMenuRow";
 import { UpgradeActivationModal } from "../components/UpgradeActivationModal";
+import { VeteranPromoModal } from "../components/VeteranPromoModal";
 import { useGameState } from "../hooks/useGameState";
 import type { Difficulty } from "../scripts/types";
 
@@ -328,6 +329,17 @@ export default function GameScreen() {
           rsv={rsv}
           onTake={game.handleCrateChoiceTake}
           onDestroy={game.handleCrateChoiceDestroy}
+        />
+
+        {/* ── Veteran Promo Modal ─────────────────────────────────────────── */}
+        <VeteranPromoModal
+          event={game.pendingVeteranPromo}
+          insets={insets}
+          width={width}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onDismiss={game.handleVeteranPromoDismiss}
         />
       </View>
     </GestureHandlerRootView>

@@ -173,7 +173,54 @@ export function compareCombat(
   return attackerStrength > defenderStrength ? 1 : -1;
 }
 
-function getUpgradeCharges(piece: BoardPiece, upgrade: "iron-veil" | "double-blind") {
+/**
+ * Resolves the combat outcome accounting for the Veteran System.
+ *
+ * Returns:
+ *   1  — attacker wins
+ *  -1  — defender wins
+ *   0  — true draw (both veterans OR neither veteran in same-rank clash)
+ *
+ * veteranEdgeApplied is set to true only when exactly one side is a veteran
+ * and the base outcome would have been a draw (same rank).
+ */
+export function compareCombatWithVeteran(
+  attackerId: string,
+  defenderId: string,
+  attackerIsVeteran: boolean,
+  defenderIsVeteran: boolean,
+  pieceById: Record<string, PieceDefinition>,
+): { outcome: number; veteranEdgeApplied: boolean } {
+  const baseOutcome = compareCombat(attackerId, defenderId, pieceById);
+
+  // Veteran edge only fires on same-rank clashes (base outcome === 0)
+  if (baseOutcome !== 0) {
+    return { outcome: baseOutcome, veteranEdgeApplied: false };
+  }
+
+  // Both veterans: edge cancels out → standard draw
+  if (attackerIsVeteran && defenderIsVeteran) {
+    return { outcome: 0, veteranEdgeApplied: false };
+  }
+
+  // Only attacker is veteran: attacker survives, defender eliminated
+  if (attackerIsVeteran) {
+    return { outcome: 1, veteranEdgeApplied: true };
+  }
+
+  // Only defender is veteran: defender survives, attacker eliminated
+  if (defenderIsVeteran) {
+    return { outcome: -1, veteranEdgeApplied: true };
+  }
+
+  // Neither veteran: standard draw
+  return { outcome: 0, veteranEdgeApplied: false };
+}
+
+function getUpgradeCharges(
+  piece: BoardPiece,
+  upgrade: "iron-veil" | "double-blind",
+) {
   if (piece.upgrade !== upgrade) return 0;
   const charges = piece.upgradeCharges;
   // Backward compatibility for already-running games before charges existed.
@@ -225,13 +272,19 @@ function getDecoyShortLabelForDoubleBlind(
 
   let filtered = allCandidates;
   if (outcomeForPiece === "win") {
-    filtered = allCandidates.filter((entry) => entry.strength > opponentStrength);
+    filtered = allCandidates.filter(
+      (entry) => entry.strength > opponentStrength,
+    );
   } else if (outcomeForPiece === "lose") {
-    filtered = allCandidates.filter((entry) => entry.strength < opponentStrength);
+    filtered = allCandidates.filter(
+      (entry) => entry.strength < opponentStrength,
+    );
   }
 
   if (filtered.length === 0) {
-    filtered = allCandidates.filter((entry) => entry.strength !== pieceStrength);
+    filtered = allCandidates.filter(
+      (entry) => entry.strength !== pieceStrength,
+    );
   }
   if (filtered.length === 0) {
     filtered = allCandidates;
@@ -275,7 +328,11 @@ export function resolveBattleMove(
         (move.side === "ai" && getTileRow(move.to) === BOARD_HEIGHT - 1));
 
     if (reachedOppositeEnd) {
-      const hasAdjacentThreat = hasAdjacentOpponent(nextBoard, move.to, move.side);
+      const hasAdjacentThreat = hasAdjacentOpponent(
+        nextBoard,
+        move.to,
+        move.side,
+      );
       const hasSafeLead = hasTwoSquareLeadFromEndzone(nextBoard, move.side);
 
       if (hasAdjacentThreat || !hasSafeLead) {
@@ -316,7 +373,15 @@ export function resolveBattleMove(
     };
   }
 
-  const outcome = compareCombat(attacker.pieceId, target.pieceId, pieceById);
+  // ── Veteran-aware combat resolution ────────────────────────────────────────
+  const { outcome, veteranEdgeApplied } = compareCombatWithVeteran(
+    attacker.pieceId,
+    target.pieceId,
+    attacker.isVeteran === true,
+    target.isVeteran === true,
+    pieceById,
+  );
+
   const hasSameUpgradeClash =
     attacker.upgrade !== undefined && attacker.upgrade === target.upgrade;
   const nullifiedUpgradeMessage = hasSameUpgradeClash
@@ -325,9 +390,6 @@ export function resolveBattleMove(
   // Only compute names for messages where we're allowed to show them.
   const playerAttackerName = isPlayerMove
     ? formatPieceName(attacker.pieceId, pieceById)
-    : null;
-  const playerDefenderName = !isPlayerMove
-    ? formatPieceName(target.pieceId, pieceById)
     : null;
 
   // Preserve each piece's original reveal flags — neither side learns the
@@ -342,46 +404,63 @@ export function resolveBattleMove(
 
   if (outcome > 0) {
     // Attacker wins — place it at the target tile with its original visibility.
-    const attackerAfterWin: BoardPiece = hasSameUpgradeClash
+    // If veteran edge fired, consume (remove) the veteran badge from the winner.
+    let attackerAfterWin: BoardPiece = hasSameUpgradeClash
       ? removePieceUpgrade({ ...attacker })
       : consumeChallengeUpgradeCharge({ ...attacker });
     if (!hasSameUpgradeClash && target.upgrade === "martyrs-eye") {
       if (target.side === "player") attackerAfterWin.markedByPlayer = true;
       if (target.side === "ai") attackerAfterWin.markedByAI = true;
     }
+    // Consume veteran badge if it was used to win the draw
+    if (veteranEdgeApplied) {
+      attackerAfterWin = { ...attackerAfterWin, isVeteran: false };
+    }
     nextBoard[move.to] = attackerAfterWin;
     target.side === "player"
       ? capturedByPlayer.push(target.pieceId)
       : capturedByAI.push(target.pieceId);
     if (isPlayerMove) {
-      message = `You won the clash. ${playerAttackerName} removed an enemy rank.`;
+      message = veteranEdgeApplied
+        ? `Veteran's Edge! Your ${playerAttackerName} overpowered an equal rank. Badge expended.`
+        : `You won the clash. ${playerAttackerName} removed an enemy rank.`;
     } else {
-      // AI won — only reveal that the player's defending piece was removed.
-      message = `Enemy won the clash. Your ${formatPieceName(target.pieceId, pieceById)} was removed.`;
+      message = veteranEdgeApplied
+        ? `Veteran's Edge! Enemy veteran overpowered your ${formatPieceName(target.pieceId, pieceById)}. Their badge is expended.`
+        : `Enemy won the clash. Your ${formatPieceName(target.pieceId, pieceById)} was removed.`;
     }
     if (pieceById[target.pieceId]?.label === "Flag") winner = move.side;
   } else if (outcome < 0) {
     // Defender wins — it stays in place with its original visibility.
-    const defenderAfterWin: BoardPiece = hasSameUpgradeClash
+    // If veteran edge fired, consume the veteran badge from the defender winner.
+    let defenderAfterWin: BoardPiece = hasSameUpgradeClash
       ? removePieceUpgrade({ ...target })
       : consumeChallengeUpgradeCharge({ ...target });
     if (!hasSameUpgradeClash && attacker.upgrade === "martyrs-eye") {
       if (attacker.side === "player") defenderAfterWin.markedByPlayer = true;
       if (attacker.side === "ai") defenderAfterWin.markedByAI = true;
     }
+    // Consume veteran badge if it was used to win the draw
+    if (veteranEdgeApplied) {
+      defenderAfterWin = { ...defenderAfterWin, isVeteran: false };
+    }
     nextBoard[move.to] = defenderAfterWin;
     attacker.side === "player"
       ? capturedByPlayer.push(attacker.pieceId)
       : capturedByAI.push(attacker.pieceId);
     if (isPlayerMove) {
-      message = `You lost the clash. Your ${playerAttackerName} was removed.`;
+      message = veteranEdgeApplied
+        ? `Veteran's Edge! Enemy veteran held against your ${playerAttackerName}. Their badge is expended.`
+        : `You lost the clash. Your ${playerAttackerName} was removed.`;
     } else {
       // AI lost — only reveal that the player's piece held.
-      message = `Enemy lost the clash. Your ${formatPieceName(target.pieceId, pieceById)} held the line.`;
+      message = veteranEdgeApplied
+        ? `Veteran's Edge! Your ${formatPieceName(target.pieceId, pieceById)} overpowered an equal enemy rank. Badge expended.`
+        : `Enemy lost the clash. Your ${formatPieceName(target.pieceId, pieceById)} held the line.`;
     }
     if (pieceById[attacker.pieceId]?.label === "Flag") winner = target.side;
   } else {
-    // Draw — both pieces are removed.
+    // True draw — both pieces are removed (no veteran edge, or both veterans).
     delete nextBoard[move.to];
     attacker.side === "player"
       ? capturedByPlayer.push(attacker.pieceId)
@@ -473,7 +552,16 @@ export function prepareChallengeEvent(
   if (!attacker || !defender || attacker.side === defender.side) return null;
 
   const resolution = resolveBattleMove(board, move, pieceById);
-  const outcome = compareCombat(attacker.pieceId, defender.pieceId, pieceById);
+
+  // Use veteran-aware outcome for the modal display so stage 3 reflects the
+  // true result (veteran edge win instead of a draw).
+  const { outcome, veteranEdgeApplied } = compareCombatWithVeteran(
+    attacker.pieceId,
+    defender.pieceId,
+    attacker.isVeteran === true,
+    defender.isVeteran === true,
+    pieceById,
+  );
 
   const attackerOutcomeForDecoy: "win" | "lose" | "draw" =
     outcome > 0 ? "win" : outcome < 0 ? "lose" : "draw";
@@ -521,5 +609,9 @@ export function prepareChallengeEvent(
       defender.side === "ai" && getUpgradeCharges(defender, "iron-veil") > 0,
     outcome,
     resolution,
+    // ── Veteran fields ──────────────────────────────────────────────────────
+    attackerIsVeteran: attacker.isVeteran === true,
+    defenderIsVeteran: defender.isVeteran === true,
+    veteranEdgeApplied,
   };
 }

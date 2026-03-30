@@ -40,6 +40,10 @@ function getUpgradeIcon(upgrade: PieceUpgradeId) {
 }
 
 const CLOSED_EYE_ICON = require("../assets/images/closed-eye.png");
+// Veteran badge icon — reuse the existing medal/star asset or fall back to a
+// coloured text badge if the image is absent. Swap the path if you add a
+// dedicated asset (e.g. veteran-badge.png).
+const VETERAN_ICON = require("../assets/images/veteran-badge.png");
 
 export function ChallengeModal({
   event,
@@ -156,12 +160,14 @@ export function ChallengeModal({
         label: event.attackerShortLabel,
         hidden: event.attackerHiddenFromPlayer,
         upgrade: event.attackerUpgrade,
+        isVeteran: event.attackerIsVeteran,
       }
     : {
         name: event.defenderName,
         label: event.defenderShortLabel,
         hidden: event.defenderHiddenFromPlayer,
         upgrade: event.defenderUpgrade,
+        isVeteran: event.defenderIsVeteran,
       };
   const enemyPiece = attackerIsPlayer
     ? {
@@ -170,6 +176,7 @@ export function ChallengeModal({
         hidden: event.defenderHiddenFromPlayer,
         upgrade: event.defenderUpgrade,
         decoyLabel: event.defenderDecoyShortLabelForPlayer,
+        isVeteran: event.defenderIsVeteran,
       }
     : {
         name: event.attackerName,
@@ -177,6 +184,7 @@ export function ChallengeModal({
         hidden: event.attackerHiddenFromPlayer,
         upgrade: event.attackerUpgrade,
         decoyLabel: event.attackerDecoyShortLabelForPlayer,
+        isVeteran: event.attackerIsVeteran,
       };
 
   const enemyDisplayLabel = enemyPiece.hidden
@@ -192,17 +200,38 @@ export function ChallengeModal({
     enemyPiece.hidden && enemyPiece.upgrade === "iron-veil";
 
   // Outcome from the player's perspective
-  // outcome > 0 means attacker won; < 0 defender won; 0 draw
   const playerWon =
     (attackerIsPlayer && event.outcome > 0) ||
     (!attackerIsPlayer && event.outcome < 0);
   const isDraw = event.outcome === 0;
 
-  const resultLabel = isDraw
-    ? "BOTH ELIMINATED"
-    : playerWon
-      ? "YOU WON"
-      : "YOU LOST";
+  // ── Veteran edge outcome messaging ──────────────────────────────────────────
+  // veteranEdgeApplied means the draw was broken by a veteran badge.
+  const isVeteranEdge = event.veteranEdgeApplied;
+
+  // Which side's veteran badge was consumed in a veteran edge outcome?
+  // outcome > 0 → attacker's badge; outcome < 0 → defender's badge.
+  const playerVeteranWon =
+    isVeteranEdge &&
+    ((attackerIsPlayer && event.outcome > 0) ||
+      (!attackerIsPlayer && event.outcome < 0));
+  const enemyVeteranWon =
+    isVeteranEdge &&
+    ((attackerIsPlayer && event.outcome < 0) ||
+      (!attackerIsPlayer && event.outcome > 0));
+
+  // Labels and colours for the result badge
+  let resultLabel: string;
+  if (isVeteranEdge) {
+    resultLabel = playerVeteranWon ? "VETERAN'S EDGE" : "ENEMY VETERAN'S EDGE";
+  } else {
+    resultLabel = isDraw
+      ? "BOTH ELIMINATED"
+      : playerWon
+        ? "YOU WON"
+        : "YOU LOST";
+  }
+
   const resultColor = isDraw
     ? appTheme.colors.brassBright
     : playerWon
@@ -227,11 +256,39 @@ export function ChallengeModal({
         ? enemyDefeated
         : !enemyPiece.hidden));
 
+  // Sub-note on stage 3 result card
+  const subNoteResult = (() => {
+    if (isVeteranEdge) {
+      if (playerVeteranWon) {
+        return `Your veteran ${playerPiece.name} broke the deadlock. Badge expended.`;
+      }
+      return `Enemy veteran broke the deadlock against your ${playerPiece.name}. Their badge is expended.`;
+    }
+    if (isDraw) return "Both ranks are removed from the field.";
+    if (playerWon) return `${playerPiece.name} removes ${enemyResolvedName}.`;
+    return `${enemyResolvedName} holds the line.`;
+  })();
+
   const overlayPadding = {
     paddingTop: Math.max(insets.top, insets.bottom) + 16,
     paddingBottom: Math.max(insets.top, insets.bottom) + 16,
   };
   const cardMaxWidth = Math.min(rs(340), width * 0.9);
+
+  // ── Veteran badge sub-component ─────────────────────────────────────────────
+  // Rendered inside piece cards in stages 2 and 3 only (hidden in stage 1).
+  const VeteranBadge = ({ size }: { size: number }) => (
+    <View style={styles.veteranBadge}>
+      <Image
+        source={VETERAN_ICON}
+        style={{ width: size, height: size }}
+        resizeMode="contain"
+      />
+      <Text style={[styles.veteranBadgeText, { fontSize: rf(7) }]}>
+        VETERAN
+      </Text>
+    </View>
+  );
 
   return (
     <Modal visible={!!event} transparent animationType="none">
@@ -269,6 +326,7 @@ export function ChallengeModal({
                     </Text>
                   </View>
                 ) : null}
+                {/* Veteran badge intentionally NOT shown in stage 1 */}
                 <Text style={[styles.pieceCardSide, { fontSize: rf(9) }]}>
                   YOUR RANK
                 </Text>
@@ -340,6 +398,7 @@ export function ChallengeModal({
               RANKS REVEALED
             </Text>
             <View style={[styles.vsRow, { marginTop: rsv(18), gap: rs(12) }]}>
+              {/* Player card */}
               <Animated.View
                 style={[
                   styles.pieceCard,
@@ -365,6 +424,8 @@ export function ChallengeModal({
                     </Text>
                   </View>
                 ) : null}
+                {/* Veteran badge revealed in stage 2 */}
+                {playerPiece.isVeteran ? <VeteranBadge size={rf(10)} /> : null}
                 <Text style={[styles.pieceCardSide, { fontSize: rf(9) }]}>
                   YOUR RANK
                 </Text>
@@ -388,6 +449,7 @@ export function ChallengeModal({
 
               <Text style={[styles.vsText, { fontSize: rf(20) }]}>VS</Text>
 
+              {/* Enemy card */}
               <Animated.View
                 style={[
                   styles.pieceCard,
@@ -412,6 +474,10 @@ export function ChallengeModal({
                       {CRATE_UPGRADE_LABELS[enemyPiece.upgrade]}
                     </Text>
                   </View>
+                ) : null}
+                {/* Enemy veteran badge — only shown when their rank is revealed */}
+                {enemyPiece.isVeteran && !enemyPiece.hidden ? (
+                  <VeteranBadge size={rf(10)} />
                 ) : null}
                 <Text style={[styles.pieceCardSide, { fontSize: rf(9) }]}>
                   ENEMY RANK
@@ -470,6 +536,7 @@ export function ChallengeModal({
               CLASH RESULT
             </Text>
             <View style={[styles.vsRow, { marginTop: rsv(14), gap: rs(12) }]}>
+              {/* Player result card */}
               <View
                 style={[
                   styles.pieceCard,
@@ -478,6 +545,16 @@ export function ChallengeModal({
                   !playerWon && !isDraw && styles.defeatedCard,
                 ]}
               >
+                {/* Show veteran badge on result card; dim it if the edge was consumed */}
+                {playerPiece.isVeteran ? (
+                  <View
+                    style={[
+                      playerVeteranWon ? styles.veteranBadgeConsumed : null,
+                    ]}
+                  >
+                    <VeteranBadge size={rf(10)} />
+                  </View>
+                ) : null}
                 <Text style={[styles.pieceCardSide, { fontSize: rf(9) }]}>
                   YOUR RANK
                 </Text>
@@ -501,6 +578,7 @@ export function ChallengeModal({
 
               <Text style={[styles.vsText, { fontSize: rf(20) }]}>VS</Text>
 
+              {/* Enemy result card */}
               <View
                 style={[
                   styles.pieceCard,
@@ -509,6 +587,15 @@ export function ChallengeModal({
                   (playerWon || isDraw) && styles.defeatedCard,
                 ]}
               >
+                {enemyPiece.isVeteran && !enemyPiece.hidden ? (
+                  <View
+                    style={[
+                      enemyVeteranWon ? styles.veteranBadgeConsumed : null,
+                    ]}
+                  >
+                    <VeteranBadge size={rf(10)} />
+                  </View>
+                ) : null}
                 <Text style={[styles.pieceCardSide, { fontSize: rf(9) }]}>
                   ENEMY RANK
                 </Text>
@@ -557,7 +644,7 @@ export function ChallengeModal({
                 },
               ]}
             >
-              <Text style={[styles.resultBadgeText, { fontSize: rf(15) }]}>
+              <Text style={[styles.resultBadgeText, { fontSize: rf(13) }]}>
                 {resultLabel}
               </Text>
             </Animated.View>
@@ -565,11 +652,7 @@ export function ChallengeModal({
             <Text
               style={[styles.subNote, { fontSize: rf(10), marginTop: rsv(10) }]}
             >
-              {isDraw
-                ? "Both ranks are removed from the field."
-                : playerWon
-                  ? `${playerPiece.name} removes ${enemyResolvedName}.`
-                  : `${enemyResolvedName} holds the line.`}
+              {subNoteResult}
             </Text>
 
             <TouchableOpacity
@@ -629,6 +712,32 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontWeight: "700",
   },
+  // ── Veteran badge styles ────────────────────────────────────────────────────
+  veteranBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    // Warm gold tint to distinguish from the upgrade badge
+    backgroundColor: "rgba(210, 160, 20, 0.22)",
+    borderWidth: 1,
+    borderColor: "#F0C040",
+    marginBottom: 6,
+  },
+  veteranBadgeText: {
+    color: "#F0C040",
+    fontFamily: appTheme.fonts.body,
+    letterSpacing: 0.6,
+    fontWeight: "700",
+  },
+  /** Applied as a wrapper when the veteran badge was consumed this clash */
+  veteranBadgeConsumed: {
+    opacity: 0.45,
+  },
+  // ───────────────────────────────────────────────────────────────────────────
   card: {
     width: "100%",
     backgroundColor: appTheme.surfaces.hero.backgroundColor,
