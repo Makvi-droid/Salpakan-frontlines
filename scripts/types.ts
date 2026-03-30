@@ -1,18 +1,14 @@
 // ─── Domain types ────────────────────────────────────────────────────────────
-
 export type Difficulty = "easy" | "medium" | "hard";
 export type Side = "player" | "ai";
 export type Phase = "formation" | "battle" | "ended";
-
 export type PieceDefinition = {
   id: string;
   label: string;
   shortLabel: string;
   initialCount: number;
 };
-
 export type PieceUpgradeId = "iron-veil" | "double-blind" | "martyrs-eye";
-
 export type BoardPiece = {
   side: Side;
   pieceId: string;
@@ -39,13 +35,11 @@ export type BoardPiece = {
    */
   isVeteran?: boolean;
 };
-
 export type BattleMove = {
   side: Side;
   from: number;
   to: number;
 };
-
 export type MoveScoreWeights = {
   capture: number;
   advancement: number;
@@ -54,7 +48,6 @@ export type MoveScoreWeights = {
   threat: number;
   reveal: number;
 };
-
 export type AIProfile = {
   label: string;
   flavor: string;
@@ -63,8 +56,9 @@ export type AIProfile = {
   topSlice: number;
   blunderFloor: number;
   weights: MoveScoreWeights;
+  /** 0–1 chance an AI Private uses Kamikaze when it is the attacker */
+  kamikazeChance: number;
 };
-
 export type BattleResolution = {
   board: Record<number, BoardPiece>;
   winner: Side | null;
@@ -73,7 +67,6 @@ export type BattleResolution = {
   capturedByPlayer: string[];
   capturedByAI: string[];
 };
-
 /**
  * Carries everything the ChallengeModal needs to animate and display,
  * plus the pre-computed resolution that gets applied once dismissed.
@@ -115,4 +108,34 @@ export type ChallengeEvent = {
    * "Veteran's Edge" flavour text instead of the standard draw message.
    */
   veteranEdgeApplied: boolean;
+};
+
+/**
+ * Intercept event shown before the ChallengeModal when the attacking Private
+ * has the Kamikaze ability available and the target is NOT another Private
+ * (same-rank clash is already mutual elimination — no prompt needed).
+ *
+ * Holds everything the KamikazeModal needs to render, plus the pre-built
+ * mutual-elimination resolution so we can apply it without recomputing.
+ */
+export type KamikazeEvent = {
+  /** Tile the Private is moving FROM */
+  from: number;
+  /** Tile the target piece occupies */
+  to: number;
+  /** Side that owns the attacking Private */
+  attackerSide: Side;
+  /** Short label of the Private (always "Pvt" or equivalent) */
+  attackerShortLabel: string;
+  /** Short label of the target piece — shown in the modal */
+  defenderShortLabel: string;
+  /** Full name of the target piece — shown in the modal */
+  defenderName: string;
+  /**
+   * Pre-built BattleResolution for the mutual-elimination path.
+   * Applied directly if Kamikaze is confirmed, bypassing normal combat.
+   */
+  kamikazeResolution: BattleResolution;
+  /** The original BattleMove so we can fall through to normal combat */
+  legalMove: BattleMove;
 };

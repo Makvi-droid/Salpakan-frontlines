@@ -492,6 +492,82 @@ export function resolveBattleMove(
   };
 }
 
+// ─── Kamikaze resolution ──────────────────────────────────────────────────────
+
+/**
+ * Kamikaze: the attacking Private and its target are BOTH removed from the
+ * board unconditionally, regardless of rank. Normal combat rules are entirely
+ * bypassed. This is only called when the Kamikaze ability is confirmed.
+ *
+ * Rules:
+ *  - Both attacker and target are deleted from the board.
+ *  - If either piece is a Flag, the opposing side wins immediately.
+ *  - No veteran proc, no upgrade interaction — pure mutual elimination.
+ */
+export function resolveKamikazeMutualElimination(
+  board: Record<number, BoardPiece>,
+  move: BattleMove,
+  pieceById: Record<string, PieceDefinition>,
+): BattleResolution {
+  const attacker = board[move.from];
+  const defender = board[move.to];
+
+  if (!attacker || !defender) {
+    return {
+      board,
+      winner: null,
+      message: "No move executed.",
+      revealMessage: null,
+      capturedByPlayer: [],
+      capturedByAI: [],
+    };
+  }
+
+  const nextBoard = { ...board };
+  delete nextBoard[move.from];
+  delete nextBoard[move.to];
+
+  const capturedByPlayer: string[] = [];
+  const capturedByAI: string[] = [];
+
+  // Attacker capture bucket
+  attacker.side === "player"
+    ? capturedByPlayer.push(attacker.pieceId)
+    : capturedByAI.push(attacker.pieceId);
+
+  // Defender capture bucket
+  defender.side === "player"
+    ? capturedByPlayer.push(defender.pieceId)
+    : capturedByAI.push(defender.pieceId);
+
+  // Check if either piece was a Flag — Kamikaze can end the game
+  let winner: Side | null = null;
+  if (pieceById[attacker.pieceId]?.label === "Flag") winner = defender.side;
+  if (pieceById[defender.pieceId]?.label === "Flag")
+    winner = winner ?? attacker.side;
+
+  const isPlayerAttacker = attacker.side === "player";
+  const defenderName = formatPieceName(defender.pieceId, pieceById);
+  const attackerName = formatPieceName(attacker.pieceId, pieceById);
+
+  const message = isPlayerAttacker
+    ? `Kamikaze! Your Private sacrificed itself and took the enemy ${defenderName} down with it.`
+    : `Kamikaze! An enemy Private sacrificed itself and took your ${attackerName} down with it.`;
+
+  const revealMessage = isPlayerAttacker
+    ? `Your Private detonated on the enemy ${defenderName} — both were eliminated.`
+    : `Enemy Private detonated on your ${attackerName} — both were eliminated.`;
+
+  return {
+    board: nextBoard,
+    winner,
+    message,
+    revealMessage,
+    capturedByPlayer,
+    capturedByAI,
+  };
+}
+
 // ─── Board builder ────────────────────────────────────────────────────────────
 
 export function buildBattleBoard(
@@ -614,4 +690,15 @@ export function prepareChallengeEvent(
     defenderIsVeteran: defender.isVeteran === true,
     veteranEdgeApplied,
   };
+}
+
+/**
+ * Returns true when the given piece is a Private — used to gate the
+ * Kamikaze intercept in both player and AI turn logic.
+ */
+export function isPrivatePiece(
+  pieceId: string,
+  pieceById: Record<string, PieceDefinition>,
+): boolean {
+  return pieceById[pieceId]?.label === "Private";
 }

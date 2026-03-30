@@ -23,8 +23,10 @@ import {
   getLegalMoves,
   getPieceId,
   isPlayerSetupZoneTileIndex,
+  isPrivatePiece,
   prepareChallengeEvent,
   resolveBattleMove,
+  resolveKamikazeMutualElimination,
   shuffleArray,
 } from "../scripts/gameLogic";
 import type {
@@ -32,6 +34,7 @@ import type {
   BoardPiece,
   ChallengeEvent,
   Difficulty,
+  KamikazeEvent,
   Phase,
   PieceDefinition,
   PieceUpgradeId,
@@ -190,6 +193,15 @@ export function useGameState(difficulty: Difficulty) {
     boardAfterMove: Record<number, BoardPiece>;
     remainingCrates: Record<number, PieceUpgradeId>;
   } | null>(null);
+
+  // ── Kamikaze state ──────────────────────────────────────────────────────────
+  /**
+   * Set when a Private attacks an enemy piece and the Kamikaze intercept fires.
+   * Cleared when the player confirms or declines, or when the AI resolves it.
+   */
+  const [pendingKamikaze, setPendingKamikaze] = useState<KamikazeEvent | null>(
+    null,
+  );
 
   // ── Veteran promo state ─────────────────────────────────────────────────────
   const [pendingVeteranPromo, setPendingVeteranPromo] = useState<{
@@ -623,8 +635,105 @@ export function useGameState(difficulty: Difficulty) {
     );
   };
 
+  // ── Kamikaze helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * Returns true when a Kamikaze intercept should fire for this move.
+   * Conditions:
+   *  1. The attacker is a Private.
+   *  2. There is an enemy piece on the target tile (it is a challenge).
+   *  3. The target is NOT another Private (same-rank is already mutual
+   *     elimination — Kamikaze would add nothing).
+   */
+  const shouldInterceptKamikaze = (legalMove: BattleMove): boolean => {
+    const attacker = battleBoard[legalMove.from];
+    const defender = battleBoard[legalMove.to];
+    if (!attacker || !defender) return false;
+    if (attacker.side === defender.side) return false;
+    if (!isPrivatePiece(attacker.pieceId, pieceById)) return false;
+    if (isPrivatePiece(defender.pieceId, pieceById)) return false;
+    return true;
+  };
+
+  /**
+   * Builds a KamikazeEvent for the given move. Call only after
+   * shouldInterceptKamikaze() returns true.
+   */
+  const buildKamikazeEvent = (legalMove: BattleMove): KamikazeEvent => {
+    const attacker = battleBoard[legalMove.from];
+    const defender = battleBoard[legalMove.to];
+    const kamikazeResolution = resolveKamikazeMutualElimination(
+      battleBoard,
+      legalMove,
+      pieceById,
+    );
+    return {
+      from: legalMove.from,
+      to: legalMove.to,
+      attackerSide: attacker.side,
+      attackerShortLabel: pieceById[attacker.pieceId]?.shortLabel ?? "Pvt",
+      defenderShortLabel: pieceById[defender.pieceId]?.shortLabel ?? "?",
+      defenderName:
+        defender.side === "player"
+          ? (pieceById[defender.pieceId]?.label ?? "Unknown")
+          : "an enemy rank",
+      kamikazeResolution,
+      legalMove,
+    };
+  };
+
+  // ── Kamikaze: player confirm / decline ───────────────────────────────────────
+
+  /**
+   * Player chose to USE Kamikaze — apply mutual elimination and continue.
+   */
+  const handleKamikazeConfirm = () => {
+    if (!pendingKamikaze) return;
+    const { kamikazeResolution, legalMove } = pendingKamikaze;
+    setPendingKamikaze(null);
+    applyResolution(kamikazeResolution, "ai", legalMove.from, legalMove.to);
+  };
+
+  /**
+   * Player chose to DECLINE Kamikaze — fall through to normal combat
+   * (which will then show the ChallengeModal as usual).
+   */
+  const handleKamikazeDecline = () => {
+    if (!pendingKamikaze) return;
+    const { legalMove } = pendingKamikaze;
+    setPendingKamikaze(null);
+
+    // Check upgrade activation first, then fire the normal challenge flow
+    const attackingPiece = battleBoard[legalMove.from];
+    if (attackingPiece?.side === "player" && attackingPiece.upgrade) {
+      setPendingUpgradeActivation({
+        legalMove,
+        playerUpgrade: attackingPiece.upgrade,
+      });
+      return;
+    }
+    const event = prepareChallengeEvent(battleBoard, legalMove, pieceById);
+    if (event) setPendingChallenge(event);
+  };
+
   // ── Shared: fire challenge ───────────────────────────────────────────────────
+  /**
+   * Entry point for any move that results in a challenge (player OR AI).
+   * Kamikaze intercept runs first when the attacker is a Private attacking
+   * a non-Private enemy.
+   */
   const fireChallenge = (legalMove: BattleMove) => {
+    // ── Kamikaze intercept (player turn only) ───────────────────────────────
+    if (shouldInterceptKamikaze(legalMove)) {
+      const attackerSide = battleBoard[legalMove.from]?.side;
+      if (attackerSide === "player") {
+        const event = buildKamikazeEvent(legalMove);
+        setPendingKamikaze(event);
+        return;
+      }
+    }
+
+    // ── Normal challenge flow ───────────────────────────────────────────────
     const attackingPiece = battleBoard[legalMove.from];
     if (attackingPiece?.side === "player" && attackingPiece.upgrade) {
       setPendingUpgradeActivation({
@@ -669,7 +778,8 @@ export function useGameState(difficulty: Difficulty) {
       pendingUpgradeRoll ||
       pendingUpgradeActivation ||
       pendingCrateChoice ||
-      pendingVeteranPromo // ← block AI turn while veteran modal is open
+      pendingKamikaze || // ← block AI turn while Kamikaze modal is open
+      pendingVeteranPromo
     )
       return;
     setAIThinking(true);
@@ -693,6 +803,24 @@ export function useGameState(difficulty: Difficulty) {
 
       const target = battleBoard[aiMove.to];
       if (target?.side === "player") {
+        // ── AI Kamikaze logic ─────────────────────────────────────────────
+        // Only fires when an AI Private attacks a non-Private player piece.
+        if (shouldInterceptKamikaze(aiMove)) {
+          const roll = Math.random();
+          if (roll < aiProfile.kamikazeChance) {
+            // AI decides to Kamikaze — resolve immediately, no modal needed.
+            const kamikazeRes = resolveKamikazeMutualElimination(
+              battleBoard,
+              aiMove,
+              pieceById,
+            );
+            applyResolution(kamikazeRes, "player", aiMove.from, aiMove.to);
+            setAIThinking(false);
+            return;
+          }
+          // AI declined Kamikaze — fall through to normal challenge.
+        }
+
         const event = prepareChallengeEvent(battleBoard, aiMove, pieceById);
         if (event) {
           setAIThinking(false);
@@ -717,7 +845,8 @@ export function useGameState(difficulty: Difficulty) {
     pendingUpgradeRoll,
     pendingUpgradeActivation,
     pendingCrateChoice,
-    pendingVeteranPromo, // ← added to dep array
+    pendingKamikaze,
+    pendingVeteranPromo,
     crateTiles,
   ]);
 
@@ -957,7 +1086,8 @@ export function useGameState(difficulty: Difficulty) {
       pendingUpgradeRoll ||
       pendingUpgradeActivation ||
       pendingCrateChoice ||
-      pendingVeteranPromo // ← block tile interaction while modal is open
+      pendingKamikaze || // ← block tile interaction while Kamikaze modal is open
+      pendingVeteranPromo
     )
       return;
     const tappedPiece = battleBoard[tileIndex];
@@ -1005,7 +1135,8 @@ export function useGameState(difficulty: Difficulty) {
       pendingUpgradeRoll ||
       pendingUpgradeActivation ||
       pendingCrateChoice ||
-      pendingVeteranPromo // ← block challenge press while modal is open
+      pendingKamikaze || // ← block challenge press while Kamikaze modal is open
+      pendingVeteranPromo
     )
       return;
     if (selectedBattleTileIndex === null) return;
@@ -1047,6 +1178,7 @@ export function useGameState(difficulty: Difficulty) {
     setPendingUpgradeRoll(null);
     setPendingUpgradeActivation(null);
     setPendingCrateChoice(null);
+    setPendingKamikaze(null);
     setPendingVeteranPromo(null);
     setShowReadyModal(false);
     clearFormationSelection();
@@ -1069,6 +1201,7 @@ export function useGameState(difficulty: Difficulty) {
     setPendingUpgradeRoll(null);
     setPendingUpgradeActivation(null);
     setPendingCrateChoice(null);
+    setPendingKamikaze(null);
     setPendingVeteranPromo(null);
     setBattleMessage("You forfeited the match. Enemy command takes the field.");
     setRevealMessage("The battle ended by surrender.");
@@ -1100,6 +1233,7 @@ export function useGameState(difficulty: Difficulty) {
     setPendingUpgradeRoll(null);
     setPendingUpgradeActivation(null);
     setPendingCrateChoice(null);
+    setPendingKamikaze(null);
     setPendingVeteranPromo(null);
     setDraggingPieceId(null);
     setDraggingFromTile(null);
@@ -1155,6 +1289,10 @@ export function useGameState(difficulty: Difficulty) {
     pendingCrateChoice,
     handleCrateChoiceTake,
     handleCrateChoiceDestroy,
+    // kamikaze
+    pendingKamikaze,
+    handleKamikazeConfirm,
+    handleKamikazeDecline,
     // veteran promo
     pendingVeteranPromo,
     handleVeteranPromoDismiss,

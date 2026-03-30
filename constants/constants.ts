@@ -100,6 +100,7 @@ export const DIFFICULTY_PROFILES: Record<Difficulty, AIProfile> = {
       threat: 0.7,
       reveal: 0.15,
     },
+    kamikazeChance: 0.15,
   },
   medium: {
     label: "Officer",
@@ -117,6 +118,7 @@ export const DIFFICULTY_PROFILES: Record<Difficulty, AIProfile> = {
       threat: 1.05,
       reveal: 0.25,
     },
+    kamikazeChance: 0.35,
   },
   hard: {
     label: "General",
@@ -134,5 +136,6 @@ export const DIFFICULTY_PROFILES: Record<Difficulty, AIProfile> = {
       threat: 1.25,
       reveal: 0.35,
     },
+    kamikazeChance: 0.6,
   },
 };

@@ -13,6 +13,7 @@ import { ChallengeModal } from "../components/ChallengeModal";
 import { CrateChoiceModal } from "../components/CrateChoiceModal";
 import { FormationControls } from "../components/FormationControls";
 import { GameModals } from "../components/GameModals";
+import { KamikazeModal } from "../components/KamikazeModal";
 import { StatusBox } from "../components/StatusBox";
 import { TopMenuRow } from "../components/TopMenuRow";
 import { UpgradeActivationModal } from "../components/UpgradeActivationModal";
@@ -329,6 +330,18 @@ export default function GameScreen() {
           rsv={rsv}
           onTake={game.handleCrateChoiceTake}
           onDestroy={game.handleCrateChoiceDestroy}
+        />
+
+        {/* ── Kamikaze Modal ──────────────────────────────────────────────── */}
+        <KamikazeModal
+          event={game.pendingKamikaze}
+          insets={insets}
+          width={width}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onConfirm={game.handleKamikazeConfirm}
+          onDecline={game.handleKamikazeDecline}
         />
 
         {/* ── Veteran Promo Modal ─────────────────────────────────────────── */}
