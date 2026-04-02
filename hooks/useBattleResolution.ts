@@ -9,13 +9,16 @@ import {
   CRATE_UPGRADES,
   CRATE_UPGRADE_LABELS,
 } from "../constants/constants";
-import { getLegalMoves, resolveBattleMove, shuffleArray } from "../scripts/gameLogic";
+import {
+  getLegalMoves,
+  resolveBattleMove,
+  shuffleArray,
+} from "../scripts/gameLogic";
 import type {
   BoardPiece,
-  BattleMove,
   PieceDefinition,
   PieceUpgradeId,
-  Side,
+  Side
 } from "../scripts/types";
 import { rollVeteranProc } from "./useVeteranPromo";
 
@@ -36,7 +39,9 @@ interface UseBattleResolutionOptions {
   onRevealMessage: (msg: string | null) => void;
   onCapturedByPlayer: (ids: string[]) => void;
   onCapturedByAI: (ids: string[]) => void;
-  onLastMoveTrail: (trail: { from: number; to: number; side: Side } | null) => void;
+  onLastMoveTrail: (
+    trail: { from: number; to: number; side: Side } | null,
+  ) => void;
   onSelectedBattleTileIndex: (index: number | null) => void;
   onPendingUpgradeRoll: (roll: { upgrade: PieceUpgradeId } | null) => void;
   checkAndQueueVeteranPromo: (
@@ -64,7 +69,9 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     checkAndQueueVeteranPromo,
   } = options;
 
-  const [crateByTile, setCrateByTile] = useState<Record<number, PieceUpgradeId>>({});
+  const [crateByTile, setCrateByTile] = useState<
+    Record<number, PieceUpgradeId>
+  >({});
   const [pendingCrateChoice, setPendingCrateChoice] = useState<{
     currentUpgrade: PieceUpgradeId;
     newUpgrade: PieceUpgradeId;
@@ -101,7 +108,9 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       let needsUpdate = false;
 
       if (piece.markedByPlayer) {
-        updates.decoyShortLabelForPlayer = getRandomDecoyShortLabel(piece.pieceId);
+        updates.decoyShortLabelForPlayer = getRandomDecoyShortLabel(
+          piece.pieceId,
+        );
         needsUpdate = true;
       } else if (piece.decoyShortLabelForPlayer !== undefined) {
         updates.decoyShortLabelForPlayer = undefined;
@@ -138,7 +147,8 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     },
     actingSide?: Side,
   ) => {
-    const moverSide: Side = actingSide ?? (nextTurn === "player" ? "ai" : "player");
+    const moverSide: Side =
+      actingSide ?? (nextTurn === "player" ? "ai" : "player");
     let nextCrates: Record<number, PieceUpgradeId> = { ...remainingCrates };
     let droppedCrates: Record<number, PieceUpgradeId> = {};
 
@@ -157,10 +167,12 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
 
       if (dropLowerBound > 0) {
         const countRange = dropUpperBound - dropLowerBound + 1;
-        const dropCount = dropLowerBound + Math.floor(Math.random() * countRange);
+        const dropCount =
+          dropLowerBound + Math.floor(Math.random() * countRange);
         const droppedTiles = shuffleArray(emptyTiles).slice(0, dropCount);
         droppedTiles.forEach((tile) => {
-          const randomUpgrade = CRATE_UPGRADES[Math.floor(Math.random() * CRATE_UPGRADES.length)];
+          const randomUpgrade =
+            CRATE_UPGRADES[Math.floor(Math.random() * CRATE_UPGRADES.length)];
           droppedCrates[tile] = randomUpgrade;
         });
       }
@@ -182,7 +194,11 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       }
     }
     if (options?.destroyedCrate) {
-      messageAddons.push(moverSide === "player" ? "Crate destroyed." : "Enemy destroyed a crate.");
+      messageAddons.push(
+        moverSide === "player"
+          ? "Crate destroyed."
+          : "Enemy destroyed a crate.",
+      );
     }
     const dropCount = Object.keys(droppedCrates).length;
     if (dropCount > 0) {
@@ -191,7 +207,9 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     }
 
     onMessageChange(
-      messageAddons.length > 0 ? `${baseMessage} ${messageAddons.join(" ")}` : baseMessage,
+      messageAddons.length > 0
+        ? `${baseMessage} ${messageAddons.join(" ")}`
+        : baseMessage,
     );
     onTurnChange(nextTurn);
   };
@@ -204,7 +222,32 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     movedFromTileIndex?: number,
     movedToTileIndex?: number,
   ) => {
-    // Veteran proc
+    // ── WINNER CHECK FIRST ───────────────────────────────────────────────────
+    // Must happen before veteran proc, double-blind decoys, crate logic, or
+    // any legal-move check — so that a Flag capture ends the game immediately
+    // with no intermediate state that could re-trigger the AI turn.
+    if (res.winner) {
+      onBoardChange(res.board);
+      if (movedFromTileIndex !== undefined && movedToTileIndex !== undefined) {
+        onLastMoveTrail({
+          from: movedFromTileIndex,
+          to: movedToTileIndex,
+          side: nextTurn === "player" ? "ai" : "player",
+        });
+      }
+      onCapturedByPlayer(res.capturedByPlayer);
+      onCapturedByAI(res.capturedByAI);
+      onRevealMessage(res.revealMessage);
+      onSelectedBattleTileIndex(null);
+      setCrateByTile({});
+      onMessageChange(res.message);
+      // Call onWinner before onPhaseEnd so phase-gated effects see the winner.
+      onWinner(res.winner);
+      onPhaseEnd();
+      return;
+    }
+
+    // Veteran proc — only runs when the game is NOT over.
     const boardWithVeteranProc = rollVeteranProc(
       res.board,
       movedToTileIndex,
@@ -212,7 +255,11 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       res.capturedByAI,
     );
 
-    checkAndQueueVeteranPromo(res.board, boardWithVeteranProc, movedToTileIndex);
+    checkAndQueueVeteranPromo(
+      res.board,
+      boardWithVeteranProc,
+      movedToTileIndex,
+    );
 
     const nextBoard = applyDoubleBlindBoardDecoys(boardWithVeteranProc);
 
@@ -229,14 +276,6 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     onRevealMessage(res.revealMessage);
     onSelectedBattleTileIndex(null);
 
-    if (res.winner) {
-      onWinner(res.winner);
-      onPhaseEnd();
-      setCrateByTile({});
-      onMessageChange(res.message);
-      return;
-    }
-
     const opponentSide: Side = nextTurn === "player" ? "ai" : "player";
     if (getLegalMoves(nextBoard, opponentSide, pieceById).length === 0) {
       onWinner(nextTurn);
@@ -251,12 +290,16 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     }
 
     const steppedCrateUpgrade =
-      movedToTileIndex !== undefined ? currentCrateByTile[movedToTileIndex] : undefined;
+      movedToTileIndex !== undefined
+        ? currentCrateByTile[movedToTileIndex]
+        : undefined;
     const movedPiece =
       movedToTileIndex !== undefined ? nextBoard[movedToTileIndex] : undefined;
     const actingSide: Side = nextTurn === "player" ? "ai" : "player";
 
-    const remainingCrates: Record<number, PieceUpgradeId> = { ...currentCrateByTile };
+    const remainingCrates: Record<number, PieceUpgradeId> = {
+      ...currentCrateByTile,
+    };
     if (steppedCrateUpgrade !== undefined && movedToTileIndex !== undefined) {
       delete remainingCrates[movedToTileIndex];
     }
@@ -269,18 +312,35 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
         if (aiTakesNewUpgrade) {
           const withUpgrade = {
             ...nextBoard,
-            [movedToTileIndex!]: { ...movedPiece, upgrade: steppedCrateUpgrade },
+            [movedToTileIndex!]: {
+              ...movedPiece,
+              upgrade: steppedCrateUpgrade,
+            },
           };
           const withUpgradeDecoys = applyDoubleBlindBoardDecoys(withUpgrade);
           onBoardChange(withUpgradeDecoys);
-          finalizeTurnWithCrateState(withUpgradeDecoys, nextTurn, res.message, remainingCrates, {
-            claimedUpgrade: steppedCrateUpgrade,
-          }, "ai");
+          finalizeTurnWithCrateState(
+            withUpgradeDecoys,
+            nextTurn,
+            res.message,
+            remainingCrates,
+            {
+              claimedUpgrade: steppedCrateUpgrade,
+            },
+            "ai",
+          );
         } else {
-          finalizeTurnWithCrateState(nextBoard, nextTurn, res.message, remainingCrates, {
-            destroyedCrate: true,
-            skipDropAttempt: true,
-          }, "ai");
+          finalizeTurnWithCrateState(
+            nextBoard,
+            nextTurn,
+            res.message,
+            remainingCrates,
+            {
+              destroyedCrate: true,
+              skipDropAttempt: true,
+            },
+            "ai",
+          );
         }
         return;
       }
@@ -293,7 +353,9 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
         boardAfterMove: nextBoard,
         remainingCrates,
       });
-      onMessageChange(`${res.message} Crate found: choose to take it or destroy it.`);
+      onMessageChange(
+        `${res.message} Crate found: choose to take it or destroy it.`,
+      );
       return;
     }
 
@@ -330,8 +392,14 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
   // ── Crate choice handlers ────────────────────────────────────────────────────
   const handleCrateChoiceTake = () => {
     if (!pendingCrateChoice) return;
-    const { newUpgrade, movedTo, nextTurn, baseMessage, boardAfterMove, remainingCrates } =
-      pendingCrateChoice;
+    const {
+      newUpgrade,
+      movedTo,
+      nextTurn,
+      baseMessage,
+      boardAfterMove,
+      remainingCrates,
+    } = pendingCrateChoice;
     const movedPiece = boardAfterMove[movedTo];
     const withUpgrade = movedPiece
       ? {
@@ -346,19 +414,34 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     const withUpgradeDecoys = applyDoubleBlindBoardDecoys(withUpgrade);
     onBoardChange(withUpgradeDecoys);
     setPendingCrateChoice(null);
-    finalizeTurnWithCrateState(withUpgradeDecoys, nextTurn, baseMessage, remainingCrates, {
-      claimedUpgrade: newUpgrade,
-    }, "player");
+    finalizeTurnWithCrateState(
+      withUpgradeDecoys,
+      nextTurn,
+      baseMessage,
+      remainingCrates,
+      {
+        claimedUpgrade: newUpgrade,
+      },
+      "player",
+    );
   };
 
   const handleCrateChoiceDestroy = () => {
     if (!pendingCrateChoice) return;
-    const { nextTurn, baseMessage, boardAfterMove, remainingCrates } = pendingCrateChoice;
+    const { nextTurn, baseMessage, boardAfterMove, remainingCrates } =
+      pendingCrateChoice;
     setPendingCrateChoice(null);
-    finalizeTurnWithCrateState(boardAfterMove, nextTurn, baseMessage, remainingCrates, {
-      destroyedCrate: true,
-      skipDropAttempt: true,
-    }, "player");
+    finalizeTurnWithCrateState(
+      boardAfterMove,
+      nextTurn,
+      baseMessage,
+      remainingCrates,
+      {
+        destroyedCrate: true,
+        skipDropAttempt: true,
+      },
+      "player",
+    );
   };
 
   const resetCrates = () => setCrateByTile({});

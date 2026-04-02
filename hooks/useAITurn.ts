@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-
 import { AI_THINKING_DELAY_MS } from "../constants/constants";
 import { chooseMoveForProfile } from "../scripts/aiLogic";
 import {
@@ -94,9 +93,21 @@ export function useAITurn(opts: UseAITurnOptions) {
     )
       return;
 
+    // cancelled flag: if the effect re-runs before the timeout fires (e.g.
+    // winner was set by a player-side resolution while the timer was pending),
+    // we discard the stale callback entirely instead of applying a move after
+    // the game has already ended.
+    let cancelled = false;
+
     onAIThinking(true);
 
     const timer = setTimeout(() => {
+      // Guard against stale closure: winner may have been set between when the
+      // effect ran and when the timeout fires. If so, abort silently.
+      if (cancelled) {
+        return;
+      }
+
       const aiMove = chooseMoveForProfile(
         battleBoard,
         aiProfile,
@@ -144,7 +155,10 @@ export function useAITurn(opts: UseAITurnOptions) {
       onAIThinking(false);
     }, AI_THINKING_DELAY_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [
     phase,
     turn,
