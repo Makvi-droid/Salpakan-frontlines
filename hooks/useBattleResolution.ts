@@ -18,7 +18,7 @@ import type {
   BoardPiece,
   PieceDefinition,
   PieceUpgradeId,
-  Side
+  Side,
 } from "../scripts/types";
 import { rollVeteranProc } from "./useVeteranPromo";
 
@@ -223,9 +223,6 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     movedToTileIndex?: number,
   ) => {
     // ── WINNER CHECK FIRST ───────────────────────────────────────────────────
-    // Must happen before veteran proc, double-blind decoys, crate logic, or
-    // any legal-move check — so that a Flag capture ends the game immediately
-    // with no intermediate state that could re-trigger the AI turn.
     if (res.winner) {
       onBoardChange(res.board);
       if (movedFromTileIndex !== undefined && movedToTileIndex !== undefined) {
@@ -241,7 +238,6 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       onSelectedBattleTileIndex(null);
       setCrateByTile({});
       onMessageChange(res.message);
-      // Call onWinner before onPhaseEnd so phase-gated effects see the winner.
       onWinner(res.winner);
       onPhaseEnd();
       return;
@@ -276,9 +272,13 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     onRevealMessage(res.revealMessage);
     onSelectedBattleTileIndex(null);
 
-    const opponentSide: Side = nextTurn === "player" ? "ai" : "player";
-    if (getLegalMoves(nextBoard, opponentSide, pieceById).length === 0) {
-      onWinner(nextTurn);
+    // ── STALEMATE CHECK ──────────────────────────────────────────────────────
+    // Check if the side whose turn it now is has any legal moves.
+    // BUG WAS HERE: was checking `opponentSide` (the side that just moved)
+    // instead of `nextTurn` (the side that needs to move next).
+    if (getLegalMoves(nextBoard, nextTurn, pieceById).length === 0) {
+      const stalemateWinner: Side = nextTurn === "player" ? "ai" : "player";
+      onWinner(stalemateWinner);
       onPhaseEnd();
       setCrateByTile({});
       onMessageChange(

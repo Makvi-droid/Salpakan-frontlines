@@ -45,6 +45,9 @@ type Props = {
   rs: (size: number) => number;
   rsv: (size: number) => number;
   marginBottom: number;
+  // flag swap
+  flagSwapAllyTiles: number[];
+  flagSwapActive: boolean;
   // drag props
   draggingPieceId: string | null;
   draggingFromTile: number | null;
@@ -156,6 +159,8 @@ export function BoardGrid({
   rs,
   rsv,
   marginBottom,
+  flagSwapAllyTiles,
+  flagSwapActive,
   draggingPieceId,
   draggingFromTile,
   dragOverTileIndex,
@@ -198,6 +203,11 @@ export function BoardGrid({
               const isChallengeTarget =
                 phase !== "formation" &&
                 challengeTargetTiles.includes(tile.index);
+
+              // ── Flag swap: ally highlight ──────────────────────────────────
+              const isFlagSwapAlly =
+                phase !== "formation" && flagSwapAllyTiles.includes(tile.index);
+
               const showLastMoveTrail =
                 phase !== "formation" && selectedBattleTileIndex === null;
               const isTrailFrom =
@@ -260,6 +270,8 @@ export function BoardGrid({
                 isChallengeTarget && styles.challengeTarget,
                 // Veteran tile gets a subtle gold border glow
                 isPlayerVeteran && styles.veteranTile,
+                // Flag swap ally — gold shimmer, applied last so it wins
+                isFlagSwapAlly && styles.flagSwapAllyTarget,
               ];
 
               // ── Formation phase: DropZoneTile ────────────────────────────
@@ -374,6 +386,15 @@ export function BoardGrid({
                       />
                     </TouchableOpacity>
                   ) : null}
+
+                  {/* Flag swap ally indicator — small swap icon overlay */}
+                  {isFlagSwapAlly ? (
+                    <View style={styles.swapIndicator} pointerEvents="none">
+                      <Text style={[styles.swapIcon, { fontSize: rf(8) }]}>
+                        ⇄
+                      </Text>
+                    </View>
+                  ) : null}
                 </TouchableOpacity>
               );
             })}
@@ -455,6 +476,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
   },
+  // ── Flag swap ally: brass-gold pulse border ──────────────────────────────────
+  flagSwapAllyTarget: {
+    borderColor: appTheme.colors.brassBright,
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(199, 163, 84, 0.22)",
+    shadowColor: appTheme.colors.brassBright,
+    shadowOpacity: 0.42,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
   playerUpgradeBadge: {
     position: "absolute",
     top: 2,
@@ -497,6 +529,19 @@ const styles = StyleSheet.create({
   },
   veteranStar: {
     color: "#F0C040",
+    fontWeight: "700",
+    lineHeight: 12,
+  },
+  // ── Swap indicator overlay (⇄ icon inside ally tile) ────────────────────────
+  swapIndicator: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  swapIcon: {
+    color: appTheme.colors.brassBright,
     fontWeight: "700",
     lineHeight: 12,
   },

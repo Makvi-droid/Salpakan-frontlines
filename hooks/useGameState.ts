@@ -20,6 +20,7 @@ import type {
 
 import { useAITurn } from "./useAITurn";
 import { useBattleResolution } from "./useBattleResolution";
+import { useFlagSwap } from "./useFlagSwap";
 import { useKamikaze } from "./useKamikaze";
 import { usePlacement } from "./usePlacement";
 import { useVeteranPromo } from "./useVeteranPromo";
@@ -135,6 +136,9 @@ export function useGameState(difficulty: Difficulty) {
     onPendingUpgradeActivation: setPendingUpgradeActivation,
   });
 
+  // ── Flag swap sub-hook ───────────────────────────────────────────────────────
+  const flagSwap = useFlagSwap({ pieceById });
+
   // ── AI turn sub-hook ─────────────────────────────────────────────────────────
   useAITurn({
     phase,
@@ -193,6 +197,27 @@ export function useGameState(difficulty: Difficulty) {
     () => Object.keys(resolution.crateByTile).map(Number),
     [resolution.crateByTile],
   );
+
+  // ── Flag swap derived values ─────────────────────────────────────────────────
+
+  /** True when the currently selected battle tile is the player's Flag */
+  const selectedPieceIsFlag = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return flagSwap.isFlagPiece(piece);
+  }, [phase, selectedBattleTileIndex, battleBoard, flagSwap.isFlagPiece]);
+
+  /** Ally tiles lit up in gold when swap mode is active */
+  const flagSwapAllyTiles = useMemo(() => {
+    if (!flagSwap.flagSwapActive) return [];
+    return flagSwap.getAllySwapTiles(battleBoard, selectedBattleTileIndex);
+  }, [
+    flagSwap.flagSwapActive,
+    flagSwap.getAllySwapTiles,
+    battleBoard,
+    selectedBattleTileIndex,
+  ]);
 
   // ── Shared: fire challenge ───────────────────────────────────────────────────
   const fireChallenge = (legalMove: BattleMove) => {
@@ -291,6 +316,42 @@ export function useGameState(difficulty: Difficulty) {
     !!veteran.pendingVeteranPromo;
 
   const handleBattleTilePress = (tileIndex: number) => {
+    // ── Flag swap mode: resolve or cancel ──────────────────────────────────
+    if (flagSwap.flagSwapActive) {
+      // Tapping a highlighted ally completes the swap
+      if (
+        flagSwapAllyTiles.includes(tileIndex) &&
+        selectedBattleTileIndex !== null
+      ) {
+        const nextBoard = flagSwap.applyFlagSwap(
+          battleBoard,
+          selectedBattleTileIndex,
+          tileIndex,
+        );
+        flagSwap.cancelFlagSwap();
+        setSelectedBattleTileIndex(null);
+        setLastMoveTrail(null);
+
+        // Reuse applyResolution so board update + turn flip + message all work
+        applyResolution(
+          {
+            board: nextBoard,
+            winner: null,
+            message:
+              "Your Flag slipped into the shadows, trading places with an ally.",
+            revealMessage: null,
+            capturedByPlayer: [],
+            capturedByAI: [],
+          },
+          "ai",
+        );
+      } else {
+        // Tap anywhere else → cancel swap mode
+        flagSwap.cancelFlagSwap();
+      }
+      return;
+    }
+
     if (isPlayerInputBlocked()) return;
     const tappedPiece = battleBoard[tileIndex];
 
@@ -369,6 +430,7 @@ export function useGameState(difficulty: Difficulty) {
     setPendingUpgradeActivation(null);
     kamikaze.resetKamikaze();
     veteran.resetVeteranPromo();
+    flagSwap.resetFlagSwap();
     setShowReadyModal(false);
     placement.clearFormationSelection();
     setIsInventoryExpanded(false);
@@ -389,6 +451,7 @@ export function useGameState(difficulty: Difficulty) {
     setPendingUpgradeActivation(null);
     kamikaze.resetKamikaze();
     veteran.resetVeteranPromo();
+    flagSwap.resetFlagSwap();
     setBattleMessage("You forfeited the match. Enemy command takes the field.");
     setRevealMessage("The battle ended by surrender.");
     resolution.resetCrates();
@@ -416,6 +479,7 @@ export function useGameState(difficulty: Difficulty) {
     setPendingUpgradeActivation(null);
     kamikaze.resetKamikaze();
     veteran.resetVeteranPromo();
+    flagSwap.resetFlagSwap();
     placement.resetPlacement();
   };
 
@@ -493,6 +557,12 @@ export function useGameState(difficulty: Difficulty) {
     // veteran promo
     pendingVeteranPromo: veteran.pendingVeteranPromo,
     handleVeteranPromoDismiss: veteran.handleVeteranPromoDismiss,
+    // flag swap (Shadow March ability)
+    selectedPieceIsFlag,
+    flagSwapActive: flagSwap.flagSwapActive,
+    flagSwapAllyTiles,
+    activateFlagSwap: flagSwap.activateFlagSwap,
+    cancelFlagSwap: flagSwap.cancelFlagSwap,
     // UI
     isInventoryExpanded,
     setIsInventoryExpanded,

@@ -11,6 +11,7 @@ import { BattleInfoPanel } from "../components/BattleInfoPanel";
 import { BoardGrid } from "../components/BoardGrid";
 import { ChallengeModal } from "../components/ChallengeModal";
 import { CrateChoiceModal } from "../components/CrateChoiceModal";
+import { FlagAbilityButton } from "../components/FlagAbilityButton";
 import { FormationControls } from "../components/FormationControls";
 import { GameModals } from "../components/GameModals";
 import { KamikazeModal } from "../components/KamikazeModal";
@@ -93,11 +94,13 @@ export default function GameScreen() {
   const boardHint =
     game.phase === "formation"
       ? "Tip: tap a placed unit to move it, or double tap it to return it to reserve."
-      : game.aiThinking
-        ? `${game.aiProfile.label} is reading the field...`
-        : game.turn === "player"
-          ? "Tap your piece, then tap an adjacent tile to move or attack."
-          : "Hold position while the enemy acts.";
+      : game.flagSwapActive
+        ? "Tap a highlighted ally to swap it with your Flag, or tap elsewhere to cancel."
+        : game.aiThinking
+          ? `${game.aiProfile.label} is reading the field...`
+          : game.turn === "player"
+            ? "Tap your piece, then tap an adjacent tile to move or attack."
+            : "Hold position while the enemy acts.";
 
   const handleLeftAction = () => {
     if (game.phase === "ended") {
@@ -209,6 +212,9 @@ export default function GameScreen() {
               rf={rf}
               rs={rs}
               rsv={rsv}
+              // ── flag swap props ─────────────────────────────────────────
+              flagSwapAllyTiles={game.flagSwapAllyTiles}
+              flagSwapActive={game.flagSwapActive}
               // ── drag props ──────────────────────────────────────────────
               draggingPieceId={game.draggingPieceId}
               draggingFromTile={game.draggingFromTile}
@@ -244,23 +250,41 @@ export default function GameScreen() {
                 onDragStart={game.handleDragStartFromReserve}
               />
             ) : (
-              <BattleInfoPanel
-                winner={game.winner}
-                turn={game.turn}
-                aiThinking={game.aiThinking}
-                aiLabel={game.aiProfile.label}
-                capturedPlayerNames={game.capturedPlayerNames}
-                capturedAINames={game.capturedAINames}
-                panelRadius={panelRadius}
-                cardPadding={cardPadding}
-                verticalSectionGap={verticalSectionGap}
-                compactCardGap={compactCardGap}
-                rf={rf}
-                rs={rs}
-                rsv={rsv}
-                isUltraCompactHeight={isUltraCompactHeight}
-                isCompactHeight={isCompactHeight}
-              />
+              <>
+                {/* ── Flag ability button ─────────────────────────────────── */}
+                <FlagAbilityButton
+                  visible={!!game.selectedPieceIsFlag && !game.winner}
+                  active={game.flagSwapActive}
+                  rf={rf}
+                  rs={rs}
+                  rsv={rsv}
+                  onPress={() => {
+                    if (game.flagSwapActive) {
+                      game.cancelFlagSwap();
+                    } else {
+                      game.activateFlagSwap();
+                    }
+                  }}
+                />
+
+                <BattleInfoPanel
+                  winner={game.winner}
+                  turn={game.turn}
+                  aiThinking={game.aiThinking}
+                  aiLabel={game.aiProfile.label}
+                  capturedPlayerNames={game.capturedPlayerNames}
+                  capturedAINames={game.capturedAINames}
+                  panelRadius={panelRadius}
+                  cardPadding={cardPadding}
+                  verticalSectionGap={verticalSectionGap}
+                  compactCardGap={compactCardGap}
+                  rf={rf}
+                  rs={rs}
+                  rsv={rsv}
+                  isUltraCompactHeight={isUltraCompactHeight}
+                  isCompactHeight={isCompactHeight}
+                />
+              </>
             )}
           </View>
         </ScreenShell>

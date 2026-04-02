@@ -67,6 +67,12 @@ export type BattleResolution = {
   capturedByPlayer: string[];
   capturedByAI: string[];
 };
+export type FlagSwapEvent = {
+  /** Tile the Flag currently occupies */
+  flagTileIndex: number;
+  /** Tile the chosen ally currently occupies */
+  allyTileIndex: number;
+};
 /**
  * Carries everything the ChallengeModal needs to animate and display,
  * plus the pre-computed resolution that gets applied once dismissed.
