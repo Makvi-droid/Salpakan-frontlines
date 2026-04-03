@@ -34,6 +34,9 @@ export type BoardPiece = {
    * Hidden on the board — only revealed inside the ChallengeModal.
    */
   isVeteran?: boolean;
+  stunnedTurnsLeft?: number;
+  /** Timestamp of last ability use (milliseconds). Used for 5-minute cooldown. */
+  abilityLastUsedTime?: number;
 };
 export type BattleMove = {
   side: Side;
@@ -66,6 +69,7 @@ export type BattleResolution = {
   revealMessage: string | null;
   capturedByPlayer: string[];
   capturedByAI: string[];
+  applyStunToWinner?: boolean;
 };
 export type FlagSwapEvent = {
   /** Tile the Flag currently occupies */

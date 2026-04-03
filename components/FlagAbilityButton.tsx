@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   StyleSheet,
@@ -8,12 +8,20 @@ import {
 } from "react-native";
 
 import { appTheme } from "@/constants/theme";
+import {
+  formatCooldownTime,
+  getAbilityCooldownRemaining,
+  isAbilityOnCooldown,
+} from "@/scripts/gameLogic";
+import type { BoardPiece } from "@/scripts/types";
 
 type Props = {
   /** Show/hide the entire button — only true when the Flag is selected in battle */
   visible: boolean;
   /** True while the player is in ally-picking mode */
   active: boolean;
+  /** The Flag piece; used to check cooldown status */
+  flagPiece?: BoardPiece;
   rf: (size: number) => number;
   rs: (size: number) => number;
   rsv: (size: number) => number;
@@ -32,11 +40,14 @@ const ABILITY_DESC_ACTIVE = "Select an ally to swap positions with the Flag.";
 export function FlagAbilityButton({
   visible,
   active,
+  flagPiece,
   rf,
   rs,
   rsv,
   onPress,
 }: Props) {
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+
   // ── Slide-in / slide-out ─────────────────────────────────────────────────────
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(10)).current;
@@ -56,11 +67,29 @@ export function FlagAbilityButton({
     ]).start();
   }, [visible, opacity, translateY]);
 
+  // ── Cooldown update ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!flagPiece || !isAbilityOnCooldown(flagPiece)) {
+      setCooldownRemaining(0);
+      return;
+    }
+
+    const updateCooldown = () => {
+      const remaining = getAbilityCooldownRemaining(flagPiece);
+      setCooldownRemaining(remaining);
+      if (remaining > 0) {
+        setTimeout(updateCooldown, 500);
+      }
+    };
+
+    updateCooldown();
+  }, [flagPiece]);
+
   // ── Pulse when active ────────────────────────────────────────────────────────
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (active) {
+    if (active && flagPiece && !isAbilityOnCooldown(flagPiece)) {
       const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(pulse, {
@@ -84,7 +113,14 @@ export function FlagAbilityButton({
         useNativeDriver: true,
       }).start();
     }
-  }, [active, pulse]);
+  }, [active, flagPiece, pulse]);
+
+  const isOnCooldown = flagPiece && isAbilityOnCooldown(flagPiece);
+  const descText = isOnCooldown
+    ? `On cooldown for ${formatCooldownTime(cooldownRemaining)}.`
+    : active
+      ? ABILITY_DESC_ACTIVE
+      : ABILITY_DESC_IDLE;
 
   return (
     <Animated.View
@@ -97,7 +133,8 @@ export function FlagAbilityButton({
       <TouchableOpacity
         style={[
           styles.button,
-          active && styles.buttonActive,
+          active && !isOnCooldown && styles.buttonActive,
+          isOnCooldown && styles.buttonCooldown,
           {
             borderRadius: rs(10),
             paddingVertical: rsv(10),
@@ -105,7 +142,8 @@ export function FlagAbilityButton({
           },
         ]}
         onPress={onPress}
-        activeOpacity={0.8}
+        activeOpacity={isOnCooldown ? 1 : 0.8}
+        disabled={isOnCooldown}
       >
         {/* ── Name row ───────────────────────────────────────────────────────── */}
         <View style={styles.nameRow}>
@@ -117,10 +155,18 @@ export function FlagAbilityButton({
             {ABILITY_NAME}
           </Text>
 
-          {active && (
+          {active && !isOnCooldown && (
             <View style={[styles.activePill, { borderRadius: rs(99) }]}>
               <Text style={[styles.activePillText, { fontSize: rf(9) }]}>
                 ACTIVE
+              </Text>
+            </View>
+          )}
+
+          {isOnCooldown && (
+            <View style={[styles.cooldownPill, { borderRadius: rs(99) }]}>
+              <Text style={[styles.cooldownPillText, { fontSize: rf(8) }]}>
+                {formatCooldownTime(cooldownRemaining)}
               </Text>
             </View>
           )}
@@ -131,10 +177,10 @@ export function FlagAbilityButton({
           style={[
             styles.desc,
             { fontSize: rf(10.5), marginTop: rsv(5) },
-            active && styles.descActive,
+            (active || isOnCooldown) && styles.descActive,
           ]}
         >
-          {active ? ABILITY_DESC_ACTIVE : ABILITY_DESC_IDLE}
+          {descText}
         </Text>
       </TouchableOpacity>
     </Animated.View>
@@ -162,6 +208,11 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
     elevation: 6,
+  },
+  buttonCooldown: {
+    borderColor: "#808080",
+    backgroundColor: "#1A1817",
+    opacity: 0.7,
   },
   nameRow: {
     flexDirection: "row",
@@ -197,6 +248,17 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     fontWeight: "700",
     letterSpacing: 1,
+  },
+  cooldownPill: {
+    backgroundColor: "#808080",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  cooldownPillText: {
+    color: "#E0E0E0",
+    fontFamily: appTheme.fonts.body,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   desc: {
     color: appTheme.colors.parchmentSoft,

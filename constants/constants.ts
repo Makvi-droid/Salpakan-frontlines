@@ -47,6 +47,13 @@ export const ORTHOGONAL_DIRECTIONS = [
   { x: 0, y: -1 },
 ] as const;
 
+export const DIAGONAL_DIRECTIONS = [
+  { x: 1, y: 1 },
+  { x: 1, y: -1 },
+  { x: -1, y: 1 },
+  { x: -1, y: -1 },
+] as const;
+
 export const SHORT_LABEL_BY_NAME: Record<string, string> = {
   Flag: "F",
   Spy: "Sp",

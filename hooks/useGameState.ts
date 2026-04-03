@@ -1,21 +1,33 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 
-import { DIFFICULTY_PROFILES } from "../constants/constants";
+import {
+    DIAGONAL_DIRECTIONS,
+    DIFFICULTY_PROFILES,
+} from "../constants/constants";
 import { generateAIFormation } from "../scripts/aiLogic";
 import {
-  buildBattleBoard,
-  getLegalMoves,
-  prepareChallengeEvent,
+    buildBattleBoard,
+    formatCooldownTime,
+    formatPieceName,
+    getAbilityCooldownRemaining,
+    getLegalMoves,
+    getTileColumn,
+    getTileIndex,
+    getTileRow,
+    isAbilityOnCooldown,
+    isInsideBoard,
+    prepareChallengeEvent,
+    setAbilityCooldown,
 } from "../scripts/gameLogic";
 import type {
-  BattleMove,
-  BoardPiece,
-  ChallengeEvent,
-  Difficulty,
-  Phase,
-  PieceUpgradeId,
-  Side,
+    BattleMove,
+    BoardPiece,
+    ChallengeEvent,
+    Difficulty,
+    Phase,
+    PieceUpgradeId,
+    Side,
 } from "../scripts/types";
 
 import { useAITurn } from "./useAITurn";
@@ -39,6 +51,11 @@ export function useGameState(difficulty: Difficulty) {
   const [selectedBattleTileIndex, setSelectedBattleTileIndex] = useState<
     number | null
   >(null);
+  const [proximityPingActive, setProximityPingActive] = useState(false);
+  const [proximityPingSourceTile, setProximityPingSourceTile] = useState<
+    number | null
+  >(null);
+  const [ghostInsightActive, setGhostInsightActive] = useState(false);
   const [battleMessage, setBattleMessage] = useState(
     "Build your line, then confirm to begin the clash.",
   );
@@ -173,15 +190,221 @@ export function useGameState(difficulty: Difficulty) {
   // ── Derived values ───────────────────────────────────────────────────────────
   const selectedBattleMoves = useMemo(() => {
     if (phase !== "battle" || selectedBattleTileIndex === null) return [];
-    return getLegalMoves(battleBoard, "player", pieceById)
+
+    const baseMoves = getLegalMoves(battleBoard, "player", pieceById)
       .filter((m) => m.from === selectedBattleTileIndex)
       .map((m) => m.to);
-  }, [battleBoard, phase, pieceById, selectedBattleTileIndex]);
+
+    const selectedPiece = battleBoard[selectedBattleTileIndex];
+    const selectedLabel = selectedPiece
+      ? pieceById[selectedPiece.pieceId]?.label
+      : undefined;
+    const isSelectedLt =
+      selectedLabel === "1st Lt" || selectedLabel === "2nd Lt";
+
+    if (!proximityPingActive || !isSelectedLt) {
+      return baseMoves;
+    }
+
+    const row = getTileRow(selectedBattleTileIndex);
+    const column = getTileColumn(selectedBattleTileIndex);
+    const diagonalTargets: number[] = [];
+
+    DIAGONAL_DIRECTIONS.forEach((dir) => {
+      const nextRow = row + dir.y;
+      const nextColumn = column + dir.x;
+      if (!isInsideBoard(nextRow, nextColumn)) return;
+      const diagonalIndex = getTileIndex(nextRow, nextColumn);
+      const diagonalPiece = battleBoard[diagonalIndex];
+      if (diagonalPiece?.side === "ai") {
+        diagonalTargets.push(diagonalIndex);
+      }
+    });
+
+    return Array.from(new Set([...baseMoves, ...diagonalTargets]));
+  }, [
+    battleBoard,
+    phase,
+    pieceById,
+    selectedBattleTileIndex,
+    proximityPingActive,
+  ]);
 
   const challengeTargetTiles = useMemo(() => {
     if (phase !== "battle" || selectedBattleTileIndex === null) return [];
     return selectedBattleMoves.filter((to) => battleBoard[to]?.side === "ai");
   }, [battleBoard, phase, selectedBattleTileIndex, selectedBattleMoves]);
+
+  const selectedPieceIsLt = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    const label = piece ? pieceById[piece.pieceId]?.label : undefined;
+    return label === "1st Lt" || label === "2nd Lt";
+  }, [battleBoard, phase, selectedBattleTileIndex, pieceById]);
+
+  const selectedLtLabel = useMemo(() => {
+    if (!selectedPieceIsLt || selectedBattleTileIndex === null) return null;
+    const piece = battleBoard[selectedBattleTileIndex];
+    return piece ? pieceById[piece.pieceId]?.label : null;
+  }, [battleBoard, selectedBattleTileIndex, selectedPieceIsLt, pieceById]);
+
+  const selectedLtIcon = useMemo(() => {
+    if (selectedLtLabel === "2nd Lt") return "📡";
+    if (selectedLtLabel === "1st Lt") return "🛰️";
+    return "";
+  }, [selectedLtLabel]);
+
+  const toggleProximityPing = () => {
+    if (!selectedPieceIsLt || selectedBattleTileIndex === null) {
+      setBattleMessage(
+        "Select a Lieutenant in battle to activate Proximity Ping.",
+      );
+      return;
+    }
+
+    const selectedPiece = battleBoard[selectedBattleTileIndex];
+    if (!selectedPiece) return;
+
+    if (isAbilityOnCooldown(selectedPiece)) {
+      const remaining = getAbilityCooldownRemaining(selectedPiece);
+      setBattleMessage(
+        `Proximity Ping is on cooldown for ${formatCooldownTime(remaining)}.`,
+      );
+      return;
+    }
+
+    // Check if there are diagonal enemies
+    const row = getTileRow(selectedBattleTileIndex);
+    const column = getTileColumn(selectedBattleTileIndex);
+    const hasDiagonalEnemies = DIAGONAL_DIRECTIONS.some((dir) => {
+      const nextRow = row + dir.y;
+      const nextColumn = column + dir.x;
+      if (!isInsideBoard(nextRow, nextColumn)) return false;
+      const diagonalIndex = getTileIndex(nextRow, nextColumn);
+      const diagonalPiece = battleBoard[diagonalIndex];
+      return diagonalPiece?.side === "ai";
+    });
+
+    if (!hasDiagonalEnemies) {
+      setBattleMessage(
+        "Proximity Ping requires at least one enemy on a diagonal.",
+      );
+      return;
+    }
+
+    if (proximityPingActive) {
+      setProximityPingActive(false);
+      setProximityPingSourceTile(null);
+      setBattleMessage("Proximity Ping canceled.");
+    } else {
+      // Apply cooldown and advance turn
+      const updatedPiece = setAbilityCooldown(selectedPiece);
+      setBattleBoard((prev) => ({
+        ...prev,
+        [selectedBattleTileIndex]: updatedPiece,
+      }));
+
+      setProximityPingActive(true);
+      setProximityPingSourceTile(selectedBattleTileIndex);
+      setBattleMessage(
+        `${selectedLtLabel} Proximity Ping activated: diagonal challenge enabled for this unit.`,
+      );
+
+      // Advance turn to AI
+      setTurn("ai");
+    }
+  };
+
+  const selectedPieceIsSpy = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    const label = piece ? pieceById[piece.pieceId]?.label : undefined;
+    return label === "Spy";
+  }, [battleBoard, phase, selectedBattleTileIndex, pieceById]);
+
+  const toggleGhostInsight = () => {
+    if (!selectedPieceIsSpy || selectedBattleTileIndex === null) {
+      setBattleMessage("Select a Spy in battle to activate Ghost Insight.");
+      return;
+    }
+
+    const selectedPiece = battleBoard[selectedBattleTileIndex];
+    if (!selectedPiece) return;
+
+    if (isAbilityOnCooldown(selectedPiece)) {
+      const remaining = getAbilityCooldownRemaining(selectedPiece);
+      setBattleMessage(
+        `Ghost Insight is on cooldown for ${formatCooldownTime(remaining)}.`,
+      );
+      return;
+    }
+
+    if (ghostInsightActive) {
+      setGhostInsightActive(false);
+      setBattleMessage("Ghost Insight canceled.");
+    } else {
+      // Find hidden enemy pieces
+      const enemyPieces = Object.entries(battleBoard).filter(
+        ([, piece]) => piece.side === "ai" && !piece.revealedToPlayer,
+      );
+
+      if (enemyPieces.length === 0) {
+        setBattleMessage("No hidden enemy ranks to reveal.");
+        return;
+      }
+
+      // Reveal a random enemy rank for 2 seconds
+      const randomIndex = Math.floor(Math.random() * enemyPieces.length);
+      const [targetKey, targetPiece] = enemyPieces[randomIndex];
+      const targetTile = Number(targetKey);
+      const wasPreviouslyRevealed = targetPiece.revealedToPlayer;
+
+      // Temporarily reveal the piece
+      setBattleBoard((prev) => ({
+        ...prev,
+        [targetTile]: {
+          ...targetPiece,
+          revealedToPlayer: true,
+        },
+      }));
+
+      // Apply cooldown to the Spy
+      const updatedSpy = setAbilityCooldown(selectedPiece);
+      setBattleBoard((prev) => ({
+        ...prev,
+        [selectedBattleTileIndex]: updatedSpy,
+      }));
+
+      setGhostInsightActive(true);
+      setBattleMessage(
+        `Ghost Insight: ${formatPieceName(
+          targetPiece.pieceId,
+          pieceById,
+        )} revealed for 2s.`,
+      );
+
+      // Hide the revealed piece after 2 seconds
+      setTimeout(() => {
+        setBattleBoard((currentBoard) => {
+          const currentPiece = currentBoard[targetTile];
+          if (!currentPiece) return currentBoard;
+          if (wasPreviouslyRevealed || currentPiece.revealedToPlayer === false)
+            return currentBoard;
+          return {
+            ...currentBoard,
+            [targetTile]: {
+              ...currentPiece,
+              revealedToPlayer: false,
+            },
+          };
+        });
+        setGhostInsightActive(false);
+      }, 2000);
+
+      // Advance turn to AI
+      setTurn("ai");
+    }
+  };
 
   const capturedPlayerNames = useMemo(
     () =>
@@ -296,6 +519,26 @@ export function useGameState(difficulty: Difficulty) {
       }
     }
 
+    // ── Spy ghost insight ────────────────────────────────────────────────
+    let ghostInsightMessage: string | null = null;
+    const attackerBoardPiece = nextResolution.board[pendingChallenge.from];
+    const attackerPiece = pieceById[pendingChallenge.attackerPieceId];
+    if (
+      attackerSide === "player" &&
+      attackerPiece?.label === "Spy" &&
+      attackerBoardPiece
+    ) {
+      if (isAbilityOnCooldown(attackerBoardPiece)) {
+        const cooldownRemaining =
+          getAbilityCooldownRemaining(attackerBoardPiece);
+        ghostInsightMessage = `Ghost Insight on cooldown for ${formatCooldownTime(cooldownRemaining)}.`;
+      }
+    }
+
+    if (ghostInsightMessage) {
+      nextResolution.revealMessage = ghostInsightMessage;
+    }
+
     const nextTurn: Side = attackerSide === "player" ? "ai" : "player";
     applyResolution(nextResolution, nextTurn, from, to);
   };
@@ -323,11 +566,33 @@ export function useGameState(difficulty: Difficulty) {
         flagSwapAllyTiles.includes(tileIndex) &&
         selectedBattleTileIndex !== null
       ) {
-        const nextBoard = flagSwap.applyFlagSwap(
+        const flagPiece = battleBoard[selectedBattleTileIndex];
+
+        if (flagPiece && isAbilityOnCooldown(flagPiece)) {
+          const cooldownRemaining = getAbilityCooldownRemaining(flagPiece);
+          setBattleMessage(
+            `Shadow March on cooldown for ${formatCooldownTime(cooldownRemaining)}.`,
+          );
+          flagSwap.cancelFlagSwap();
+          return;
+        }
+
+        let nextBoard = flagSwap.applyFlagSwap(
           battleBoard,
           selectedBattleTileIndex,
           tileIndex,
         );
+
+        // Apply cooldown to the flag
+        if (flagPiece) {
+          nextBoard = {
+            ...nextBoard,
+            [selectedBattleTileIndex]: setAbilityCooldown(
+              nextBoard[selectedBattleTileIndex]!,
+            ),
+          };
+        }
+
         flagSwap.cancelFlagSwap();
         setSelectedBattleTileIndex(null);
         setLastMoveTrail(null);
@@ -357,6 +622,12 @@ export function useGameState(difficulty: Difficulty) {
 
     if (selectedBattleTileIndex === null) {
       if (tappedPiece?.side === "player") {
+        if (tappedPiece.stunnedTurnsLeft && tappedPiece.stunnedTurnsLeft > 0) {
+          setBattleMessage(
+            `${pieceById[tappedPiece.pieceId]?.label ?? "Unit"} is stunned and cannot act.`,
+          );
+          return;
+        }
         setLastMoveTrail(null);
         setSelectedBattleTileIndex(tileIndex);
       }
@@ -367,19 +638,68 @@ export function useGameState(difficulty: Difficulty) {
       return;
     }
     if (tappedPiece?.side === "player") {
+      if (tappedPiece.stunnedTurnsLeft && tappedPiece.stunnedTurnsLeft > 0) {
+        setBattleMessage(
+          `${pieceById[tappedPiece.pieceId]?.label ?? "Unit"} is stunned and cannot act.`,
+        );
+        return;
+      }
       setSelectedBattleTileIndex(tileIndex);
       return;
     }
 
-    const legalMove = getLegalMoves(battleBoard, "player", pieceById).find(
+    const baseLegalMove = getLegalMoves(battleBoard, "player", pieceById).find(
       (m) => m.from === selectedBattleTileIndex && m.to === tileIndex,
     );
+
+    let legalMove = baseLegalMove;
+    const selectedPiece = battleBoard[selectedBattleTileIndex];
+    const selectedLabel = selectedPiece
+      ? pieceById[selectedPiece.pieceId]?.label
+      : undefined;
+    const isSelectedLt =
+      selectedLabel === "1st Lt" || selectedLabel === "2nd Lt";
+    const isDiagonalPing =
+      proximityPingActive &&
+      proximityPingSourceTile === selectedBattleTileIndex &&
+      isSelectedLt;
+
+    if (!legalMove && isDiagonalPing && tappedPiece?.side === "ai") {
+      const fromRow = getTileRow(selectedBattleTileIndex);
+      const fromColumn = getTileColumn(selectedBattleTileIndex);
+      const direction = {
+        x: getTileColumn(tileIndex) - fromColumn,
+        y: getTileRow(tileIndex) - fromRow,
+      };
+      const normalizedX = Math.sign(direction.x);
+      const normalizedY = Math.sign(direction.y);
+
+      const isDiagonalTarget =
+        Math.abs(direction.x) === 1 &&
+        Math.abs(direction.y) === 1 &&
+        DIAGONAL_DIRECTIONS.some(
+          (d) => d.x === normalizedX && d.y === normalizedY,
+        );
+
+      if (isDiagonalTarget) {
+        legalMove = {
+          side: "player",
+          from: selectedBattleTileIndex,
+          to: tileIndex,
+        };
+      }
+    }
+
     if (!legalMove) {
       setSelectedBattleTileIndex(null);
       return;
     }
 
     if (tappedPiece?.side === "ai") {
+      if (isDiagonalPing) {
+        setProximityPingActive(false);
+        setProximityPingSourceTile(null);
+      }
       fireChallenge(legalMove);
       return;
     }
@@ -500,6 +820,46 @@ export function useGameState(difficulty: Difficulty) {
     return _resolve(board, move, pieceById);
   }
 
+  // ── Custom flag swap activation with cooldown and turn advancement ───
+  const activateFlagSwapWithCooldown = () => {
+    if (!selectedPieceIsFlag || selectedBattleTileIndex === null) {
+      setBattleMessage("Select your Flag in battle to activate Shadow March.");
+      return;
+    }
+
+    const selectedPiece = battleBoard[selectedBattleTileIndex];
+    if (!selectedPiece) return;
+
+    if (isAbilityOnCooldown(selectedPiece)) {
+      const remaining = getAbilityCooldownRemaining(selectedPiece);
+      setBattleMessage(
+        `Shadow March is on cooldown for ${formatCooldownTime(remaining)}.`,
+      );
+      return;
+    }
+
+    // Apply cooldown to the Flag
+    const updatedFlag = setAbilityCooldown(selectedPiece);
+    setBattleBoard((prev) => ({
+      ...prev,
+      [selectedBattleTileIndex]: updatedFlag,
+    }));
+
+    // Activate flag swap
+    flagSwap.activateFlagSwap();
+    setBattleMessage(
+      "Shadow March activated: select an ally to swap positions with.",
+    );
+
+    // Advance turn to AI
+    setTurn("ai");
+  };
+
+  const cancelFlagSwapWithMessage = () => {
+    flagSwap.cancelFlagSwap();
+    setBattleMessage("Shadow March canceled.");
+  };
+
   // ── Public surface ───────────────────────────────────────────────────────────
   return {
     // data
@@ -561,8 +921,18 @@ export function useGameState(difficulty: Difficulty) {
     selectedPieceIsFlag,
     flagSwapActive: flagSwap.flagSwapActive,
     flagSwapAllyTiles,
-    activateFlagSwap: flagSwap.activateFlagSwap,
-    cancelFlagSwap: flagSwap.cancelFlagSwap,
+    activateFlagSwap: activateFlagSwapWithCooldown,
+    cancelFlagSwap: cancelFlagSwapWithMessage,
+    // lieutenant ping (Proximity Ping ability)
+    selectedPieceIsLt,
+    selectedLtLabel,
+    selectedLtIcon,
+    proximityPingActive,
+    toggleProximityPing,
+    // spy ghost insight
+    selectedPieceIsSpy,
+    ghostInsightActive,
+    toggleGhostInsight,
     // UI
     isInventoryExpanded,
     setIsInventoryExpanded,

@@ -58,6 +58,55 @@ export function isMovablePiece(
   return pieceById[pieceId] !== undefined;
 }
 
+export function decrementStunCountersForSide(
+  board: Record<number, BoardPiece>,
+  side: Side,
+): Record<number, BoardPiece> {
+  const nextBoard: Record<number, BoardPiece> = { ...board };
+  Object.entries(board).forEach(([tileIndex, piece]) => {
+    if (piece.side !== side || piece.stunnedTurnsLeft === undefined) return;
+    if (piece.stunnedTurnsLeft <= 0) return;
+
+    const nextDuration = Math.max(0, piece.stunnedTurnsLeft - 1);
+    nextBoard[Number(tileIndex)] = {
+      ...piece,
+      stunnedTurnsLeft: nextDuration,
+    };
+  });
+  return nextBoard;
+}
+
+// ─── Ability cooldown ──────────────────────────────────────────────────────────
+
+const ABILITY_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
+export function isAbilityOnCooldown(piece: BoardPiece): boolean {
+  if (piece.abilityLastUsedTime === undefined) return false;
+  const timeSinceUse = Date.now() - piece.abilityLastUsedTime;
+  return timeSinceUse < ABILITY_COOLDOWN_MS;
+}
+
+export function getAbilityCooldownRemaining(piece: BoardPiece): number {
+  if (piece.abilityLastUsedTime === undefined) return 0;
+  const timeSinceUse = Date.now() - piece.abilityLastUsedTime;
+  const remaining = ABILITY_COOLDOWN_MS - timeSinceUse;
+  return Math.max(0, remaining);
+}
+
+export function formatCooldownTime(ms: number): string {
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes > 0) {
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }
+  return `${seconds}s`;
+}
+
+export function setAbilityCooldown(piece: BoardPiece): BoardPiece {
+  return { ...piece, abilityLastUsedTime: Date.now() };
+}
+
 export function formatPieceName(
   pieceId: string,
   pieceById: Record<string, PieceDefinition>,
@@ -98,7 +147,11 @@ export function getLegalMoves(
 ): BattleMove[] {
   const moves: BattleMove[] = [];
   Object.entries(board).forEach(([key, piece]) => {
-    if (piece.side !== side || !isMovablePiece(piece.pieceId, pieceById))
+    if (
+      piece.side !== side ||
+      !isMovablePiece(piece.pieceId, pieceById) ||
+      (piece.stunnedTurnsLeft !== undefined && piece.stunnedTurnsLeft > 0)
+    )
       return;
     const from = Number(key);
     const row = getTileRow(from);
@@ -387,6 +440,10 @@ export function resolveBattleMove(
   const nullifiedUpgradeMessage = hasSameUpgradeClash
     ? `${formatUpgradeId(attacker.upgrade)} clash: both upgrades were nullified before resolution.`
     : null;
+
+  const attackerIsSergeant = pieceById[attacker.pieceId]?.label === "Sgt";
+  const defenderIsSergeant = pieceById[target.pieceId]?.label === "Sgt";
+
   // Only compute names for messages where we're allowed to show them.
   const playerAttackerName = isPlayerMove
     ? formatPieceName(attacker.pieceId, pieceById)
@@ -412,6 +469,10 @@ export function resolveBattleMove(
       if (target.side === "player") attackerAfterWin.markedByPlayer = true;
       if (target.side === "ai") attackerAfterWin.markedByAI = true;
     }
+    // Stun the winning piece if a Sergeant was eliminated.
+    if (defenderIsSergeant) {
+      attackerAfterWin = { ...attackerAfterWin, stunnedTurnsLeft: 3 };
+    }
     // Consume veteran badge if it was used to win the draw
     if (veteranEdgeApplied) {
       attackerAfterWin = { ...attackerAfterWin, isVeteran: false };
@@ -424,10 +485,17 @@ export function resolveBattleMove(
       message = veteranEdgeApplied
         ? `Veteran's Edge! Your ${playerAttackerName} overpowered an equal rank. Badge expended.`
         : `You won the clash. ${playerAttackerName} removed an enemy rank.`;
+      if (defenderIsSergeant) {
+        message += " Sergeant eliminated — enemy is stunned for 2 turns.";
+      }
     } else {
       message = veteranEdgeApplied
         ? `Veteran's Edge! Enemy veteran overpowered your ${formatPieceName(target.pieceId, pieceById)}. Their badge is expended.`
         : `Enemy won the clash. Your ${formatPieceName(target.pieceId, pieceById)} was removed.`;
+      if (defenderIsSergeant) {
+        message +=
+          " Sergeant was eliminated — the attacker is stunned for 2 turns.";
+      }
     }
     if (pieceById[target.pieceId]?.label === "Flag") winner = move.side;
   } else if (outcome < 0) {
@@ -439,6 +507,10 @@ export function resolveBattleMove(
     if (!hasSameUpgradeClash && attacker.upgrade === "martyrs-eye") {
       if (attacker.side === "player") defenderAfterWin.markedByPlayer = true;
       if (attacker.side === "ai") defenderAfterWin.markedByAI = true;
+    }
+    // Stun the winning piece if a Sergeant was eliminated.
+    if (attackerIsSergeant) {
+      defenderAfterWin = { ...defenderAfterWin, stunnedTurnsLeft: 3 };
     }
     // Consume veteran badge if it was used to win the draw
     if (veteranEdgeApplied) {
@@ -452,11 +524,18 @@ export function resolveBattleMove(
       message = veteranEdgeApplied
         ? `Veteran's Edge! Enemy veteran held against your ${playerAttackerName}. Their badge is expended.`
         : `You lost the clash. Your ${playerAttackerName} was removed.`;
+      if (attackerIsSergeant) {
+        message +=
+          " Sergeant was eliminated — opponent is stunned for 2 turns.";
+      }
     } else {
       // AI lost — only reveal that the player's piece held.
       message = veteranEdgeApplied
         ? `Veteran's Edge! Your ${formatPieceName(target.pieceId, pieceById)} overpowered an equal enemy rank. Badge expended.`
         : `Enemy lost the clash. Your ${formatPieceName(target.pieceId, pieceById)} held the line.`;
+      if (attackerIsSergeant) {
+        message += " Sergeant eliminated — enemy is stunned for 2 turns.";
+      }
     }
     if (pieceById[attacker.pieceId]?.label === "Flag") winner = target.side;
   } else {

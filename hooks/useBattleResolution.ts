@@ -1,24 +1,25 @@
 import { useState } from "react";
 
 import {
-  BOARD_HEIGHT,
-  BOARD_WIDTH,
-  CRATE_DROP_CHANCE,
-  CRATE_DROP_MAX_COUNT,
-  CRATE_DROP_MIN_COUNT,
-  CRATE_UPGRADES,
-  CRATE_UPGRADE_LABELS,
+    BOARD_HEIGHT,
+    BOARD_WIDTH,
+    CRATE_DROP_CHANCE,
+    CRATE_DROP_MAX_COUNT,
+    CRATE_DROP_MIN_COUNT,
+    CRATE_UPGRADES,
+    CRATE_UPGRADE_LABELS,
 } from "../constants/constants";
 import {
-  getLegalMoves,
-  resolveBattleMove,
-  shuffleArray,
+    decrementStunCountersForSide,
+    getLegalMoves,
+    resolveBattleMove,
+    shuffleArray,
 } from "../scripts/gameLogic";
 import type {
-  BoardPiece,
-  PieceDefinition,
-  PieceUpgradeId,
-  Side,
+    BoardPiece,
+    PieceDefinition,
+    PieceUpgradeId,
+    Side,
 } from "../scripts/types";
 import { rollVeteranProc } from "./useVeteranPromo";
 
@@ -222,9 +223,15 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     movedFromTileIndex?: number,
     movedToTileIndex?: number,
   ) => {
+    const actingSide: Side = nextTurn === "player" ? "ai" : "player";
+    const boardAfterStunDecay = decrementStunCountersForSide(
+      res.board,
+      actingSide,
+    );
+
     // ── WINNER CHECK FIRST ───────────────────────────────────────────────────
     if (res.winner) {
-      onBoardChange(res.board);
+      onBoardChange(boardAfterStunDecay);
       if (movedFromTileIndex !== undefined && movedToTileIndex !== undefined) {
         onLastMoveTrail({
           from: movedFromTileIndex,
@@ -245,7 +252,7 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
 
     // Veteran proc — only runs when the game is NOT over.
     const boardWithVeteranProc = rollVeteranProc(
-      res.board,
+      boardAfterStunDecay,
       movedToTileIndex,
       res.capturedByPlayer,
       res.capturedByAI,
@@ -295,7 +302,6 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
         : undefined;
     const movedPiece =
       movedToTileIndex !== undefined ? nextBoard[movedToTileIndex] : undefined;
-    const actingSide: Side = nextTurn === "player" ? "ai" : "player";
 
     const remainingCrates: Record<number, PieceUpgradeId> = {
       ...currentCrateByTile,

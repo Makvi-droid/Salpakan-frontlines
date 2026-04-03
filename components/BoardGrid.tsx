@@ -237,6 +237,11 @@ export function BoardGrid({
                 battlePiece?.side === "player" &&
                 battlePiece.isVeteran === true;
 
+              const isStunnedPiece =
+                phase !== "formation" &&
+                battlePiece?.stunnedTurnsLeft !== undefined &&
+                battlePiece.stunnedTurnsLeft > 0;
+
               const showIronVeilIconOnBoard =
                 phase !== "formation" &&
                 battlePiece?.side === "ai" &&
@@ -249,6 +254,9 @@ export function BoardGrid({
                 isDragging && dragOverTileIndex === tile.index && isSetupZone;
               const isDraggingSource =
                 isDragging && draggingFromTile === tile.index;
+
+              const isStunnedEnemy =
+                isStunnedPiece && battlePiece?.side === "ai";
 
               const tileStyle = [
                 styles.tile,
@@ -263,11 +271,13 @@ export function BoardGrid({
                   battlePiece.revealedToPlayer &&
                   styles.aiTileRevealed,
                 isCrateTile && styles.crateTile,
+                isStunnedEnemy && styles.electricTile,
                 isTrailFrom && styles.trailFrom,
                 isTrailTo && styles.trailTo,
                 (isMoveSource || isSelectedBattle) && styles.sourceSelected,
                 isBattleTarget && styles.battleTarget,
                 isChallengeTarget && styles.challengeTarget,
+                isStunnedPiece && styles.stunTile,
                 // Veteran tile gets a subtle gold border glow
                 isPlayerVeteran && styles.veteranTile,
                 // Flag swap ally — gold shimmer, applied last so it wins
@@ -357,6 +367,29 @@ export function BoardGrid({
                     <View style={styles.veteranBadge}>
                       <Text style={[styles.veteranStar, { fontSize: rf(7) }]}>
                         ★
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Stun badge — top-left */}
+                  {isStunnedPiece ? (
+                    <View style={styles.stunBadge}>
+                      <Text style={[styles.stunBadgeText, { fontSize: rf(6) }]}>
+                        {battlePiece?.stunnedTurnsLeft}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Electro overlay for stunned enemies */}
+                  {isStunnedEnemy ? (
+                    <View style={styles.electricOverlay} pointerEvents="none">
+                      <Text
+                        style={[
+                          styles.electricOverlayText,
+                          { fontSize: rf(11) },
+                        ]}
+                      >
+                        ⚡
                       </Text>
                     </View>
                   ) : null}
@@ -531,6 +564,58 @@ const styles = StyleSheet.create({
     color: "#F0C040",
     fontWeight: "700",
     lineHeight: 12,
+  },
+  stunTile: {
+    borderColor: "#2A93E8",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(47, 117, 179, 0.2)",
+  },
+  electricTile: {
+    borderColor: "#4ad0ff",
+    borderWidth: appTheme.borderWidth.regular,
+    backgroundColor: "rgba(70, 170, 255, 0.18)",
+    shadowColor: "#8ef1ff",
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  stunBadge: {
+    position: "absolute",
+    top: 2,
+    left: 2,
+    minWidth: 14,
+    paddingHorizontal: 2,
+    paddingVertical: 1,
+    borderRadius: 8,
+    backgroundColor: "#005AA3",
+    borderWidth: 1,
+    borderColor: "#94D2FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stunBadgeText: {
+    color: "#FFFFFF",
+    fontFamily: appTheme.fonts.body,
+    fontWeight: "700",
+    lineHeight: 12,
+  },
+  electricOverlay: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    width: 22,
+    height: 22,
+    borderRadius: 14,
+    backgroundColor: "rgba(70, 170, 255, 0.88)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  electricOverlayText: {
+    color: "#FFFFFF",
+    fontFamily: appTheme.fonts.body,
+    fontWeight: "700",
+    lineHeight: 14,
   },
   // ── Swap indicator overlay (⇄ icon inside ally tile) ────────────────────────
   swapIndicator: {

@@ -7,11 +7,11 @@ import ScreenShell from "@/components/ScreenShell";
 import { UpgradeRollModal } from "@/components/UpgradeRollModal";
 import { appTheme } from "@/constants/theme";
 import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
+import { AbilitiesPanel } from "../components/AbilitiesPanel";
 import { BattleInfoPanel } from "../components/BattleInfoPanel";
 import { BoardGrid } from "../components/BoardGrid";
 import { ChallengeModal } from "../components/ChallengeModal";
 import { CrateChoiceModal } from "../components/CrateChoiceModal";
-import { FlagAbilityButton } from "../components/FlagAbilityButton";
 import { FormationControls } from "../components/FormationControls";
 import { GameModals } from "../components/GameModals";
 import { KamikazeModal } from "../components/KamikazeModal";
@@ -251,21 +251,81 @@ export default function GameScreen() {
               />
             ) : (
               <>
-                {/* ── Flag ability button ─────────────────────────────────── */}
-                <FlagAbilityButton
-                  visible={!!game.selectedPieceIsFlag && !game.winner}
-                  active={game.flagSwapActive}
-                  rf={rf}
-                  rs={rs}
-                  rsv={rsv}
-                  onPress={() => {
-                    if (game.flagSwapActive) {
-                      game.cancelFlagSwap();
-                    } else {
-                      game.activateFlagSwap();
-                    }
-                  }}
-                />
+                {/* ── Unified Abilities Panel ────────────────────────────── */}
+                {(() => {
+                  const abilities: Array<{
+                    id: string;
+                    label: string;
+                    icon: string;
+                    isActive: boolean;
+                    isDisabled: boolean;
+                    onPress: () => void;
+                    piece?: any;
+                  }> = [];
+
+                  // Flag Shadow March
+                  if (game.selectedPieceIsFlag && !game.winner) {
+                    abilities.push({
+                      id: "shadow-march",
+                      label: "Shadow March",
+                      icon: "🏳",
+                      isActive: game.flagSwapActive,
+                      isDisabled: !!game.winner,
+                      onPress: () => {
+                        if (game.flagSwapActive) {
+                          game.cancelFlagSwap();
+                        } else {
+                          game.activateFlagSwap();
+                        }
+                      },
+                      piece:
+                        game.selectedBattleTileIndex !== null
+                          ? game.battleBoard[game.selectedBattleTileIndex]
+                          : undefined,
+                    });
+                  }
+
+                  // Lieutenant Proximity Ping
+                  if (game.selectedPieceIsLt && !game.winner) {
+                    abilities.push({
+                      id: "proximity-ping",
+                      label: `Proximity Ping (${game.selectedLtLabel})`,
+                      icon: game.selectedLtIcon,
+                      isActive: game.proximityPingActive,
+                      isDisabled: false,
+                      onPress: game.toggleProximityPing,
+                      piece:
+                        game.selectedBattleTileIndex !== null
+                          ? game.battleBoard[game.selectedBattleTileIndex]
+                          : undefined,
+                    });
+                  }
+
+                  // Spy Ghost Insight
+                  if (game.selectedPieceIsSpy && !game.winner) {
+                    abilities.push({
+                      id: "ghost-insight",
+                      label: "Ghost Insight",
+                      icon: "👻",
+                      isActive: game.ghostInsightActive,
+                      isDisabled: false,
+                      onPress: game.toggleGhostInsight,
+                      piece:
+                        game.selectedBattleTileIndex !== null
+                          ? game.battleBoard[game.selectedBattleTileIndex]
+                          : undefined,
+                    });
+                  }
+
+                  return (
+                    <AbilitiesPanel
+                      abilities={abilities}
+                      rf={rf}
+                      rs={rs}
+                      rsv={rsv}
+                    />
+                  );
+                })()}
 
                 <BattleInfoPanel
                   winner={game.winner}

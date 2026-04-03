@@ -1,7 +1,13 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { appTheme } from "@/constants/theme";
@@ -33,6 +39,11 @@ const guideCards: GuideCard[] = [
     title: "4. Use quick commands",
     body: "Use Random for a legal fast setup, or reset and adjust the formation until it feels right.",
     icon: "lightning-bolt-outline",
+  },
+  {
+    title: "Spy: Ghost Insight",
+    body: "Spy reveals one random enemy rank for 1.5 seconds when it engages. Use this to peep enemy identity before the clash lands.",
+    icon: "eye",
   },
   {
     title: "5. Confirm ready",
@@ -99,12 +110,26 @@ export default function GuideScreen() {
       >
         <View style={[styles.contentRoot, { maxWidth: contentWidth }]}>
           <TouchableOpacity
-            style={[styles.backButton, { marginBottom: sectionGap, borderRadius: rs(14), paddingHorizontal: rs(12), paddingVertical: rsv(9) }]}
+            style={[
+              styles.backButton,
+              {
+                marginBottom: sectionGap,
+                borderRadius: rs(14),
+                paddingHorizontal: rs(12),
+                paddingVertical: rsv(9),
+              },
+            ]}
             onPress={() => router.replace("/")}
             activeOpacity={0.85}
           >
-            <MaterialCommunityIcons name="arrow-left" size={rf(18)} color={guideIconColor} />
-            <Text style={[styles.backButtonText, { fontSize: rf(12) }]}>Back to Menu</Text>
+            <MaterialCommunityIcons
+              name="arrow-left"
+              size={rf(18)}
+              color={guideIconColor}
+            />
+            <Text style={[styles.backButtonText, { fontSize: rf(12) }]}>
+              Back to Menu
+            </Text>
           </TouchableOpacity>
 
           <ScrollView
@@ -129,10 +154,28 @@ export default function GuideScreen() {
                 },
               ]}
             >
-              <Text style={[styles.headerLabel, { fontSize: rf(10) }]}>FIELD MANUAL</Text>
-              <Text style={[styles.headerTitle, { fontSize: rf(isCompactHeight ? 26 : 30), marginTop: rsv(4) }]}>Learn the opening drill</Text>
-              <Text style={[styles.headerCopy, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(6) }]}>
-                Follow these orders to build a legal formation and get into the match without guesswork.
+              <Text style={[styles.headerLabel, { fontSize: rf(10) }]}>
+                FIELD MANUAL
+              </Text>
+              <Text
+                style={[
+                  styles.headerTitle,
+                  {
+                    fontSize: rf(isCompactHeight ? 26 : 30),
+                    marginTop: rsv(4),
+                  },
+                ]}
+              >
+                Learn the opening drill
+              </Text>
+              <Text
+                style={[
+                  styles.headerCopy,
+                  { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(6) },
+                ]}
+              >
+                Follow these orders to build a legal formation and get into the
+                match without guesswork.
               </Text>
 
               <View
@@ -146,13 +189,26 @@ export default function GuideScreen() {
                   },
                 ]}
               >
-                <Text style={[styles.tipLabel, { fontSize: rf(10) }]}>QUICK READ</Text>
-                <Text style={[styles.tipText, { fontSize: rf(12), lineHeight: rf(16), marginTop: rsv(4) }]}>
-                  The red-highlighted rows are your setup zone. Every rank must be placed there before Ready becomes available.
+                <Text style={[styles.tipLabel, { fontSize: rf(10) }]}>
+                  QUICK READ
+                </Text>
+                <Text
+                  style={[
+                    styles.tipText,
+                    { fontSize: rf(12), lineHeight: rf(16), marginTop: rsv(4) },
+                  ]}
+                >
+                  The red-highlighted rows are your setup zone. Every rank must
+                  be placed there before Ready becomes available.
                 </Text>
               </View>
 
-              <View style={[styles.guideStack, { rowGap: manualGap, marginTop: manualGap }]}>
+              <View
+                style={[
+                  styles.guideStack,
+                  { rowGap: manualGap, marginTop: manualGap },
+                ]}
+              >
                 {guideCards.map((card) => (
                   <View
                     key={card.title}
@@ -165,12 +221,39 @@ export default function GuideScreen() {
                       },
                     ]}
                   >
-                    <View style={[styles.guideIconWrap, { width: rs(42), height: rs(42), borderRadius: rs(13) }]}>
-                      <MaterialCommunityIcons name={card.icon} size={rf(20)} color={guideIconColor} />
+                    <View
+                      style={[
+                        styles.guideIconWrap,
+                        { width: rs(42), height: rs(42), borderRadius: rs(13) },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={card.icon}
+                        size={rf(20)}
+                        color={guideIconColor}
+                      />
                     </View>
                     <View style={styles.guideTextBlock}>
-                      <Text style={[styles.guideTitle, { fontSize: rf(isCompactHeight ? 18 : 20) }]}>{card.title}</Text>
-                      <Text style={[styles.guideBody, { fontSize: rf(12), lineHeight: rf(17), marginTop: rsv(3) }]}>{card.body}</Text>
+                      <Text
+                        style={[
+                          styles.guideTitle,
+                          { fontSize: rf(isCompactHeight ? 18 : 20) },
+                        ]}
+                      >
+                        {card.title}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.guideBody,
+                          {
+                            fontSize: rf(12),
+                            lineHeight: rf(17),
+                            marginTop: rsv(3),
+                          },
+                        ]}
+                      >
+                        {card.body}
+                      </Text>
                     </View>
                   </View>
                 ))}
