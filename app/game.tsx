@@ -255,6 +255,7 @@ export default function GameScreen() {
                 <FlagAbilityButton
                   visible={!!game.selectedPieceIsFlag && !game.winner}
                   active={game.flagSwapActive}
+                  cooldownUntil={game.flagSwapCooldownUntil}
                   rf={rf}
                   rs={rs}
                   rsv={rsv}

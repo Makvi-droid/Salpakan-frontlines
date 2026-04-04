@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { AI_THINKING_DELAY_MS } from "../constants/constants";
 import { chooseMoveForProfile } from "../scripts/aiLogic";
 import {
+  getLegalMoves,
   prepareChallengeEvent,
   resolveBattleMove,
   resolveKamikazeMutualElimination,
@@ -35,6 +36,11 @@ interface UseAITurnOptions {
   pendingCrateChoice: object | null;
   pendingKamikaze: KamikazeEvent | null;
   pendingVeteranPromo: object | null;
+  /**
+   * Wall-clock timestamp (ms) until which the AI Flag-swap ability is on
+   * cooldown. null means it is available.
+   */
+  aiFlagSwapCooldownUntil: number | null;
   // Callbacks
   shouldInterceptKamikaze: (
     board: Record<number, BoardPiece>,
@@ -51,6 +57,7 @@ interface UseAITurnOptions {
   onPhaseEnd: () => void;
   onMessageChange: (msg: string) => void;
   onAIThinking: (thinking: boolean) => void;
+  onStartAIFlagSwapCooldown: () => void;
   kamikazeChance: number;
 }
 
@@ -69,6 +76,7 @@ export function useAITurn(opts: UseAITurnOptions) {
     pendingCrateChoice,
     pendingKamikaze,
     pendingVeteranPromo,
+    aiFlagSwapCooldownUntil,
     shouldInterceptKamikaze,
     onApplyResolution,
     onPendingChallenge,
@@ -76,6 +84,7 @@ export function useAITurn(opts: UseAITurnOptions) {
     onPhaseEnd,
     onMessageChange,
     onAIThinking,
+    onStartAIFlagSwapCooldown,
     kamikazeChance,
   } = opts;
 
@@ -93,21 +102,42 @@ export function useAITurn(opts: UseAITurnOptions) {
     )
       return;
 
-    // cancelled flag: if the effect re-runs before the timeout fires (e.g.
-    // winner was set by a player-side resolution while the timer was pending),
-    // we discard the stale callback entirely instead of applying a move after
-    // the game has already ended.
     let cancelled = false;
 
     onAIThinking(true);
 
     const timer = setTimeout(() => {
-      // Guard against stale closure: winner may have been set between when the
-      // effect ran and when the timeout fires. If so, abort silently.
-      if (cancelled) {
-        return;
+      if (cancelled) return;
+
+      // ── AI Flag-swap (Shadow March) logic ──────────────────────────────────
+      // The AI will opportunistically use the Flag-swap when it can't otherwise
+      // find a direct winning move, its Flag is under threat, and the cooldown
+      // has expired.
+      const aiFlagSwapAvailable =
+        !aiFlagSwapCooldownUntil || Date.now() >= aiFlagSwapCooldownUntil;
+
+      if (aiFlagSwapAvailable) {
+        const swapResult = tryAIFlagSwap(battleBoard, pieceById);
+        if (swapResult) {
+          onApplyResolution(
+            {
+              board: swapResult.nextBoard,
+              winner: null,
+              message:
+                "The enemy Flag slipped into the shadows, trading places with an ally.",
+              revealMessage: null,
+              capturedByPlayer: [],
+              capturedByAI: [],
+            },
+            "player",
+          );
+          onStartAIFlagSwapCooldown();
+          onAIThinking(false);
+          return;
+        }
       }
 
+      // ── Normal AI move ─────────────────────────────────────────────────────
       const aiMove = chooseMoveForProfile(
         battleBoard,
         aiProfile,
@@ -127,7 +157,6 @@ export function useAITurn(opts: UseAITurnOptions) {
 
       const target = battleBoard[aiMove.to];
       if (target?.side === "player") {
-        // AI Kamikaze — only fires when an AI Private attacks a non-Private player piece
         if (shouldInterceptKamikaze(battleBoard, aiMove)) {
           if (Math.random() < kamikazeChance) {
             const kamikazeRes = resolveKamikazeMutualElimination(
@@ -139,7 +168,6 @@ export function useAITurn(opts: UseAITurnOptions) {
             onAIThinking(false);
             return;
           }
-          // AI declined Kamikaze — fall through to normal challenge
         }
 
         const event = prepareChallengeEvent(battleBoard, aiMove, pieceById);
@@ -173,5 +201,79 @@ export function useAITurn(opts: UseAITurnOptions) {
     pendingCrateChoice,
     pendingKamikaze,
     pendingVeteranPromo,
+    aiFlagSwapCooldownUntil,
   ]);
+}
+
+// ─── AI Flag-swap heuristic ───────────────────────────────────────────────────
+
+/**
+ * Decides whether the AI should use Shadow March this turn and, if so,
+ * returns the swapped board. Returns null when the ability should not fire.
+ *
+ * Trigger condition: the AI Flag is adjacent to at least one player piece
+ * (i.e. under immediate threat) AND there is a non-Flag ally elsewhere on
+ * the board to swap with. The AI picks the ally that is farthest from any
+ * player piece — a simple "safety" heuristic that pulls the Flag away from
+ * danger without requiring full look-ahead.
+ */
+function tryAIFlagSwap(
+  board: Record<number, BoardPiece>,
+  pieceById: Record<string, PieceDefinition>,
+): { nextBoard: Record<number, BoardPiece> } | null {
+  // 1. Find the AI Flag tile.
+  const flagEntry = Object.entries(board).find(
+    ([, piece]) =>
+      piece.side === "ai" && pieceById[piece.pieceId]?.label === "Flag",
+  );
+  if (!flagEntry) return null;
+  const flagTileIndex = Number(flagEntry[0]);
+
+  // 2. Check if the Flag is under immediate threat (player piece adjacent).
+  const legalPlayerMoves = getLegalMoves(board, "player", pieceById);
+  const flagUnderThreat = legalPlayerMoves.some((m) => m.to === flagTileIndex);
+  if (!flagUnderThreat) return null;
+
+  // 3. Gather candidate allies: AI-owned, not the Flag, not Bombs (immovable).
+  const playerTiles = Object.entries(board)
+    .filter(([, p]) => p.side === "player")
+    .map(([k]) => Number(k));
+
+  const candidates = Object.entries(board).filter(([tileKey, piece]) => {
+    if (Number(tileKey) === flagTileIndex) return false;
+    if (piece.side !== "ai") return false;
+    const label = pieceById[piece.pieceId]?.label;
+    if (label === "Flag" || label === "Bomb") return false;
+    return true;
+  });
+
+  if (candidates.length === 0) return null;
+
+  // 4. Score each candidate by minimum Manhattan distance to any player tile.
+  //    Higher = safer.
+  const safestAlly = candidates.reduce<{ tileIndex: number; score: number }>(
+    (best, [tileKey]) => {
+      const ti = Number(tileKey);
+      const minDist = playerTiles.reduce((min, pt) => {
+        const dr = Math.abs(Math.floor(ti / 10) - Math.floor(pt / 10));
+        const dc = Math.abs((ti % 10) - (pt % 10));
+        return Math.min(min, dr + dc);
+      }, Infinity);
+      return minDist > best.score ? { tileIndex: ti, score: minDist } : best;
+    },
+    { tileIndex: -1, score: -1 },
+  );
+
+  if (safestAlly.tileIndex === -1) return null;
+
+  // 5. Build the swapped board.
+  const flagPiece = board[flagTileIndex];
+  const allyPiece = board[safestAlly.tileIndex];
+  const nextBoard = {
+    ...board,
+    [safestAlly.tileIndex]: { ...flagPiece },
+    [flagTileIndex]: { ...allyPiece },
+  };
+
+  return { nextBoard };
 }

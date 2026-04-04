@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   StyleSheet,
@@ -14,6 +14,11 @@ type Props = {
   visible: boolean;
   /** True while the player is in ally-picking mode */
   active: boolean;
+  /**
+   * Wall-clock timestamp (ms) until which the ability is on cooldown.
+   * null or a past timestamp = not on cooldown.
+   */
+  cooldownUntil: number | null;
   rf: (size: number) => number;
   rs: (size: number) => number;
   rsv: (size: number) => number;
@@ -24,19 +29,50 @@ const ABILITY_NAME = "Shadow March";
 const ABILITY_DESC_IDLE = "Swap the Flag with any allied piece on the board.";
 const ABILITY_DESC_ACTIVE = "Select an ally to swap positions with the Flag.";
 
+/** Formats remaining milliseconds as "M:SS". */
+function formatCountdown(ms: number): string {
+  const totalSec = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSec / 60);
+  const seconds = totalSec % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 /**
  * Floats below the board grid when the player's Flag is selected during battle.
  * Tapping it activates swap-target mode (allies glow on the board).
  * Tapping it again while active cancels the ability.
+ * Shows a live countdown when the 5-minute cooldown is active.
  */
 export function FlagAbilityButton({
   visible,
   active,
+  cooldownUntil,
   rf,
   rs,
   rsv,
   onPress,
 }: Props) {
+  // ── Live countdown ticker ────────────────────────────────────────────────────
+  const [remainingMs, setRemainingMs] = useState<number>(0);
+
+  useEffect(() => {
+    if (!cooldownUntil) {
+      setRemainingMs(0);
+      return;
+    }
+
+    const tick = () => {
+      const diff = cooldownUntil - Date.now();
+      setRemainingMs(Math.max(0, diff));
+    };
+
+    tick(); // immediate update
+    const interval = setInterval(tick, 500);
+    return () => clearInterval(interval);
+  }, [cooldownUntil]);
+
+  const onCooldown = remainingMs > 0;
+
   // ── Slide-in / slide-out ─────────────────────────────────────────────────────
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(10)).current;
@@ -56,11 +92,11 @@ export function FlagAbilityButton({
     ]).start();
   }, [visible, opacity, translateY]);
 
-  // ── Pulse when active ────────────────────────────────────────────────────────
+  // ── Pulse when active (suppressed during cooldown) ───────────────────────────
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (active) {
+    if (active && !onCooldown) {
       const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(pulse, {
@@ -84,7 +120,14 @@ export function FlagAbilityButton({
         useNativeDriver: true,
       }).start();
     }
-  }, [active, pulse]);
+  }, [active, onCooldown, pulse]);
+
+  // ── Derived display values ───────────────────────────────────────────────────
+  const descriptionText = onCooldown
+    ? `Ability recharging — available in ${formatCountdown(remainingMs)}`
+    : active
+      ? ABILITY_DESC_ACTIVE
+      : ABILITY_DESC_IDLE;
 
   return (
     <Animated.View
@@ -97,32 +140,55 @@ export function FlagAbilityButton({
       <TouchableOpacity
         style={[
           styles.button,
-          active && styles.buttonActive,
+          active && !onCooldown && styles.buttonActive,
+          onCooldown && styles.buttonCooldown,
           {
             borderRadius: rs(10),
             paddingVertical: rsv(10),
             paddingHorizontal: rs(14),
           },
         ]}
-        onPress={onPress}
-        activeOpacity={0.8}
+        onPress={onCooldown ? undefined : onPress}
+        activeOpacity={onCooldown ? 1 : 0.8}
+        disabled={onCooldown}
       >
         {/* ── Name row ───────────────────────────────────────────────────────── */}
         <View style={styles.nameRow}>
-          <View style={[styles.iconPill, { borderRadius: rs(6) }]}>
+          <View
+            style={[
+              styles.iconPill,
+              onCooldown && styles.iconPillCooldown,
+              { borderRadius: rs(6) },
+            ]}
+          >
             <Text style={[styles.iconText, { fontSize: rf(11) }]}>🏳</Text>
           </View>
 
-          <Text style={[styles.abilityName, { fontSize: rf(12) }]}>
+          <Text
+            style={[
+              styles.abilityName,
+              onCooldown && styles.abilityNameCooldown,
+              { fontSize: rf(12) },
+            ]}
+          >
             {ABILITY_NAME}
           </Text>
 
-          {active && (
-            <View style={[styles.activePill, { borderRadius: rs(99) }]}>
-              <Text style={[styles.activePillText, { fontSize: rf(9) }]}>
-                ACTIVE
+          {/* ── Status pill: ACTIVE or cooldown timer ──────────────────────── */}
+          {onCooldown ? (
+            <View style={[styles.cooldownPill, { borderRadius: rs(99) }]}>
+              <Text style={[styles.cooldownPillText, { fontSize: rf(9) }]}>
+                {formatCountdown(remainingMs)}
               </Text>
             </View>
+          ) : (
+            active && (
+              <View style={[styles.activePill, { borderRadius: rs(99) }]}>
+                <Text style={[styles.activePillText, { fontSize: rf(9) }]}>
+                  ACTIVE
+                </Text>
+              </View>
+            )
           )}
         </View>
 
@@ -131,10 +197,11 @@ export function FlagAbilityButton({
           style={[
             styles.desc,
             { fontSize: rf(10.5), marginTop: rsv(5) },
-            active && styles.descActive,
+            active && !onCooldown && styles.descActive,
+            onCooldown && styles.descCooldown,
           ]}
         >
-          {active ? ABILITY_DESC_ACTIVE : ABILITY_DESC_IDLE}
+          {descriptionText}
         </Text>
       </TouchableOpacity>
     </Animated.View>
@@ -156,12 +223,16 @@ const styles = StyleSheet.create({
   buttonActive: {
     borderColor: appTheme.colors.brassBright,
     backgroundColor: "#221A05",
-    // Gold glow — elevation fallback for Android
     shadowColor: appTheme.colors.brassBright,
     shadowOpacity: 0.4,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
     elevation: 6,
+  },
+  buttonCooldown: {
+    borderColor: "#3A3020",
+    backgroundColor: "#110E06",
+    opacity: 0.65,
   },
   nameRow: {
     flexDirection: "row",
@@ -177,6 +248,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  iconPillCooldown: {
+    borderColor: "#3A3020",
+    backgroundColor: "#1A150A",
+  },
   iconText: {
     // emoji sizing handled via fontSize prop above
   },
@@ -187,6 +262,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     flex: 1,
   },
+  abilityNameCooldown: {
+    color: "#5A4A20",
+  },
   activePill: {
     backgroundColor: appTheme.colors.brassBright,
     paddingHorizontal: 8,
@@ -194,6 +272,19 @@ const styles = StyleSheet.create({
   },
   activePillText: {
     color: "#1A1108",
+    fontFamily: appTheme.fonts.body,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  cooldownPill: {
+    backgroundColor: "#2A2010",
+    borderWidth: 1,
+    borderColor: "#4A3A18",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  cooldownPillText: {
+    color: "#7A6030",
     fontFamily: appTheme.fonts.body,
     fontWeight: "700",
     letterSpacing: 1,
@@ -207,5 +298,9 @@ const styles = StyleSheet.create({
   descActive: {
     color: appTheme.colors.brassBright,
     opacity: 1,
+  },
+  descCooldown: {
+    color: "#5A4A20",
+    opacity: 0.8,
   },
 });

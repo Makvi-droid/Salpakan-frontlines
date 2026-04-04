@@ -157,6 +157,10 @@ export function useGameState(difficulty: Difficulty) {
     pendingCrateChoice: resolution.pendingCrateChoice,
     pendingKamikaze: kamikaze.pendingKamikaze,
     pendingVeteranPromo: veteran.pendingVeteranPromo,
+    // ── cooldown wiring ──────────────────────────────────────────────────────
+    aiFlagSwapCooldownUntil: flagSwap.aiCooldownUntil,
+    onStartAIFlagSwapCooldown: flagSwap.startAICooldown,
+    // ────────────────────────────────────────────────────────────────────────
     shouldInterceptKamikaze: kamikaze.shouldInterceptKamikaze,
     onApplyResolution: applyResolution,
     onPendingChallenge: setPendingChallenge,
@@ -318,7 +322,6 @@ export function useGameState(difficulty: Difficulty) {
   const handleBattleTilePress = (tileIndex: number) => {
     // ── Flag swap mode: resolve or cancel ──────────────────────────────────
     if (flagSwap.flagSwapActive) {
-      // Tapping a highlighted ally completes the swap
       if (
         flagSwapAllyTiles.includes(tileIndex) &&
         selectedBattleTileIndex !== null
@@ -332,7 +335,6 @@ export function useGameState(difficulty: Difficulty) {
         setSelectedBattleTileIndex(null);
         setLastMoveTrail(null);
 
-        // Reuse applyResolution so board update + turn flip + message all work
         applyResolution(
           {
             board: nextBoard,
@@ -345,8 +347,9 @@ export function useGameState(difficulty: Difficulty) {
           },
           "ai",
         );
+        // ── Start the 5-minute cooldown for the player ──────────────────────
+        flagSwap.startPlayerCooldown();
       } else {
-        // Tap anywhere else → cancel swap mode
         flagSwap.cancelFlagSwap();
       }
       return;
@@ -561,6 +564,7 @@ export function useGameState(difficulty: Difficulty) {
     selectedPieceIsFlag,
     flagSwapActive: flagSwap.flagSwapActive,
     flagSwapAllyTiles,
+    flagSwapCooldownUntil: flagSwap.playerCooldownUntil,
     activateFlagSwap: flagSwap.activateFlagSwap,
     cancelFlagSwap: flagSwap.cancelFlagSwap,
     // UI
