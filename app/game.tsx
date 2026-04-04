@@ -7,6 +7,7 @@ import ScreenShell from "@/components/ScreenShell";
 import { UpgradeRollModal } from "@/components/UpgradeRollModal";
 import { appTheme } from "@/constants/theme";
 import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
+import { AIAbilityNotification } from "../components/AIAbilityNotification";
 import { BattleInfoPanel } from "../components/BattleInfoPanel";
 import { BoardGrid } from "../components/BoardGrid";
 import { ChallengeModal } from "../components/ChallengeModal";
@@ -15,6 +16,7 @@ import { FlagAbilityButton } from "../components/FlagAbilityButton";
 import { FormationControls } from "../components/FormationControls";
 import { GameModals } from "../components/GameModals";
 import { KamikazeModal } from "../components/KamikazeModal";
+import { SpyAbilityButton } from "../components/SpyAbilityButton";
 import { StatusBox } from "../components/StatusBox";
 import { TopMenuRow } from "../components/TopMenuRow";
 import { UpgradeActivationModal } from "../components/UpgradeActivationModal";
@@ -215,6 +217,8 @@ export default function GameScreen() {
               // ── flag swap props ─────────────────────────────────────────
               flagSwapAllyTiles={game.flagSwapAllyTiles}
               flagSwapActive={game.flagSwapActive}
+              // ── spy reveal prop ─────────────────────────────────────────
+              spyReveal={game.spyReveal}
               // ── drag props ──────────────────────────────────────────────
               draggingPieceId={game.draggingPieceId}
               draggingFromTile={game.draggingFromTile}
@@ -266,6 +270,16 @@ export default function GameScreen() {
                       game.activateFlagSwap();
                     }
                   }}
+                />
+
+                {/* ── Spy ability button ──────────────────────────────────── */}
+                <SpyAbilityButton
+                  visible={!!game.selectedPieceIsSpy && !game.winner}
+                  cooldownUntil={game.spyRevealCooldownUntil}
+                  rf={rf}
+                  rs={rs}
+                  rsv={rsv}
+                  onPress={game.activateSpyReveal}
                 />
 
                 <BattleInfoPanel
@@ -378,6 +392,14 @@ export default function GameScreen() {
           rs={rs}
           rsv={rsv}
           onDismiss={game.handleVeteranPromoDismiss}
+        />
+
+        {/* ── AI ability notification ─────────────────────────────────────── */}
+        <AIAbilityNotification
+          visible={game.aiSpyRevealNotifVisible}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
         />
       </View>
     </GestureHandlerRootView>

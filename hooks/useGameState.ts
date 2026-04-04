@@ -23,6 +23,7 @@ import { useBattleResolution } from "./useBattleResolution";
 import { useFlagSwap } from "./useFlagSwap";
 import { useKamikaze } from "./useKamikaze";
 import { usePlacement } from "./usePlacement";
+import { useSpyReveal } from "./useSpyReveal";
 import { useVeteranPromo } from "./useVeteranPromo";
 
 /** Hook that owns all game state and exposes handlers to the screen. */
@@ -139,6 +140,9 @@ export function useGameState(difficulty: Difficulty) {
   // ── Flag swap sub-hook ───────────────────────────────────────────────────────
   const flagSwap = useFlagSwap({ pieceById });
 
+  // ── Spy reveal sub-hook ──────────────────────────────────────────────────────
+  const spyReveal = useSpyReveal({ pieceById });
+
   // ── AI turn sub-hook ─────────────────────────────────────────────────────────
   useAITurn({
     phase,
@@ -157,9 +161,12 @@ export function useGameState(difficulty: Difficulty) {
     pendingCrateChoice: resolution.pendingCrateChoice,
     pendingKamikaze: kamikaze.pendingKamikaze,
     pendingVeteranPromo: veteran.pendingVeteranPromo,
-    // ── cooldown wiring ──────────────────────────────────────────────────────
+    // ── flag swap cooldown wiring ────────────────────────────────────────────
     aiFlagSwapCooldownUntil: flagSwap.aiCooldownUntil,
     onStartAIFlagSwapCooldown: flagSwap.startAICooldown,
+    // ── spy reveal wiring ────────────────────────────────────────────────────
+    aiSpyCooldownUntil: spyReveal.aiCooldownUntil,
+    onTryAISpyReveal: spyReveal.tryAISpyReveal,
     // ────────────────────────────────────────────────────────────────────────
     shouldInterceptKamikaze: kamikaze.shouldInterceptKamikaze,
     onApplyResolution: applyResolution,
@@ -212,7 +219,7 @@ export function useGameState(difficulty: Difficulty) {
     return flagSwap.isFlagPiece(piece);
   }, [phase, selectedBattleTileIndex, battleBoard, flagSwap.isFlagPiece]);
 
-  /** Ally tiles lit up in gold when swap mode is active */
+  /** Ally tiles lit up in gold when flag swap mode is active */
   const flagSwapAllyTiles = useMemo(() => {
     if (!flagSwap.flagSwapActive) return [];
     return flagSwap.getAllySwapTiles(battleBoard, selectedBattleTileIndex);
@@ -222,6 +229,16 @@ export function useGameState(difficulty: Difficulty) {
     battleBoard,
     selectedBattleTileIndex,
   ]);
+
+  // ── Spy reveal derived values ─────────────────────────────────────────────────
+
+  /** True when the currently selected battle tile is the player's Spy */
+  const selectedPieceIsSpy = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return spyReveal.isPlayerSpyPiece(piece);
+  }, [phase, selectedBattleTileIndex, battleBoard, spyReveal.isPlayerSpyPiece]);
 
   // ── Shared: fire challenge ───────────────────────────────────────────────────
   const fireChallenge = (legalMove: BattleMove) => {
@@ -347,7 +364,6 @@ export function useGameState(difficulty: Difficulty) {
           },
           "ai",
         );
-        // ── Start the 5-minute cooldown for the player ──────────────────────
         flagSwap.startPlayerCooldown();
       } else {
         flagSwap.cancelFlagSwap();
@@ -434,6 +450,7 @@ export function useGameState(difficulty: Difficulty) {
     kamikaze.resetKamikaze();
     veteran.resetVeteranPromo();
     flagSwap.resetFlagSwap();
+    spyReveal.resetSpyReveal();
     setShowReadyModal(false);
     placement.clearFormationSelection();
     setIsInventoryExpanded(false);
@@ -455,6 +472,7 @@ export function useGameState(difficulty: Difficulty) {
     kamikaze.resetKamikaze();
     veteran.resetVeteranPromo();
     flagSwap.resetFlagSwap();
+    spyReveal.resetSpyReveal();
     setBattleMessage("You forfeited the match. Enemy command takes the field.");
     setRevealMessage("The battle ended by surrender.");
     resolution.resetCrates();
@@ -483,6 +501,7 @@ export function useGameState(difficulty: Difficulty) {
     kamikaze.resetKamikaze();
     veteran.resetVeteranPromo();
     flagSwap.resetFlagSwap();
+    spyReveal.resetSpyReveal();
     placement.resetPlacement();
   };
 
@@ -567,6 +586,12 @@ export function useGameState(difficulty: Difficulty) {
     flagSwapCooldownUntil: flagSwap.playerCooldownUntil,
     activateFlagSwap: flagSwap.activateFlagSwap,
     cancelFlagSwap: flagSwap.cancelFlagSwap,
+    // spy reveal (Phantom Recon ability)
+    selectedPieceIsSpy,
+    spyReveal: spyReveal.spyReveal, // SpyRevealResult | null
+    aiSpyRevealNotifVisible: spyReveal.aiSpyRevealNotifVisible,
+    spyRevealCooldownUntil: spyReveal.playerCooldownUntil,
+    activateSpyReveal: () => spyReveal.activateSpyReveal(battleBoard),
     // UI
     isInventoryExpanded,
     setIsInventoryExpanded,

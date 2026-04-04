@@ -41,6 +41,11 @@ interface UseAITurnOptions {
    * cooldown. null means it is available.
    */
   aiFlagSwapCooldownUntil: number | null;
+  /**
+   * Wall-clock timestamp (ms) until which the AI Spy reveal is on cooldown.
+   * null means the ability is available.
+   */
+  aiSpyCooldownUntil: number | null;
   // Callbacks
   shouldInterceptKamikaze: (
     board: Record<number, BoardPiece>,
@@ -58,6 +63,11 @@ interface UseAITurnOptions {
   onMessageChange: (msg: string) => void;
   onAIThinking: (thinking: boolean) => void;
   onStartAIFlagSwapCooldown: () => void;
+  /**
+   * Attempts the AI Spy reveal. Returns true if the ability fired this turn.
+   * The AI still proceeds with its normal move — the reveal is informational.
+   */
+  onTryAISpyReveal: (board: Record<number, BoardPiece>) => boolean;
   kamikazeChance: number;
 }
 
@@ -77,6 +87,7 @@ export function useAITurn(opts: UseAITurnOptions) {
     pendingKamikaze,
     pendingVeteranPromo,
     aiFlagSwapCooldownUntil,
+    aiSpyCooldownUntil,
     shouldInterceptKamikaze,
     onApplyResolution,
     onPendingChallenge,
@@ -85,6 +96,7 @@ export function useAITurn(opts: UseAITurnOptions) {
     onMessageChange,
     onAIThinking,
     onStartAIFlagSwapCooldown,
+    onTryAISpyReveal,
     kamikazeChance,
   } = opts;
 
@@ -108,6 +120,12 @@ export function useAITurn(opts: UseAITurnOptions) {
 
     const timer = setTimeout(() => {
       if (cancelled) return;
+
+      // ── AI Spy reveal (Phantom Recon) ──────────────────────────────────────
+      // Fires opportunistically before the normal move. The ability is purely
+      // informational (AI peeks at a player piece) so the turn continues as
+      // normal afterward. The player sees only the generic ability notification.
+      onTryAISpyReveal(battleBoard);
 
       // ── AI Flag-swap (Shadow March) logic ──────────────────────────────────
       // The AI will opportunistically use the Flag-swap when it can't otherwise
@@ -202,6 +220,7 @@ export function useAITurn(opts: UseAITurnOptions) {
     pendingKamikaze,
     pendingVeteranPromo,
     aiFlagSwapCooldownUntil,
+    aiSpyCooldownUntil,
   ]);
 }
 

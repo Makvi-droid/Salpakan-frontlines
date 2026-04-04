@@ -4,6 +4,7 @@ import { PanGestureHandler, State } from "react-native-gesture-handler";
 
 import { appTheme } from "@/constants/theme";
 import { BOARD_HEIGHT, BOARD_WIDTH } from "../constants/constants";
+import type { SpyRevealResult } from "../hooks/useSpyReveal";
 import {
   getTileColumn,
   getTileRow,
@@ -48,6 +49,8 @@ type Props = {
   // flag swap
   flagSwapAllyTiles: number[];
   flagSwapActive: boolean;
+  // spy reveal
+  spyReveal?: SpyRevealResult | null;
   // drag props
   draggingPieceId: string | null;
   draggingFromTile: number | null;
@@ -161,6 +164,7 @@ export function BoardGrid({
   marginBottom,
   flagSwapAllyTiles,
   flagSwapActive,
+  spyReveal,
   draggingPieceId,
   draggingFromTile,
   dragOverTileIndex,
@@ -231,7 +235,7 @@ export function BoardGrid({
                   ? getUpgradeAbbrev(battlePiece.upgrade)
                   : "";
 
-              // ── Veteran badge flag ──────────────────────────────────────
+              // ── Veteran badge flag ──────────────────────────────────────────
               const isPlayerVeteran =
                 phase !== "formation" &&
                 battlePiece?.side === "player" &&
@@ -243,6 +247,16 @@ export function BoardGrid({
                 !battlePiece.revealedToPlayer &&
                 battlePiece.upgrade === "iron-veil" &&
                 battlePiece.ironVeilKnownToPlayer === true;
+
+              // ── Spy reveal overlay ──────────────────────────────────────────
+              // Only fires in battle phase on the specific tile the hook chose.
+              // isFaked = true means double-blind swapped in a decoy label —
+              // we render a subtly different tint but never tell the player.
+              const isSpyRevealed =
+                phase !== "formation" &&
+                spyReveal != null &&
+                spyReveal.tileIndex === tile.index &&
+                battlePiece?.side === "ai";
 
               // Drag-specific flags
               const isDragOver =
@@ -268,10 +282,12 @@ export function BoardGrid({
                 (isMoveSource || isSelectedBattle) && styles.sourceSelected,
                 isBattleTarget && styles.battleTarget,
                 isChallengeTarget && styles.challengeTarget,
-                // Veteran tile gets a subtle gold border glow
+                // Veteran tile: subtle gold shimmer border
                 isPlayerVeteran && styles.veteranTile,
-                // Flag swap ally — gold shimmer, applied last so it wins
+                // Flag swap ally: brass-gold pulse border
                 isFlagSwapAlly && styles.flagSwapAllyTarget,
+                // Spy reveal: teal border flash (applied last so it wins)
+                isSpyRevealed && styles.spyRevealTile,
               ];
 
               // ── Formation phase: DropZoneTile ────────────────────────────
@@ -395,6 +411,31 @@ export function BoardGrid({
                       </Text>
                     </View>
                   ) : null}
+
+                  {/* ── Spy reveal overlay ────────────────────────────────────
+                      Sits on top of everything for exactly 1.5 s.
+                      isFaked tiles (double-blind) use an olive tint instead of
+                      teal — same ambiguity principle: no tooltip, just a vague
+                      colour shift a sharp player might notice. */}
+                  {isSpyRevealed && spyReveal ? (
+                    <View
+                      style={[
+                        styles.spyRevealOverlay,
+                        spyReveal.isFaked && styles.spyRevealOverlayFaked,
+                      ]}
+                      pointerEvents="none"
+                    >
+                      <Text
+                        style={[
+                          styles.spyRevealLabel,
+                          { fontSize: rf(10) },
+                          spyReveal.isFaked && styles.spyRevealLabelFaked,
+                        ]}
+                      >
+                        {spyReveal.shortLabel}
+                      </Text>
+                    </View>
+                  ) : null}
                 </TouchableOpacity>
               );
             })}
@@ -466,7 +507,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#2B1C14",
     borderColor: appTheme.colors.brassBright,
   },
-  // ── Veteran tile: subtle gold shimmer border (layered over playerTile) ──────
+  // ── Veteran tile: subtle gold shimmer border ─────────────────────────────────
   veteranTile: {
     borderColor: "#F0C040",
     borderWidth: appTheme.borderWidth.thick,
@@ -486,6 +527,16 @@ const styles = StyleSheet.create({
     shadowRadius: 7,
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
+  },
+  // ── Spy reveal tile border: teal flash ──────────────────────────────────────
+  spyRevealTile: {
+    borderColor: "#4EC9A8",
+    borderWidth: appTheme.borderWidth.thick,
+    shadowColor: "#4EC9A8",
+    shadowOpacity: 0.55,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
   },
   playerUpgradeBadge: {
     position: "absolute",
@@ -544,6 +595,32 @@ const styles = StyleSheet.create({
     color: appTheme.colors.brassBright,
     fontWeight: "700",
     lineHeight: 12,
+  },
+  // ── Spy reveal overlay ────────────────────────────────────────────────────────
+  spyRevealOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(10, 60, 45, 0.88)", // dark teal — true rank
+    borderWidth: 2,
+    borderColor: "#4EC9A8",
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 20,
+  },
+  spyRevealOverlayFaked: {
+    // double-blind decoy: olive-teal shift — ambiguous by design, no tooltip
+    backgroundColor: "rgba(40, 50, 20, 0.88)",
+    borderColor: "#A8C94E",
+  },
+  spyRevealLabel: {
+    color: "#4EC9A8",
+    fontFamily: appTheme.fonts.body,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textAlign: "center",
+  },
+  spyRevealLabelFaked: {
+    color: "#A8C94E", // olive tint for the decoy label
   },
   aiTileHidden: { backgroundColor: "#1A0008", borderColor: "#7A2A3A" },
   aiTileRevealed: { backgroundColor: "#750012", borderColor: "#E0B55D" },
@@ -616,7 +693,7 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.body,
     textAlign: "center",
   },
-  // ── Drag & drop ─────────────────────────────────────────────────────────────
+  // ── Drag & drop ──────────────────────────────────────────────────────────────
   dropZoneHovered: {
     borderColor: appTheme.colors.brassBright,
     borderWidth: appTheme.borderWidth.thick,
