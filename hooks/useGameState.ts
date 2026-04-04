@@ -2,32 +2,32 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 
 import {
-    DIAGONAL_DIRECTIONS,
-    DIFFICULTY_PROFILES,
+  DIAGONAL_DIRECTIONS,
+  DIFFICULTY_PROFILES,
 } from "../constants/constants";
 import { generateAIFormation } from "../scripts/aiLogic";
 import {
-    buildBattleBoard,
-    formatCooldownTime,
-    formatPieceName,
-    getAbilityCooldownRemaining,
-    getLegalMoves,
-    getTileColumn,
-    getTileIndex,
-    getTileRow,
-    isAbilityOnCooldown,
-    isInsideBoard,
-    prepareChallengeEvent,
-    setAbilityCooldown,
+  buildBattleBoard,
+  formatCooldownTime,
+  formatPieceName,
+  getAbilityCooldownRemaining,
+  getLegalMoves,
+  getTileColumn,
+  getTileIndex,
+  getTileRow,
+  isAbilityOnCooldown,
+  isInsideBoard,
+  prepareChallengeEvent,
+  setAbilityCooldown,
 } from "../scripts/gameLogic";
 import type {
-    BattleMove,
-    BoardPiece,
-    ChallengeEvent,
-    Difficulty,
-    Phase,
-    PieceUpgradeId,
-    Side,
+  BattleMove,
+  BoardPiece,
+  ChallengeEvent,
+  Difficulty,
+  Phase,
+  PieceUpgradeId,
+  Side,
 } from "../scripts/types";
 
 import { useAITurn } from "./useAITurn";
