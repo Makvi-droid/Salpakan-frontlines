@@ -4,8 +4,11 @@ import { useMemo, useState } from "react";
 import { DIFFICULTY_PROFILES } from "../constants/constants";
 import { generateAIFormation } from "../scripts/aiLogic";
 import {
+  applyFourStarPush,
   buildBattleBoard,
+  getGeneralChargeMoves,
   getLegalMoves,
+  getPushableTiles,
   prepareChallengeEvent,
 } from "../scripts/gameLogic";
 import type {
@@ -20,10 +23,14 @@ import type {
 
 import { useAITurn } from "./useAITurn";
 import { useBattleResolution } from "./useBattleResolution";
+import { useColonelReveal } from "./useColonelReveal";
 import { useFlagSwap } from "./useFlagSwap";
+import { useFourStarPush } from "./useFourStarPush";
+import { useGeneralCharge } from "./useGeneralCharge";
 import { useKamikaze } from "./useKamikaze";
 import { usePlacement } from "./usePlacement";
 import { useSpyReveal } from "./useSpyReveal";
+import { useThreeStarPassive } from "./useThreeStarPassive";
 import { useVeteranPromo } from "./useVeteranPromo";
 
 /** Hook that owns all game state and exposes handlers to the screen. */
@@ -143,6 +150,18 @@ export function useGameState(difficulty: Difficulty) {
   // ── Spy reveal sub-hook ──────────────────────────────────────────────────────
   const spyReveal = useSpyReveal({ pieceById });
 
+  // ── Colonel reveal sub-hook ──────────────────────────────────────────────────
+  const colonelReveal = useColonelReveal({ pieceById });
+
+  // ── General Charge sub-hook ──────────────────────────────────────────────────
+  const generalCharge = useGeneralCharge({ pieceById });
+
+  // ── 4-Star Push sub-hook ─────────────────────────────────────────────────────
+  const fourStarPush = useFourStarPush({ pieceById });
+
+  // ── 3-Star General Last Stand sub-hook ──────────────────────────────────────
+  const threeStarPassive = useThreeStarPassive({ pieceById });
+
   // ── AI turn sub-hook ─────────────────────────────────────────────────────────
   useAITurn({
     phase,
@@ -161,12 +180,21 @@ export function useGameState(difficulty: Difficulty) {
     pendingCrateChoice: resolution.pendingCrateChoice,
     pendingKamikaze: kamikaze.pendingKamikaze,
     pendingVeteranPromo: veteran.pendingVeteranPromo,
+    pendingThreeStarPassive: threeStarPassive.pendingThreeStarPassive,
     // ── flag swap cooldown wiring ────────────────────────────────────────────
     aiFlagSwapCooldownUntil: flagSwap.aiCooldownUntil,
     onStartAIFlagSwapCooldown: flagSwap.startAICooldown,
     // ── spy reveal wiring ────────────────────────────────────────────────────
     aiSpyCooldownUntil: spyReveal.aiCooldownUntil,
     onTryAISpyReveal: spyReveal.tryAISpyReveal,
+    // ── general charge wiring ────────────────────────────────────────────────
+    aiGeneralChargeCooldownUntil: generalCharge.aiCooldownUntil,
+    onStartAIGeneralChargeCooldown: generalCharge.startAICooldown,
+    isAIGeneralChargeOnCooldown: generalCharge.isAIOnCooldown,
+    // ── 3-star general last stand wiring ────────────────────────────────────
+    shouldInterceptThreeStarPassive:
+      threeStarPassive.shouldInterceptThreeStarPassive,
+    onQueueThreeStarPassive: threeStarPassive.queueThreeStarPassive,
     // ────────────────────────────────────────────────────────────────────────
     shouldInterceptKamikaze: kamikaze.shouldInterceptKamikaze,
     onApplyResolution: applyResolution,
@@ -184,15 +212,51 @@ export function useGameState(difficulty: Difficulty) {
   // ── Derived values ───────────────────────────────────────────────────────────
   const selectedBattleMoves = useMemo(() => {
     if (phase !== "battle" || selectedBattleTileIndex === null) return [];
+    if (generalCharge.generalChargeActive) {
+      const piece = battleBoard[selectedBattleTileIndex];
+      if (piece && generalCharge.isPlayerFiveStarGeneral(piece)) {
+        const { allDestinations } = getGeneralChargeMoves(
+          battleBoard,
+          selectedBattleTileIndex,
+          "player",
+        );
+        return allDestinations;
+      }
+    }
     return getLegalMoves(battleBoard, "player", pieceById)
       .filter((m) => m.from === selectedBattleTileIndex)
       .map((m) => m.to);
-  }, [battleBoard, phase, pieceById, selectedBattleTileIndex]);
+  }, [
+    battleBoard,
+    phase,
+    pieceById,
+    selectedBattleTileIndex,
+    generalCharge.generalChargeActive,
+    generalCharge.isPlayerFiveStarGeneral,
+  ]);
 
   const challengeTargetTiles = useMemo(() => {
     if (phase !== "battle" || selectedBattleTileIndex === null) return [];
+    if (generalCharge.generalChargeActive) {
+      const piece = battleBoard[selectedBattleTileIndex];
+      if (piece && generalCharge.isPlayerFiveStarGeneral(piece)) {
+        const { challengeDestinations } = getGeneralChargeMoves(
+          battleBoard,
+          selectedBattleTileIndex,
+          "player",
+        );
+        return challengeDestinations;
+      }
+    }
     return selectedBattleMoves.filter((to) => battleBoard[to]?.side === "ai");
-  }, [battleBoard, phase, selectedBattleTileIndex, selectedBattleMoves]);
+  }, [
+    battleBoard,
+    phase,
+    selectedBattleTileIndex,
+    selectedBattleMoves,
+    generalCharge.generalChargeActive,
+    generalCharge.isPlayerFiveStarGeneral,
+  ]);
 
   const capturedPlayerNames = useMemo(
     () =>
@@ -210,8 +274,6 @@ export function useGameState(difficulty: Difficulty) {
   );
 
   // ── Flag swap derived values ─────────────────────────────────────────────────
-
-  /** True when the currently selected battle tile is the player's Flag */
   const selectedPieceIsFlag = useMemo(() => {
     if (phase !== "battle" || selectedBattleTileIndex === null) return false;
     const piece = battleBoard[selectedBattleTileIndex];
@@ -219,7 +281,6 @@ export function useGameState(difficulty: Difficulty) {
     return flagSwap.isFlagPiece(piece);
   }, [phase, selectedBattleTileIndex, battleBoard, flagSwap.isFlagPiece]);
 
-  /** Ally tiles lit up in gold when flag swap mode is active */
   const flagSwapAllyTiles = useMemo(() => {
     if (!flagSwap.flagSwapActive) return [];
     return flagSwap.getAllySwapTiles(battleBoard, selectedBattleTileIndex);
@@ -231,8 +292,6 @@ export function useGameState(difficulty: Difficulty) {
   ]);
 
   // ── Spy reveal derived values ─────────────────────────────────────────────────
-
-  /** True when the currently selected battle tile is the player's Spy */
   const selectedPieceIsSpy = useMemo(() => {
     if (phase !== "battle" || selectedBattleTileIndex === null) return false;
     const piece = battleBoard[selectedBattleTileIndex];
@@ -240,8 +299,83 @@ export function useGameState(difficulty: Difficulty) {
     return spyReveal.isPlayerSpyPiece(piece);
   }, [phase, selectedBattleTileIndex, battleBoard, spyReveal.isPlayerSpyPiece]);
 
+  // ── Colonel reveal derived values ─────────────────────────────────────────────
+  const selectedPieceIsColonel = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    if (turn !== "player" || !!winner) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return colonelReveal.isPlayerColonelPiece(piece);
+  }, [
+    phase,
+    turn,
+    winner,
+    selectedBattleTileIndex,
+    battleBoard,
+    colonelReveal.isPlayerColonelPiece,
+  ]);
+
+  // Diagonal enemy tiles driven by current Colonel selection + active mode
+  const colonelDiagonalTiles = useMemo(() => {
+    if (!colonelReveal.colonelRevealActive) return [];
+    if (selectedBattleTileIndex === null) return [];
+    return colonelReveal.getDiagonalEnemyTiles(
+      battleBoard,
+      selectedBattleTileIndex,
+    );
+  }, [
+    colonelReveal.colonelRevealActive,
+    colonelReveal.getDiagonalEnemyTiles,
+    battleBoard,
+    selectedBattleTileIndex,
+  ]);
+
+  // ── General Charge derived values ────────────────────────────────────────────
+  const selectedPieceIsGeneralFiveStar = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    if (turn !== "player" || !!winner) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return generalCharge.isPlayerFiveStarGeneral(piece);
+  }, [
+    phase,
+    turn,
+    winner,
+    selectedBattleTileIndex,
+    battleBoard,
+    generalCharge.isPlayerFiveStarGeneral,
+  ]);
+
+  // ── 4-Star Push derived values ───────────────────────────────────────────────
+  const selectedPieceIsGeneralFourStar = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    if (turn !== "player" || !!winner) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return fourStarPush.isPlayerFourStarGeneral(piece);
+  }, [
+    phase,
+    turn,
+    winner,
+    selectedBattleTileIndex,
+    battleBoard,
+    fourStarPush.isPlayerFourStarGeneral,
+  ]);
+
+  const fourStarPushTargetTiles = useMemo(() => {
+    if (!fourStarPush.fourStarPushActive) return [];
+    const tileIndex = fourStarPush.generalTileIndex;
+    if (tileIndex === null) return [];
+    return getPushableTiles(battleBoard, tileIndex, "player");
+  }, [
+    fourStarPush.fourStarPushActive,
+    fourStarPush.generalTileIndex,
+    battleBoard,
+  ]);
+
   // ── Shared: fire challenge ───────────────────────────────────────────────────
   const fireChallenge = (legalMove: BattleMove) => {
+    // ── Kamikaze intercept (existing) ────────────────────────────────────────
     if (kamikaze.shouldInterceptKamikaze(battleBoard, legalMove)) {
       const attackerSide = battleBoard[legalMove.from]?.side;
       if (attackerSide === "player") {
@@ -251,6 +385,29 @@ export function useGameState(difficulty: Difficulty) {
         return;
       }
     }
+
+    // ── 3-Star General Last Stand intercept ──────────────────────────────────
+    const attackerPiece = battleBoard[legalMove.from];
+    const defenderPiece = battleBoard[legalMove.to];
+    if (
+      attackerPiece &&
+      defenderPiece &&
+      threeStarPassive.shouldInterceptThreeStarPassive(
+        attackerPiece.pieceId,
+        defenderPiece.pieceId,
+      )
+    ) {
+      const nextTurn: Side = legalMove.side === "player" ? "ai" : "player";
+      threeStarPassive.queueThreeStarPassive(
+        battleBoard,
+        legalMove.from,
+        legalMove.to,
+        nextTurn,
+      );
+      return;
+    }
+
+    // ── Upgrade activation intercept (existing) ──────────────────────────────
     const attackingPiece = battleBoard[legalMove.from];
     if (attackingPiece?.side === "player" && attackingPiece.upgrade) {
       setPendingUpgradeActivation({
@@ -259,6 +416,7 @@ export function useGameState(difficulty: Difficulty) {
       });
       return;
     }
+
     const event = prepareChallengeEvent(battleBoard, legalMove, pieceById);
     if (event) setPendingChallenge(event);
   };
@@ -321,6 +479,19 @@ export function useGameState(difficulty: Difficulty) {
     applyResolution(nextResolution, nextTurn, from, to);
   };
 
+  // ── 3-Star General Last Stand modal dismiss ──────────────────────────────────
+  const handleThreeStarPassiveDismiss = () => {
+    if (!threeStarPassive.pendingThreeStarPassive) return;
+    const {
+      resolution: res,
+      nextTurn,
+      from,
+      to,
+    } = threeStarPassive.pendingThreeStarPassive;
+    threeStarPassive.resetThreeStarPassive();
+    applyResolution(res, nextTurn, from, to);
+  };
+
   const handleUpgradeRollDismiss = () => setPendingUpgradeRoll(null);
 
   // ── Battle tile press ────────────────────────────────────────────────────────
@@ -334,10 +505,11 @@ export function useGameState(difficulty: Difficulty) {
     !!pendingUpgradeActivation ||
     !!resolution.pendingCrateChoice ||
     !!kamikaze.pendingKamikaze ||
-    !!veteran.pendingVeteranPromo;
+    !!veteran.pendingVeteranPromo ||
+    !!threeStarPassive.pendingThreeStarPassive;
 
   const handleBattleTilePress = (tileIndex: number) => {
-    // ── Flag swap mode: resolve or cancel ──────────────────────────────────
+    // ── Flag swap mode ─────────────────────────────────────────────────────
     if (flagSwap.flagSwapActive) {
       if (
         flagSwapAllyTiles.includes(tileIndex) &&
@@ -368,6 +540,100 @@ export function useGameState(difficulty: Difficulty) {
       } else {
         flagSwap.cancelFlagSwap();
       }
+      return;
+    }
+
+    // ── 4-Star Push mode ───────────────────────────────────────────────────
+    if (fourStarPush.fourStarPushActive) {
+      const generalTile = fourStarPush.generalTileIndex;
+      if (fourStarPushTargetTiles.includes(tileIndex) && generalTile !== null) {
+        const res = applyFourStarPush(
+          battleBoard,
+          generalTile,
+          tileIndex,
+          "player",
+          pieceById,
+        );
+        fourStarPush.cancelFourStarPush();
+        fourStarPush.startPlayerCooldown();
+        setSelectedBattleTileIndex(null);
+        setLastMoveTrail(null);
+        applyResolution(res, "ai");
+      } else {
+        fourStarPush.cancelFourStarPush();
+      }
+      return;
+    }
+
+    // ── Colonel reveal mode ────────────────────────────────────────────────
+    if (colonelReveal.colonelRevealActive) {
+      if (colonelDiagonalTiles.includes(tileIndex)) {
+        // Reveal the tapped diagonal enemy, then pass turn to AI
+        colonelReveal.applyColonelReveal(battleBoard, tileIndex);
+        setSelectedBattleTileIndex(null);
+        setLastMoveTrail(null);
+        // Pass turn to AI — board is unchanged, same pattern as flag swap
+        applyResolution(
+          {
+            board: battleBoard,
+            winner: null,
+            message: "Field Scope! You revealed a diagonal enemy rank.",
+            revealMessage: null,
+            capturedByPlayer: [],
+            capturedByAI: [],
+          },
+          "ai",
+        );
+      } else {
+        // Tapped outside a valid target — cancel without consuming the turn
+        colonelReveal.cancelColonelReveal();
+      }
+      return;
+    }
+
+    // ── General Charge mode ────────────────────────────────────────────────
+    if (generalCharge.generalChargeActive) {
+      if (
+        selectedBattleTileIndex !== null &&
+        selectedBattleTileIndex !== tileIndex
+      ) {
+        const piece = battleBoard[selectedBattleTileIndex];
+        if (piece && generalCharge.isPlayerFiveStarGeneral(piece)) {
+          const { allDestinations, challengeDestinations } =
+            getGeneralChargeMoves(
+              battleBoard,
+              selectedBattleTileIndex,
+              "player",
+            );
+
+          if (allDestinations.includes(tileIndex)) {
+            if (challengeDestinations.includes(tileIndex)) {
+              const legalMove: BattleMove = {
+                side: "player",
+                from: selectedBattleTileIndex,
+                to: tileIndex,
+              };
+              generalCharge.cancelGeneralCharge();
+              generalCharge.startPlayerCooldown();
+              setSelectedBattleTileIndex(null);
+              fireChallenge(legalMove);
+            } else {
+              const legalMove: BattleMove = {
+                side: "player",
+                from: selectedBattleTileIndex,
+                to: tileIndex,
+              };
+              const res = resolveBattleMove(battleBoard, legalMove);
+              generalCharge.cancelGeneralCharge();
+              generalCharge.startPlayerCooldown();
+              setSelectedBattleTileIndex(null);
+              applyResolution(res, "ai", legalMove.from, legalMove.to);
+            }
+            return;
+          }
+        }
+      }
+      generalCharge.cancelGeneralCharge();
       return;
     }
 
@@ -410,6 +676,32 @@ export function useGameState(difficulty: Difficulty) {
   const handleChallengePress = (targetTileIndex: number) => {
     if (isPlayerInputBlocked()) return;
     if (selectedBattleTileIndex === null) return;
+
+    if (generalCharge.generalChargeActive) {
+      const piece = battleBoard[selectedBattleTileIndex];
+      if (piece && generalCharge.isPlayerFiveStarGeneral(piece)) {
+        const { challengeDestinations } = getGeneralChargeMoves(
+          battleBoard,
+          selectedBattleTileIndex,
+          "player",
+        );
+        if (challengeDestinations.includes(targetTileIndex)) {
+          const legalMove: BattleMove = {
+            side: "player",
+            from: selectedBattleTileIndex,
+            to: targetTileIndex,
+          };
+          generalCharge.cancelGeneralCharge();
+          generalCharge.startPlayerCooldown();
+          setSelectedBattleTileIndex(null);
+          fireChallenge(legalMove);
+          return;
+        }
+      }
+      generalCharge.cancelGeneralCharge();
+      return;
+    }
+
     const legalMove = getLegalMoves(battleBoard, "player", pieceById).find(
       (m) => m.from === selectedBattleTileIndex && m.to === targetTileIndex,
     );
@@ -451,6 +743,10 @@ export function useGameState(difficulty: Difficulty) {
     veteran.resetVeteranPromo();
     flagSwap.resetFlagSwap();
     spyReveal.resetSpyReveal();
+    colonelReveal.resetColonelReveal();
+    generalCharge.resetGeneralCharge();
+    fourStarPush.resetFourStarPush();
+    threeStarPassive.resetThreeStarPassive();
     setShowReadyModal(false);
     placement.clearFormationSelection();
     setIsInventoryExpanded(false);
@@ -473,6 +769,10 @@ export function useGameState(difficulty: Difficulty) {
     veteran.resetVeteranPromo();
     flagSwap.resetFlagSwap();
     spyReveal.resetSpyReveal();
+    colonelReveal.resetColonelReveal();
+    generalCharge.resetGeneralCharge();
+    fourStarPush.resetFourStarPush();
+    threeStarPassive.resetThreeStarPassive();
     setBattleMessage("You forfeited the match. Enemy command takes the field.");
     setRevealMessage("The battle ended by surrender.");
     resolution.resetCrates();
@@ -502,6 +802,10 @@ export function useGameState(difficulty: Difficulty) {
     veteran.resetVeteranPromo();
     flagSwap.resetFlagSwap();
     spyReveal.resetSpyReveal();
+    colonelReveal.resetColonelReveal();
+    generalCharge.resetGeneralCharge();
+    fourStarPush.resetFourStarPush();
+    threeStarPassive.resetThreeStarPassive();
     placement.resetPlacement();
   };
 
@@ -588,10 +892,35 @@ export function useGameState(difficulty: Difficulty) {
     cancelFlagSwap: flagSwap.cancelFlagSwap,
     // spy reveal (Phantom Recon ability)
     selectedPieceIsSpy,
-    spyReveal: spyReveal.spyReveal, // SpyRevealResult | null
+    spyReveal: spyReveal.spyReveal,
     aiSpyRevealNotifVisible: spyReveal.aiSpyRevealNotifVisible,
     spyRevealCooldownUntil: spyReveal.playerCooldownUntil,
     activateSpyReveal: () => spyReveal.activateSpyReveal(battleBoard),
+    // colonel reveal (Field Scope ability)
+    selectedPieceIsColonel,
+    colonelRevealActive: colonelReveal.colonelRevealActive,
+    colonelDiagonalTiles,
+    colonelRevealResult: colonelReveal.colonelReveal,
+    colonelRevealCooldownUntil: colonelReveal.playerCooldownUntil,
+    activateColonelReveal: colonelReveal.activateColonelReveal,
+    cancelColonelReveal: colonelReveal.cancelColonelReveal,
+    // general charge (Supreme Charge ability)
+    selectedPieceIsGeneralFiveStar,
+    generalChargeActive: generalCharge.generalChargeActive,
+    generalChargeCooldownUntil: generalCharge.playerCooldownUntil,
+    activateGeneralCharge: generalCharge.activateGeneralCharge,
+    cancelGeneralCharge: generalCharge.cancelGeneralCharge,
+    // 4-star push (Iron Shove ability)
+    selectedPieceIsGeneralFourStar,
+    fourStarPushActive: fourStarPush.fourStarPushActive,
+    fourStarPushTargetTiles,
+    fourStarPushCooldownUntil: fourStarPush.playerCooldownUntil,
+    activateFourStarPush: () =>
+      fourStarPush.activateFourStarPush(selectedBattleTileIndex!),
+    cancelFourStarPush: fourStarPush.cancelFourStarPush,
+    // 3-star general passive (Last Stand)
+    pendingThreeStarPassive: threeStarPassive.pendingThreeStarPassive,
+    handleThreeStarPassiveDismiss,
     // UI
     isInventoryExpanded,
     setIsInventoryExpanded,

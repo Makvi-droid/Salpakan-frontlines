@@ -4,6 +4,7 @@ import { PanGestureHandler, State } from "react-native-gesture-handler";
 
 import { appTheme } from "@/constants/theme";
 import { BOARD_HEIGHT, BOARD_WIDTH } from "../constants/constants";
+import type { ColonelRevealResult } from "../hooks/useColonelReveal";
 import type { SpyRevealResult } from "../hooks/useSpyReveal";
 import {
   getTileColumn,
@@ -51,6 +52,15 @@ type Props = {
   flagSwapActive: boolean;
   // spy reveal
   spyReveal?: SpyRevealResult | null;
+  // colonel reveal
+  colonelReveal?: ColonelRevealResult | null;
+  colonelRevealActive: boolean;
+  colonelDiagonalTiles: number[];
+  // general charge
+  generalChargeActive: boolean;
+  // 4-star push
+  fourStarPushActive: boolean;
+  fourStarPushTargetTiles: number[];
   // drag props
   draggingPieceId: string | null;
   draggingFromTile: number | null;
@@ -165,6 +175,12 @@ export function BoardGrid({
   flagSwapAllyTiles,
   flagSwapActive,
   spyReveal,
+  colonelReveal,
+  colonelRevealActive,
+  colonelDiagonalTiles,
+  generalChargeActive,
+  fourStarPushActive,
+  fourStarPushTargetTiles,
   draggingPieceId,
   draggingFromTile,
   dragOverTileIndex,
@@ -203,7 +219,8 @@ export function BoardGrid({
                 phase !== "formation" && selectedBattleTileIndex === tile.index;
               const isBattleTarget =
                 phase !== "formation" &&
-                selectedBattleMoves.includes(tile.index);
+                selectedBattleMoves.includes(tile.index) &&
+                !challengeTargetTiles.includes(tile.index);
               const isChallengeTarget =
                 phase !== "formation" &&
                 challengeTargetTiles.includes(tile.index);
@@ -211,6 +228,24 @@ export function BoardGrid({
               // ── Flag swap: ally highlight ──────────────────────────────────
               const isFlagSwapAlly =
                 phase !== "formation" && flagSwapAllyTiles.includes(tile.index);
+
+              // ── General Charge: extended move highlight ────────────────────
+              const isGeneralChargeTarget =
+                phase !== "formation" &&
+                generalChargeActive &&
+                selectedBattleMoves.includes(tile.index) &&
+                !challengeTargetTiles.includes(tile.index);
+
+              const isGeneralChargeChallengeTarget =
+                phase !== "formation" &&
+                generalChargeActive &&
+                challengeTargetTiles.includes(tile.index);
+
+              // ── 4-Star Push: pushable enemy highlight ──────────────────────
+              const isFourStarPushTarget =
+                phase !== "formation" &&
+                fourStarPushActive &&
+                fourStarPushTargetTiles.includes(tile.index);
 
               const showLastMoveTrail =
                 phase !== "formation" && selectedBattleTileIndex === null;
@@ -249,13 +284,22 @@ export function BoardGrid({
                 battlePiece.ironVeilKnownToPlayer === true;
 
               // ── Spy reveal overlay ──────────────────────────────────────────
-              // Only fires in battle phase on the specific tile the hook chose.
-              // isFaked = true means double-blind swapped in a decoy label —
-              // we render a subtly different tint but never tell the player.
               const isSpyRevealed =
                 phase !== "formation" &&
                 spyReveal != null &&
                 spyReveal.tileIndex === tile.index &&
+                battlePiece?.side === "ai";
+
+              // ── Colonel diagonal reveal ────────────────────────────────────
+              const isColonelDiagonalTarget =
+                phase !== "formation" &&
+                colonelRevealActive &&
+                colonelDiagonalTiles.includes(tile.index);
+
+              const isColonelRevealed =
+                phase !== "formation" &&
+                colonelReveal != null &&
+                colonelReveal.tileIndex === tile.index &&
                 battlePiece?.side === "ai";
 
               // Drag-specific flags
@@ -263,6 +307,10 @@ export function BoardGrid({
                 isDragging && dragOverTileIndex === tile.index && isSetupZone;
               const isDraggingSource =
                 isDragging && draggingFromTile === tile.index;
+
+              // ── Resolve which challenge icon to show ───────────────────────
+              const showChallengeBtn =
+                isChallengeTarget || isGeneralChargeChallengeTarget;
 
               const tileStyle = [
                 styles.tile,
@@ -280,14 +328,27 @@ export function BoardGrid({
                 isTrailFrom && styles.trailFrom,
                 isTrailTo && styles.trailTo,
                 (isMoveSource || isSelectedBattle) && styles.sourceSelected,
-                isBattleTarget && styles.battleTarget,
-                isChallengeTarget && styles.challengeTarget,
+                // Standard battle target (non-charge)
+                !generalChargeActive && isBattleTarget && styles.battleTarget,
+                !generalChargeActive &&
+                  isChallengeTarget &&
+                  styles.challengeTarget,
+                // General Charge targets — distinct purple/violet theming
+                isGeneralChargeTarget && styles.generalChargeTarget,
+                isGeneralChargeChallengeTarget &&
+                  styles.generalChargeChallengeTarget,
                 // Veteran tile: subtle gold shimmer border
                 isPlayerVeteran && styles.veteranTile,
                 // Flag swap ally: brass-gold pulse border
                 isFlagSwapAlly && styles.flagSwapAllyTarget,
                 // Spy reveal: teal border flash (applied last so it wins)
                 isSpyRevealed && styles.spyRevealTile,
+                // Colonel diagonal target: olive-green highlight
+                isColonelDiagonalTarget && styles.colonelDiagonalTarget,
+                // Colonel reveal: olive border flash
+                isColonelRevealed && styles.colonelRevealTile,
+                // 4-Star push target: orange-amber highlight (applied last)
+                isFourStarPushTarget && styles.fourStarPushTarget,
               ];
 
               // ── Formation phase: DropZoneTile ────────────────────────────
@@ -337,7 +398,7 @@ export function BoardGrid({
                         ]}
                         resizeMode="contain"
                       />
-                    ) : isChallengeTarget ? null : (
+                    ) : showChallengeBtn ? null : (
                       <Text
                         style={[
                           styles.pieceText,
@@ -346,7 +407,14 @@ export function BoardGrid({
                           !isHiddenAI &&
                             battlePiece.side === "ai" &&
                             styles.revealedEnemyText,
-                          isChallengeTarget && styles.challengeTargetPieceText,
+                          (isChallengeTarget ||
+                            isGeneralChargeChallengeTarget) &&
+                            styles.challengeTargetPieceText,
+                          // Keep piece text visible on push targets
+                          isFourStarPushTarget && styles.pushTargetPieceText,
+                          // Keep "?" visible on colonel diagonal targets
+                          isColonelDiagonalTarget &&
+                            styles.colonelTargetPieceText,
                         ]}
                       >
                         {visiblePiece}
@@ -385,7 +453,8 @@ export function BoardGrid({
                     />
                   ) : null}
 
-                  {isChallengeTarget ? (
+                  {/* Standard challenge button (non-charge) */}
+                  {isChallengeTarget && !generalChargeActive ? (
                     <TouchableOpacity
                       style={[styles.challengeBtn, { borderRadius: rf(2) }]}
                       onPress={(e) => {
@@ -403,6 +472,34 @@ export function BoardGrid({
                     </TouchableOpacity>
                   ) : null}
 
+                  {/* General Charge challenge button — purple tint */}
+                  {isGeneralChargeChallengeTarget ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.challengeBtn,
+                        styles.chargeChallengeBtnOverride,
+                        { borderRadius: rf(2) },
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        onChallengePress(tile.index);
+                      }}
+                      activeOpacity={0.85}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Image
+                        source={CHALLENGE_ICON}
+                        style={{
+                          width: "84%",
+                          height: "84%",
+                          opacity: 0.98,
+                          tintColor: "#D4AAFF",
+                        }}
+                        resizeMode="contain"
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+
                   {/* Flag swap ally indicator — small swap icon overlay */}
                   {isFlagSwapAlly ? (
                     <View style={styles.swapIndicator} pointerEvents="none">
@@ -412,11 +509,41 @@ export function BoardGrid({
                     </View>
                   ) : null}
 
+                  {/* General Charge move indicator — lightning bolt on empty tiles */}
+                  {isGeneralChargeTarget && !battlePiece ? (
+                    <View style={styles.chargeIndicator} pointerEvents="none">
+                      <Text style={[styles.chargeIcon, { fontSize: rf(9) }]}>
+                        ⚡
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* 4-Star Push target indicator — fist icon on pushable enemies */}
+                  {isFourStarPushTarget ? (
+                    <View style={styles.pushIndicator} pointerEvents="none">
+                      <Text style={[styles.pushIcon, { fontSize: rf(8) }]}>
+                        ✊
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Colonel diagonal target indicator — telescope on
+                      highlighted enemy tiles (rank is hidden until tapped) */}
+                  {isColonelDiagonalTarget && battlePiece ? (
+                    <View
+                      style={styles.colonelTargetIndicator}
+                      pointerEvents="none"
+                    >
+                      <Text
+                        style={[styles.colonelTargetIcon, { fontSize: rf(8) }]}
+                      >
+                        🔭
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {/* ── Spy reveal overlay ────────────────────────────────────
-                      Sits on top of everything for exactly 1.5 s.
-                      isFaked tiles (double-blind) use an olive tint instead of
-                      teal — same ambiguity principle: no tooltip, just a vague
-                      colour shift a sharp player might notice. */}
+                      Sits on top of everything for exactly 1.5 s. */}
                   {isSpyRevealed && spyReveal ? (
                     <View
                       style={[
@@ -433,6 +560,24 @@ export function BoardGrid({
                         ]}
                       >
                         {spyReveal.shortLabel}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* ── Colonel reveal overlay ────────────────────────────────
+                      Shows true rank for 1.5 s when Field Scope is used. */}
+                  {isColonelRevealed && colonelReveal ? (
+                    <View
+                      style={styles.colonelRevealOverlay}
+                      pointerEvents="none"
+                    >
+                      <Text
+                        style={[
+                          styles.colonelRevealLabel,
+                          { fontSize: rf(10) },
+                        ]}
+                      >
+                        {colonelReveal.shortLabel}
                       </Text>
                     </View>
                   ) : null}
@@ -507,7 +652,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#2B1C14",
     borderColor: appTheme.colors.brassBright,
   },
-  // ── Veteran tile: subtle gold shimmer border ─────────────────────────────────
   veteranTile: {
     borderColor: "#F0C040",
     borderWidth: appTheme.borderWidth.thick,
@@ -517,7 +661,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
   },
-  // ── Flag swap ally: brass-gold pulse border ──────────────────────────────────
   flagSwapAllyTarget: {
     borderColor: appTheme.colors.brassBright,
     borderWidth: appTheme.borderWidth.thick,
@@ -528,11 +671,61 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
   },
-  // ── Spy reveal tile border: teal flash ──────────────────────────────────────
   spyRevealTile: {
     borderColor: "#4EC9A8",
     borderWidth: appTheme.borderWidth.thick,
     shadowColor: "#4EC9A8",
+    shadowOpacity: 0.55,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
+  },
+  generalChargeTarget: {
+    borderColor: "#A070FF",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(140, 80, 255, 0.16)",
+    shadowColor: "#A070FF",
+    shadowOpacity: 0.38,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  generalChargeChallengeTarget: {
+    borderColor: "#C0A0FF",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(100, 40, 200, 0.28)",
+    shadowColor: "#C0A0FF",
+    shadowOpacity: 0.52,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
+  },
+  // ── 4-Star Push target: orange-amber highlight ───────────────────────────────
+  fourStarPushTarget: {
+    borderColor: "#FF9020",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(255, 144, 32, 0.20)",
+    shadowColor: "#FF9020",
+    shadowOpacity: 0.45,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  // ── Colonel diagonal target: olive-green highlight ───────────────────────────
+  colonelDiagonalTarget: {
+    borderColor: "#A0B840",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(160, 184, 64, 0.20)",
+    shadowColor: "#A0B840",
+    shadowOpacity: 0.45,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  colonelRevealTile: {
+    borderColor: "#C8E050",
+    borderWidth: appTheme.borderWidth.thick,
+    shadowColor: "#C8E050",
     shadowOpacity: 0.55,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },
@@ -558,7 +751,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.2,
   },
-  // ── Veteran badge: bottom-left gold star pill ────────────────────────────────
   veteranBadge: {
     position: "absolute",
     bottom: 2,
@@ -583,7 +775,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 12,
   },
-  // ── Swap indicator overlay (⇄ icon inside ally tile) ────────────────────────
   swapIndicator: {
     position: "absolute",
     bottom: 2,
@@ -596,10 +787,45 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 12,
   },
-  // ── Spy reveal overlay ────────────────────────────────────────────────────────
+  chargeIndicator: {
+    position: "absolute",
+    bottom: 1,
+    right: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chargeIcon: {
+    color: "#C0A0FF",
+    fontWeight: "700",
+    lineHeight: 12,
+  },
+  // ── 4-Star Push indicator overlay (✊ on pushable enemy tiles) ───────────────
+  pushIndicator: {
+    position: "absolute",
+    bottom: 1,
+    right: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pushIcon: {
+    color: "#FF9020",
+    fontWeight: "700",
+    lineHeight: 12,
+  },
+  // ── Colonel diagonal target indicator (🔭 on selectable enemy tiles) ─────────
+  colonelTargetIndicator: {
+    position: "absolute",
+    bottom: 1,
+    right: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  colonelTargetIcon: {
+    lineHeight: 12,
+  },
   spyRevealOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10, 60, 45, 0.88)", // dark teal — true rank
+    backgroundColor: "rgba(10, 60, 45, 0.88)",
     borderWidth: 2,
     borderColor: "#4EC9A8",
     borderRadius: 4,
@@ -608,7 +834,6 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   spyRevealOverlayFaked: {
-    // double-blind decoy: olive-teal shift — ambiguous by design, no tooltip
     backgroundColor: "rgba(40, 50, 20, 0.88)",
     borderColor: "#A8C94E",
   },
@@ -620,7 +845,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   spyRevealLabelFaked: {
-    color: "#A8C94E", // olive tint for the decoy label
+    color: "#A8C94E",
+  },
+  // ── Colonel reveal overlay ────────────────────────────────────────────────────
+  colonelRevealOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(20, 30, 5, 0.88)",
+    borderWidth: 2,
+    borderColor: "#A0B840",
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 20,
+  },
+  colonelRevealLabel: {
+    color: "#C8E050",
+    fontFamily: appTheme.fonts.body,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textAlign: "center",
   },
   aiTileHidden: { backgroundColor: "#1A0008", borderColor: "#7A2A3A" },
   aiTileRevealed: { backgroundColor: "#750012", borderColor: "#E0B55D" },
@@ -668,6 +911,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 10,
   },
+  chargeChallengeBtnOverride: {
+    backgroundColor: "rgba(80, 20, 140, 0.45)",
+    borderColor: "#C0A0FF",
+  },
   pieceText: {
     color: appTheme.colors.ink,
     fontFamily: appTheme.fonts.body,
@@ -688,12 +935,27 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
     textShadowOffset: { width: 0, height: 1 },
   },
+  // Keeps the "?" label readable on the orange push-target background
+  pushTargetPieceText: {
+    color: "#FFE0B0",
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
+  },
+  // Keeps the "?" label readable on the olive colonel-target background
+  colonelTargetPieceText: {
+    color: "#E8F0B0",
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
+  },
   hint: {
     color: appTheme.surfaces.instruction.textColor,
     fontFamily: appTheme.fonts.body,
     textAlign: "center",
   },
-  // ── Drag & drop ──────────────────────────────────────────────────────────────
   dropZoneHovered: {
     borderColor: appTheme.colors.brassBright,
     borderWidth: appTheme.borderWidth.thick,

@@ -150,6 +150,101 @@ function hasTwoSquareLeadFromEndzone(
     });
 }
 
+// ─── General Charge extended moves ───────────────────────────────────────────
+
+/**
+ * Returns all legal destination tile indices for the 5-Star General's
+ * "Charge" ability from a given tile.
+ *
+ * Rules (confirmed by designer):
+ *  - Up to 2 steps in any of the 8 directions (orthogonal + diagonal).
+ *  - 1-step destinations follow the same rules as normal movement:
+ *      blocked if occupied by an ally; challengeable if occupied by an enemy.
+ *  - 2-step destinations: the General CAN jump over any piece occupying the
+ *      intermediate tile (no blocking). The 2-step tile is valid unless it
+ *      is occupied by an allied piece.
+ *  - A tile occupied by an enemy is a valid destination (triggers a challenge).
+ *  - The General's own tile is never included.
+ *
+ * Returns an object with two separate sets so the caller can distinguish
+ * "normal reach" tiles (step 1) from "extended reach" tiles (step 2 only),
+ * and also which of those are enemy-occupied (challenge targets).
+ */
+export function getGeneralChargeMoves(
+  board: Record<number, BoardPiece>,
+  fromTileIndex: number,
+  side: Side,
+): {
+  /** All valid destination tile indices (1-step and 2-step combined) */
+  allDestinations: number[];
+  /** Subset of allDestinations that land on an enemy piece */
+  challengeDestinations: number[];
+} {
+  const ALL_DIRECTIONS = [
+    { x: 1, y: 0 }, // right
+    { x: -1, y: 0 }, // left
+    { x: 0, y: 1 }, // down
+    { x: 0, y: -1 }, // up
+    { x: 1, y: 1 }, // down-right (diagonal)
+    { x: -1, y: 1 }, // down-left  (diagonal)
+    { x: 1, y: -1 }, // up-right   (diagonal)
+    { x: -1, y: -1 }, // up-left    (diagonal)
+  ];
+
+  const fromRow = getTileRow(fromTileIndex);
+  const fromCol = getTileColumn(fromTileIndex);
+  const opponent: Side = side === "player" ? "ai" : "player";
+
+  const destinations = new Set<number>();
+  const challenges = new Set<number>();
+
+  ALL_DIRECTIONS.forEach((dir) => {
+    // ── Step 1 ────────────────────────────────────────────────────────────
+    const r1 = fromRow + dir.y;
+    const c1 = fromCol + dir.x;
+    if (!isInsideBoard(r1, c1)) return; // off-board: skip this direction entirely
+
+    const tile1 = getTileIndex(r1, c1);
+    const occupant1 = board[tile1];
+
+    if (!occupant1) {
+      // Empty — valid destination
+      destinations.add(tile1);
+    } else if (occupant1.side === opponent) {
+      // Enemy — valid challenge destination
+      destinations.add(tile1);
+      challenges.add(tile1);
+      // Do NOT stop here for step 2 — the General can jump over this piece
+    } else {
+      // Ally at step 1 — cannot land here; but can still jump over for step 2
+    }
+
+    // ── Step 2 ────────────────────────────────────────────────────────────
+    // The General can always jump over whatever is (or isn't) at step 1.
+    const r2 = fromRow + dir.y * 2;
+    const c2 = fromCol + dir.x * 2;
+    if (!isInsideBoard(r2, c2)) return; // step-2 tile is off-board
+
+    const tile2 = getTileIndex(r2, c2);
+    const occupant2 = board[tile2];
+
+    if (!occupant2) {
+      // Empty — valid destination
+      destinations.add(tile2);
+    } else if (occupant2.side === opponent) {
+      // Enemy — valid challenge destination
+      destinations.add(tile2);
+      challenges.add(tile2);
+    }
+    // Ally at step 2 — blocked, do not add
+  });
+
+  return {
+    allDestinations: Array.from(destinations),
+    challengeDestinations: Array.from(challenges),
+  };
+}
+
 // ─── Combat ───────────────────────────────────────────────────────────────────
 
 export function compareCombat(
@@ -701,4 +796,94 @@ export function isPrivatePiece(
   pieceById: Record<string, PieceDefinition>,
 ): boolean {
   return pieceById[pieceId]?.label === "Private";
+}
+
+/**
+ * Returns true when the given piece is the 5-Star General.
+ */
+export function isFiveStarGeneralPiece(
+  pieceId: string,
+  pieceById: Record<string, PieceDefinition>,
+): boolean {
+  return pieceById[pieceId]?.label === "5 Star\nGeneral";
+}
+
+export function getPushableTiles(
+  board: Record<number, BoardPiece>,
+  generalTileIndex: number,
+  side: Side,
+): number[] {
+  const opponent: Side = side === "player" ? "ai" : "player";
+  const fromRow = getTileRow(generalTileIndex);
+  const fromCol = getTileColumn(generalTileIndex);
+  const pushable: number[] = [];
+
+  ORTHOGONAL_DIRECTIONS.forEach((dir) => {
+    // Step 1 — the adjacent tile
+    const adjRow = fromRow + dir.y;
+    const adjCol = fromCol + dir.x;
+    if (!isInsideBoard(adjRow, adjCol)) return;
+
+    const adjTile = getTileIndex(adjRow, adjCol);
+    const occupant = board[adjTile];
+
+    // Must be an enemy piece
+    if (!occupant || occupant.side !== opponent) return;
+
+    // Step 2 — the landing tile (one further step behind the enemy)
+    const landRow = adjRow + dir.y;
+    const landCol = adjCol + dir.x;
+    if (!isInsideBoard(landRow, landCol)) return; // off board — blocked
+
+    const landTile = getTileIndex(landRow, landCol);
+    if (board[landTile]) return; // occupied — blocked
+
+    pushable.push(adjTile);
+  });
+
+  return pushable;
+}
+
+export function applyFourStarPush(
+  board: Record<number, BoardPiece>,
+  generalTileIndex: number,
+  enemyTileIndex: number,
+  side: Side,
+  pieceById: Record<string, PieceDefinition>,
+): BattleResolution {
+  const generalRow = getTileRow(generalTileIndex);
+  const generalCol = getTileColumn(generalTileIndex);
+  const enemyRow = getTileRow(enemyTileIndex);
+  const enemyCol = getTileColumn(enemyTileIndex);
+
+  // Direction vector from General → enemy
+  const dirY = enemyRow - generalRow; // -1, 0, or 1
+  const dirX = enemyCol - generalCol; // -1, 0, or 1
+
+  const landRow = enemyRow + dirY;
+  const landCol = enemyCol + dirX;
+  const landTile = getTileIndex(landRow, landCol);
+
+  const nextBoard = { ...board };
+  const pushedPiece = { ...nextBoard[enemyTileIndex] };
+
+  // Move enemy to the landing tile; vacate its old tile
+  delete nextBoard[enemyTileIndex];
+  nextBoard[landTile] = pushedPiece;
+
+  const isPlayerMove = side === "player";
+  const pushedName = formatPieceName(pushedPiece.pieceId, pieceById);
+
+  const message = isPlayerMove
+    ? `Iron Shove! Your 4-Star General forced an enemy ${pushedName} back 1 square.`
+    : `Iron Shove! Enemy 4-Star General pushed your ${pushedName} back 1 square.`;
+
+  return {
+    board: nextBoard,
+    winner: null,
+    message,
+    revealMessage: null,
+    capturedByPlayer: [],
+    capturedByAI: [],
+  };
 }

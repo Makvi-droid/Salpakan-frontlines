@@ -8,16 +8,16 @@ import { UpgradeRollModal } from "@/components/UpgradeRollModal";
 import { appTheme } from "@/constants/theme";
 import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
 import { AIAbilityNotification } from "../components/AIAbilityNotification";
+import { AbilityPanel } from "../components/AbilityPanel";
 import { BattleInfoPanel } from "../components/BattleInfoPanel";
 import { BoardGrid } from "../components/BoardGrid";
 import { ChallengeModal } from "../components/ChallengeModal";
 import { CrateChoiceModal } from "../components/CrateChoiceModal";
-import { FlagAbilityButton } from "../components/FlagAbilityButton";
 import { FormationControls } from "../components/FormationControls";
 import { GameModals } from "../components/GameModals";
 import { KamikazeModal } from "../components/KamikazeModal";
-import { SpyAbilityButton } from "../components/SpyAbilityButton";
 import { StatusBox } from "../components/StatusBox";
+import { ThreeStarPassiveModal } from "../components/ThreeStarPassiveModal";
 import { TopMenuRow } from "../components/TopMenuRow";
 import { UpgradeActivationModal } from "../components/UpgradeActivationModal";
 import { VeteranPromoModal } from "../components/VeteranPromoModal";
@@ -98,11 +98,17 @@ export default function GameScreen() {
       ? "Tip: tap a placed unit to move it, or double tap it to return it to reserve."
       : game.flagSwapActive
         ? "Tap a highlighted ally to swap it with your Flag, or tap elsewhere to cancel."
-        : game.aiThinking
-          ? `${game.aiProfile.label} is reading the field...`
-          : game.turn === "player"
-            ? "Tap your piece, then tap an adjacent tile to move or attack."
-            : "Hold position while the enemy acts.";
+        : game.fourStarPushActive
+          ? "Tap a highlighted enemy to push it back 1 square, or tap elsewhere to cancel."
+          : game.colonelRevealActive
+            ? "Tap a highlighted diagonal enemy to reveal their rank, or tap elsewhere to cancel."
+            : game.generalChargeActive
+              ? "Tap a highlighted tile to charge there, or tap elsewhere to cancel."
+              : game.aiThinking
+                ? `${game.aiProfile.label} is reading the field...`
+                : game.turn === "player"
+                  ? "Tap your piece, then tap an adjacent tile to move or attack."
+                  : "Hold position while the enemy acts.";
 
   const handleLeftAction = () => {
     if (game.phase === "ended") {
@@ -122,10 +128,9 @@ export default function GameScreen() {
   };
 
   return (
-    // GestureHandlerRootView is required by react-native-gesture-handler.
-    // It must wrap the entire screen for gesture recognition to work correctly.
     <GestureHandlerRootView style={styles.gestureRoot}>
       <View style={styles.safeArea}>
+        {/* BG elements */}
         <View
           style={[
             styles.bgFog,
@@ -214,12 +219,15 @@ export default function GameScreen() {
               rf={rf}
               rs={rs}
               rsv={rsv}
-              // ── flag swap props ─────────────────────────────────────────
               flagSwapAllyTiles={game.flagSwapAllyTiles}
               flagSwapActive={game.flagSwapActive}
-              // ── spy reveal prop ─────────────────────────────────────────
               spyReveal={game.spyReveal}
-              // ── drag props ──────────────────────────────────────────────
+              colonelReveal={game.colonelRevealResult}
+              colonelRevealActive={game.colonelRevealActive}
+              colonelDiagonalTiles={game.colonelDiagonalTiles}
+              generalChargeActive={game.generalChargeActive}
+              fourStarPushActive={game.fourStarPushActive}
+              fourStarPushTargetTiles={game.fourStarPushTargetTiles}
               draggingPieceId={game.draggingPieceId}
               draggingFromTile={game.draggingFromTile}
               dragOverTileIndex={game.dragOverTileIndex}
@@ -255,31 +263,51 @@ export default function GameScreen() {
               />
             ) : (
               <>
-                {/* ── Flag ability button ─────────────────────────────────── */}
-                <FlagAbilityButton
-                  visible={!!game.selectedPieceIsFlag && !game.winner}
-                  active={game.flagSwapActive}
-                  cooldownUntil={game.flagSwapCooldownUntil}
+                <AbilityPanel
+                  selectedPieceIsFlag={!!game.selectedPieceIsFlag}
+                  selectedPieceIsSpy={!!game.selectedPieceIsSpy}
+                  selectedPieceIsGeneralFiveStar={
+                    !!game.selectedPieceIsGeneralFiveStar
+                  }
+                  selectedPieceIsGeneralFourStar={
+                    !!game.selectedPieceIsGeneralFourStar
+                  }
+                  selectedPieceIsColonel={!!game.selectedPieceIsColonel}
+                  winner={!!game.winner}
+                  flagSwapActive={game.flagSwapActive}
+                  flagSwapCooldownUntil={game.flagSwapCooldownUntil}
+                  onFlagPress={() =>
+                    game.flagSwapActive
+                      ? game.cancelFlagSwap()
+                      : game.activateFlagSwap()
+                  }
+                  spyRevealCooldownUntil={game.spyRevealCooldownUntil}
+                  onSpyPress={game.activateSpyReveal}
+                  generalChargeActive={game.generalChargeActive}
+                  generalChargeCooldownUntil={game.generalChargeCooldownUntil}
+                  onGeneralPress={() =>
+                    game.generalChargeActive
+                      ? game.cancelGeneralCharge()
+                      : game.activateGeneralCharge()
+                  }
+                  fourStarPushActive={game.fourStarPushActive}
+                  fourStarPushCooldownUntil={game.fourStarPushCooldownUntil}
+                  onFourStarPushPress={() =>
+                    game.fourStarPushActive
+                      ? game.cancelFourStarPush()
+                      : game.activateFourStarPush()
+                  }
+                  colonelRevealActive={game.colonelRevealActive}
+                  colonelRevealCooldownUntil={game.colonelRevealCooldownUntil}
+                  onColonelPress={() =>
+                    game.colonelRevealActive
+                      ? game.cancelColonelReveal()
+                      : game.activateColonelReveal()
+                  }
+                  verticalSectionGap={verticalSectionGap}
                   rf={rf}
                   rs={rs}
                   rsv={rsv}
-                  onPress={() => {
-                    if (game.flagSwapActive) {
-                      game.cancelFlagSwap();
-                    } else {
-                      game.activateFlagSwap();
-                    }
-                  }}
-                />
-
-                {/* ── Spy ability button ──────────────────────────────────── */}
-                <SpyAbilityButton
-                  visible={!!game.selectedPieceIsSpy && !game.winner}
-                  cooldownUntil={game.spyRevealCooldownUntil}
-                  rf={rf}
-                  rs={rs}
-                  rsv={rsv}
-                  onPress={game.activateSpyReveal}
                 />
 
                 <BattleInfoPanel
@@ -304,6 +332,7 @@ export default function GameScreen() {
           </View>
         </ScreenShell>
 
+        {/* ── Modals ─────────────────────────────────────────────────────────── */}
         <GameModals
           phase={game.phase}
           winner={game.winner}
@@ -322,7 +351,6 @@ export default function GameScreen() {
           onRetryMatch={game.handleRetryMatch}
           onReturnToMenu={game.returnToMainMenu}
         />
-
         <UpgradeActivationModal
           event={game.pendingUpgradeActivation}
           insets={insets}
@@ -332,7 +360,6 @@ export default function GameScreen() {
           rsv={rsv}
           onConfirm={game.handleUpgradeActivationConfirm}
         />
-
         <ChallengeModal
           event={game.pendingChallenge}
           insets={insets}
@@ -342,7 +369,6 @@ export default function GameScreen() {
           rsv={rsv}
           onDismiss={game.handleChallengeDismiss}
         />
-
         <UpgradeRollModal
           event={game.pendingUpgradeRoll}
           insets={insets}
@@ -352,7 +378,6 @@ export default function GameScreen() {
           rsv={rsv}
           onDismiss={game.handleUpgradeRollDismiss}
         />
-
         <CrateChoiceModal
           event={
             game.pendingCrateChoice
@@ -370,8 +395,6 @@ export default function GameScreen() {
           onTake={game.handleCrateChoiceTake}
           onDestroy={game.handleCrateChoiceDestroy}
         />
-
-        {/* ── Kamikaze Modal ──────────────────────────────────────────────── */}
         <KamikazeModal
           event={game.pendingKamikaze}
           insets={insets}
@@ -382,8 +405,6 @@ export default function GameScreen() {
           onConfirm={game.handleKamikazeConfirm}
           onDecline={game.handleKamikazeDecline}
         />
-
-        {/* ── Veteran Promo Modal ─────────────────────────────────────────── */}
         <VeteranPromoModal
           event={game.pendingVeteranPromo}
           insets={insets}
@@ -393,8 +414,20 @@ export default function GameScreen() {
           rsv={rsv}
           onDismiss={game.handleVeteranPromoDismiss}
         />
-
-        {/* ── AI ability notification ─────────────────────────────────────── */}
+        {/* 3-Star General Last Stand passive notification */}
+        <ThreeStarPassiveModal
+          event={
+            game.pendingThreeStarPassive
+              ? game.pendingThreeStarPassive.event
+              : null
+          }
+          insets={insets}
+          width={width}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onDismiss={game.handleThreeStarPassiveDismiss}
+        />
         <AIAbilityNotification
           visible={game.aiSpyRevealNotifVisible}
           rf={rf}
@@ -407,14 +440,10 @@ export default function GameScreen() {
 }
 
 const styles = StyleSheet.create({
-  // GestureHandlerRootView must be flex: 1 to fill the screen
   gestureRoot: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: appTheme.colors.background },
   bgFog: { position: "absolute", backgroundColor: "rgba(199, 163, 84, 0.12)" },
-  bgEmber: {
-    position: "absolute",
-    backgroundColor: "rgba(180, 67, 52, 0.18)",
-  },
+  bgEmber: { position: "absolute", backgroundColor: "rgba(180, 67, 52, 0.18)" },
   pageFrame: { flex: 1, alignItems: "center" },
   container: { width: "100%", alignItems: "center", flex: 1 },
 });
