@@ -152,13 +152,41 @@ export function scoreAIMove(
   );
 }
 
+/**
+ * Choose the best legal move for the AI given its profile.
+ *
+ * @param isTileStunned      - Optional. Returns true when a tile's piece is
+ *                             stunned and cannot move this turn (Lt. Colonel).
+ * @param isBackwardMoveBlocked - Optional. Returns true when a move is blocked
+ *                             by a Hold the Line restriction (2-Star General).
+ *                             Both the AI's own pieces (restricted by the
+ *                             player's 2-Star General) and the player's pieces
+ *                             are filtered through this callback.
+ */
 export function chooseMoveForProfile(
   board: Record<number, BoardPiece>,
   profile: AIProfile,
   pieceById: Record<string, PieceDefinition>,
   crateTiles: number[] = [],
+  isTileStunned?: (tileIndex: number) => boolean,
+  isBackwardMoveBlocked?: (from: number, to: number, side: Side) => boolean,
 ): BattleMove | null {
-  const legalMoves = getLegalMoves(board, "ai", pieceById);
+  const allLegalMoves = getLegalMoves(board, "ai", pieceById);
+
+  // ── Filter out moves originating from stunned tiles ──────────────────────
+  let legalMoves = isTileStunned
+    ? allLegalMoves.filter((m) => !isTileStunned(m.from))
+    : allLegalMoves;
+
+  // ── Filter out backward moves blocked by Hold the Line ───────────────────
+  // This covers AI pieces that have been restricted by the player's
+  // 2-Star General ability.
+  if (isBackwardMoveBlocked) {
+    legalMoves = legalMoves.filter(
+      (m) => !isBackwardMoveBlocked(m.from, m.to, "ai"),
+    );
+  }
+
   if (legalMoves.length === 0) return null;
   const crateTileSet = new Set(crateTiles);
 

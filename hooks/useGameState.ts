@@ -23,14 +23,19 @@ import type {
 
 import { useAITurn } from "./useAITurn";
 import { useBattleResolution } from "./useBattleResolution";
+import { useCaptainScan } from "./useCaptainScan";
 import { useColonelReveal } from "./useColonelReveal";
 import { useFlagSwap } from "./useFlagSwap";
 import { useFourStarPush } from "./useFourStarPush";
 import { useGeneralCharge } from "./useGeneralCharge";
 import { useKamikaze } from "./useKamikaze";
+import { useLtColonelStun } from "./useLtColonelStun";
+import { useMajorSwap } from "./useMajorSwap";
+import { useOneStarGeneral } from "./useOneStarGeneral";
 import { usePlacement } from "./usePlacement";
 import { useSpyReveal } from "./useSpyReveal";
 import { useThreeStarPassive } from "./useThreeStarPassive";
+import { useTwoStarGeneral } from "./useTwoStarGeneral";
 import { useVeteranPromo } from "./useVeteranPromo";
 
 /** Hook that owns all game state and exposes handlers to the screen. */
@@ -102,6 +107,12 @@ export function useGameState(difficulty: Difficulty) {
     return pool[Math.floor(Math.random() * pool.length)];
   };
 
+  // ── 1-Star General sub-hook ──────────────────────────────────────────────────
+  const oneStarGeneral = useOneStarGeneral({ pieceById });
+
+  // ── 2-Star General sub-hook ──────────────────────────────────────────────────
+  const twoStarGeneral = useTwoStarGeneral({ pieceById });
+
   // ── Battle resolution sub-hook ───────────────────────────────────────────────
   const resolution = useBattleResolution({
     pieceById,
@@ -124,15 +135,48 @@ export function useGameState(difficulty: Difficulty) {
     onSelectedBattleTileIndex: setSelectedBattleTileIndex,
     onPendingUpgradeRoll: setPendingUpgradeRoll,
     checkAndQueueVeteranPromo: veteran.checkAndQueueVeteranPromo,
+    onOneStarGeneralWin: (generalTileIndex, winningSide) => {
+      if (winningSide === "player" && oneStarGeneral.isPlayerOnCooldown()) {
+        setTurn(winningSide === "player" ? "ai" : "player");
+        return;
+      }
+      if (winningSide === "ai" && oneStarGeneral.isAIOnCooldown()) {
+        setTurn("player");
+        return;
+      }
+      oneStarGeneral.queueBonusMove(generalTileIndex, winningSide);
+    },
   });
 
-  // Wrap applyResolution to close over the current crateByTile
+  // Wrap applyResolution to close over the current crateByTile AND to
+  // decrement the Hold the Line restriction counters after every half-turn.
   const applyResolution = (
     res: any,
     nextTurn: Side,
     from?: number,
     to?: number,
   ) => {
+    // If the move involved a piece that is under a Hold restriction, migrate
+    // the restriction to the new tile (piece moved but is still restricted).
+    if (from !== undefined && to !== undefined) {
+      twoStarGeneral.decrementRestrictions(from, to);
+    } else {
+      twoStarGeneral.decrementRestrictions();
+    }
+
+    // Also clean up any restriction on captured pieces.
+    // Pieces that were on `from` (moved away) or `to` (overwritten by
+    // attacker win, or both deleted in a draw) may need pruning.
+    // The hook handles missing keys gracefully, so a blanket call is safe.
+    // We check the next board state: if either tile no longer exists, remove.
+    const nextBoard: Record<number, BoardPiece> = res.board ?? {};
+    if (from !== undefined && !nextBoard[from]) {
+      twoStarGeneral.removeRestrictionForTile(from);
+    }
+    if (to !== undefined && !nextBoard[to]) {
+      twoStarGeneral.removeRestrictionForTile(to);
+    }
+
     resolution.applyResolution(res, nextTurn, resolution.crateByTile, from, to);
   };
 
@@ -162,6 +206,15 @@ export function useGameState(difficulty: Difficulty) {
   // ── 3-Star General Last Stand sub-hook ──────────────────────────────────────
   const threeStarPassive = useThreeStarPassive({ pieceById });
 
+  // ── Lt. Colonel Stun sub-hook ────────────────────────────────────────────────
+  const ltColonelStun = useLtColonelStun({ pieceById });
+
+  // ── Major Swap sub-hook ──────────────────────────────────────────────────────
+  const majorSwap = useMajorSwap({ pieceById });
+
+  // ── Captain Scan sub-hook ────────────────────────────────────────────────────
+  const captainScan = useCaptainScan({ pieceById });
+
   // ── AI turn sub-hook ─────────────────────────────────────────────────────────
   useAITurn({
     phase,
@@ -181,21 +234,50 @@ export function useGameState(difficulty: Difficulty) {
     pendingKamikaze: kamikaze.pendingKamikaze,
     pendingVeteranPromo: veteran.pendingVeteranPromo,
     pendingThreeStarPassive: threeStarPassive.pendingThreeStarPassive,
-    // ── flag swap cooldown wiring ────────────────────────────────────────────
+    pendingOneStarBonusMove: oneStarGeneral.pendingBonusMove,
     aiFlagSwapCooldownUntil: flagSwap.aiCooldownUntil,
     onStartAIFlagSwapCooldown: flagSwap.startAICooldown,
-    // ── spy reveal wiring ────────────────────────────────────────────────────
     aiSpyCooldownUntil: spyReveal.aiCooldownUntil,
     onTryAISpyReveal: spyReveal.tryAISpyReveal,
-    // ── general charge wiring ────────────────────────────────────────────────
     aiGeneralChargeCooldownUntil: generalCharge.aiCooldownUntil,
     onStartAIGeneralChargeCooldown: generalCharge.startAICooldown,
     isAIGeneralChargeOnCooldown: generalCharge.isAIOnCooldown,
-    // ── 3-star general last stand wiring ────────────────────────────────────
     shouldInterceptThreeStarPassive:
       threeStarPassive.shouldInterceptThreeStarPassive,
     onQueueThreeStarPassive: threeStarPassive.queueThreeStarPassive,
+    isTileStunned: ltColonelStun.isTileStunned,
+    onClearStuns: ltColonelStun.clearStuns,
+    // ── 2-Star General: Hold the Line wiring ────────────────────────────────
+    aiTwoStarCooldownUntil: twoStarGeneral.aiCooldownUntil,
+    isAITwoStarOnCooldown: twoStarGeneral.isAIOnCooldown,
+    onApplyAIHoldRestriction: twoStarGeneral.applyAIHoldRestriction,
+    onStartAITwoStarCooldown: twoStarGeneral.startAICooldown,
+    isBackwardMoveBlocked: twoStarGeneral.isBackwardMoveBlocked,
     // ────────────────────────────────────────────────────────────────────────
+    oneStarGeneralAICooldownUntil: oneStarGeneral.aiCooldownUntil,
+    onAIOneStarBonusMove: (board, generalTileIndex) => {
+      if (oneStarGeneral.isAIOnCooldown()) return;
+      const bonusTiles = oneStarGeneral.getBonusMoveTiles(
+        board,
+        generalTileIndex,
+      );
+      if (bonusTiles.length === 0) {
+        oneStarGeneral.startAICooldown();
+        return;
+      }
+      const bestTile = bonusTiles.reduce((best, ti) => (ti < best ? ti : best));
+      const nextBoard = oneStarGeneral.applyBonusMove(
+        board,
+        generalTileIndex,
+        bestTile,
+      );
+      setBattleBoard(nextBoard);
+      setBattleMessage(
+        "Press the Advantage! The enemy 1-Star General made a bonus move.",
+      );
+      oneStarGeneral.startAICooldown();
+      setTurn("player");
+    },
     shouldInterceptKamikaze: kamikaze.shouldInterceptKamikaze,
     onApplyResolution: applyResolution,
     onPendingChallenge: setPendingChallenge,
@@ -225,6 +307,9 @@ export function useGameState(difficulty: Difficulty) {
     }
     return getLegalMoves(battleBoard, "player", pieceById)
       .filter((m) => m.from === selectedBattleTileIndex)
+      .filter(
+        (m) => !twoStarGeneral.isBackwardMoveBlocked(m.from, m.to, "player"),
+      )
       .map((m) => m.to);
   }, [
     battleBoard,
@@ -233,6 +318,8 @@ export function useGameState(difficulty: Difficulty) {
     selectedBattleTileIndex,
     generalCharge.generalChargeActive,
     generalCharge.isPlayerFiveStarGeneral,
+    twoStarGeneral.isBackwardMoveBlocked,
+    twoStarGeneral.restrictions,
   ]);
 
   const challengeTargetTiles = useMemo(() => {
@@ -315,7 +402,6 @@ export function useGameState(difficulty: Difficulty) {
     colonelReveal.isPlayerColonelPiece,
   ]);
 
-  // Diagonal enemy tiles driven by current Colonel selection + active mode
   const colonelDiagonalTiles = useMemo(() => {
     if (!colonelReveal.colonelRevealActive) return [];
     if (selectedBattleTileIndex === null) return [];
@@ -326,6 +412,66 @@ export function useGameState(difficulty: Difficulty) {
   }, [
     colonelReveal.colonelRevealActive,
     colonelReveal.getDiagonalEnemyTiles,
+    battleBoard,
+    selectedBattleTileIndex,
+  ]);
+
+  // ── Lt. Colonel stun derived values ─────────────────────────────────────────
+  const selectedPieceIsLtColonel = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    if (turn !== "player" || !!winner) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return ltColonelStun.isPlayerLtColonelPiece(piece);
+  }, [
+    phase,
+    turn,
+    winner,
+    selectedBattleTileIndex,
+    battleBoard,
+    ltColonelStun.isPlayerLtColonelPiece,
+  ]);
+
+  const ltColonelDiagonalTiles = useMemo(() => {
+    if (!ltColonelStun.ltColonelStunActive) return [];
+    if (selectedBattleTileIndex === null) return [];
+    return ltColonelStun.getDiagonalEnemyTiles(
+      battleBoard,
+      selectedBattleTileIndex,
+    );
+  }, [
+    ltColonelStun.ltColonelStunActive,
+    ltColonelStun.getDiagonalEnemyTiles,
+    battleBoard,
+    selectedBattleTileIndex,
+  ]);
+
+  // ── Major swap derived values ────────────────────────────────────────────────
+  const selectedPieceIsMajor = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    if (turn !== "player" || !!winner) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return majorSwap.isPlayerMajorPiece(piece);
+  }, [
+    phase,
+    turn,
+    winner,
+    selectedBattleTileIndex,
+    battleBoard,
+    majorSwap.isPlayerMajorPiece,
+  ]);
+
+  const majorSwapAllyTiles = useMemo(() => {
+    if (!majorSwap.majorSwapActive) return [];
+    if (selectedBattleTileIndex === null) return [];
+    return majorSwap.getOrthogonalAllyTiles(
+      battleBoard,
+      selectedBattleTileIndex,
+    );
+  }, [
+    majorSwap.majorSwapActive,
+    majorSwap.getOrthogonalAllyTiles,
     battleBoard,
     selectedBattleTileIndex,
   ]);
@@ -373,9 +519,89 @@ export function useGameState(difficulty: Difficulty) {
     battleBoard,
   ]);
 
+  // ── Captain scan derived values ──────────────────────────────────────────────
+  const selectedPieceIsCaptain = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    if (turn !== "player" || !!winner) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return captainScan.isPlayerCaptainPiece(piece);
+  }, [
+    phase,
+    turn,
+    winner,
+    selectedBattleTileIndex,
+    battleBoard,
+    captainScan.isPlayerCaptainPiece,
+  ]);
+
+  // ── 1-Star General derived values ────────────────────────────────────────────
+  const selectedPieceIsOneStarGeneral = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    if (turn !== "player" || !!winner) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return oneStarGeneral.isPlayerOneStarGeneral(piece);
+  }, [
+    phase,
+    turn,
+    winner,
+    selectedBattleTileIndex,
+    battleBoard,
+    oneStarGeneral.isPlayerOneStarGeneral,
+  ]);
+
+  // ── 2-Star General derived values ────────────────────────────────────────────
+  const selectedPieceIsTwoStarGeneral = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    if (turn !== "player" || !!winner) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return twoStarGeneral.isPlayerTwoStarGeneral(piece);
+  }, [
+    phase,
+    turn,
+    winner,
+    selectedBattleTileIndex,
+    battleBoard,
+    twoStarGeneral.isPlayerTwoStarGeneral,
+  ]);
+
+  /**
+   * All tile indices currently under a Hold the Line restriction.
+   * Passed to BoardGrid for visual highlighting.
+   */
+  const holdRestrictedTiles = useMemo(
+    () => twoStarGeneral.getRestrictedTileIndices(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [twoStarGeneral.restrictions],
+  );
+
+  const oneStarBonusMoveTiles = useMemo(() => {
+    if (!oneStarGeneral.bonusMoveActive) return [];
+    return [];
+  }, [oneStarGeneral.bonusMoveActive, oneStarGeneral.pendingBonusMove]);
+
+  const [oneStarGeneralActiveTile, setOneStarGeneralActiveTile] = useState<
+    number | null
+  >(null);
+
+  const oneStarBonusMoveTilesComputed = useMemo(() => {
+    if (!oneStarGeneral.bonusMoveActive || oneStarGeneralActiveTile === null)
+      return [];
+    return oneStarGeneral.getBonusMoveTiles(
+      battleBoard,
+      oneStarGeneralActiveTile,
+    );
+  }, [
+    oneStarGeneral.bonusMoveActive,
+    oneStarGeneralActiveTile,
+    battleBoard,
+    oneStarGeneral.getBonusMoveTiles,
+  ]);
+
   // ── Shared: fire challenge ───────────────────────────────────────────────────
   const fireChallenge = (legalMove: BattleMove) => {
-    // ── Kamikaze intercept (existing) ────────────────────────────────────────
     if (kamikaze.shouldInterceptKamikaze(battleBoard, legalMove)) {
       const attackerSide = battleBoard[legalMove.from]?.side;
       if (attackerSide === "player") {
@@ -386,7 +612,6 @@ export function useGameState(difficulty: Difficulty) {
       }
     }
 
-    // ── 3-Star General Last Stand intercept ──────────────────────────────────
     const attackerPiece = battleBoard[legalMove.from];
     const defenderPiece = battleBoard[legalMove.to];
     if (
@@ -407,7 +632,6 @@ export function useGameState(difficulty: Difficulty) {
       return;
     }
 
-    // ── Upgrade activation intercept (existing) ──────────────────────────────
     const attackingPiece = battleBoard[legalMove.from];
     if (attackingPiece?.side === "player" && attackingPiece.upgrade) {
       setPendingUpgradeActivation({
@@ -494,6 +718,23 @@ export function useGameState(difficulty: Difficulty) {
 
   const handleUpgradeRollDismiss = () => setPendingUpgradeRoll(null);
 
+  // ── 1-Star General bonus move modal handlers ─────────────────────────────────
+  const handleOneStarBonusMoveConfirm = () => {
+    const event = oneStarGeneral.pendingBonusMove;
+    if (!event) return;
+    setOneStarGeneralActiveTile(event.generalTileIndex);
+    oneStarGeneral.confirmBonusMove();
+    setBattleMessage(
+      "Press the Advantage! Tap an empty adjacent tile to move, or tap elsewhere to cancel.",
+    );
+  };
+
+  const handleOneStarBonusMoveSkip = () => {
+    oneStarGeneral.skipBonusMove();
+    setOneStarGeneralActiveTile(null);
+    setTurn("ai");
+  };
+
   // ── Battle tile press ────────────────────────────────────────────────────────
   const isPlayerInputBlocked = () =>
     phase !== "battle" ||
@@ -506,9 +747,61 @@ export function useGameState(difficulty: Difficulty) {
     !!resolution.pendingCrateChoice ||
     !!kamikaze.pendingKamikaze ||
     !!veteran.pendingVeteranPromo ||
-    !!threeStarPassive.pendingThreeStarPassive;
+    !!threeStarPassive.pendingThreeStarPassive ||
+    !!oneStarGeneral.pendingBonusMove;
 
   const handleBattleTilePress = (tileIndex: number) => {
+    // ── 1-Star General bonus move tile-select mode ─────────────────────────
+    if (oneStarGeneral.bonusMoveActive && oneStarGeneralActiveTile !== null) {
+      if (oneStarBonusMoveTilesComputed.includes(tileIndex)) {
+        const nextBoard = oneStarGeneral.applyBonusMove(
+          battleBoard,
+          oneStarGeneralActiveTile,
+          tileIndex,
+        );
+        setBattleBoard(nextBoard);
+        setBattleMessage(
+          "Press the Advantage! Your 1-Star General advanced an extra square.",
+        );
+        setLastMoveTrail({
+          from: oneStarGeneralActiveTile,
+          to: tileIndex,
+          side: "player",
+        });
+        setSelectedBattleTileIndex(null);
+        setOneStarGeneralActiveTile(null);
+        oneStarGeneral.completeBonusMove();
+        setTurn("ai");
+      } else {
+        oneStarGeneral.cancelBonusMove();
+        setOneStarGeneralActiveTile(null);
+        setSelectedBattleTileIndex(null);
+        setTurn("ai");
+      }
+      return;
+    }
+
+    // ── 2-Star General: Hold the Line target-select mode ──────────────────
+    if (twoStarGeneral.twoStarActive) {
+      const tappedPiece = battleBoard[tileIndex];
+      if (tappedPiece?.side === "ai") {
+        // Valid target — apply restriction
+        twoStarGeneral.applyHoldRestriction(tileIndex);
+        twoStarGeneral.startPlayerCooldown();
+        setSelectedBattleTileIndex(null);
+        setLastMoveTrail(null);
+        setBattleMessage(
+          "Hold the Line! That enemy unit is pinned and cannot retreat for 2 rounds.",
+        );
+        setRevealMessage("Enemy movement restricted: no backward moves.");
+        // Ability does NOT consume the player's turn — they still move.
+      } else {
+        // Tapped a non-enemy tile — cancel without cost
+        twoStarGeneral.cancelTwoStarAbility();
+      }
+      return;
+    }
+
     // ── Flag swap mode ─────────────────────────────────────────────────────
     if (flagSwap.flagSwapActive) {
       if (
@@ -523,7 +816,6 @@ export function useGameState(difficulty: Difficulty) {
         flagSwap.cancelFlagSwap();
         setSelectedBattleTileIndex(null);
         setLastMoveTrail(null);
-
         applyResolution(
           {
             board: nextBoard,
@@ -539,6 +831,39 @@ export function useGameState(difficulty: Difficulty) {
         flagSwap.startPlayerCooldown();
       } else {
         flagSwap.cancelFlagSwap();
+      }
+      return;
+    }
+
+    // ── Major swap (Tactical Shift) mode ───────────────────────────────────
+    if (majorSwap.majorSwapActive) {
+      if (
+        majorSwapAllyTiles.includes(tileIndex) &&
+        selectedBattleTileIndex !== null
+      ) {
+        const nextBoard = majorSwap.applyMajorSwap(
+          battleBoard,
+          selectedBattleTileIndex,
+          tileIndex,
+        );
+        majorSwap.cancelMajorSwap();
+        setSelectedBattleTileIndex(null);
+        setLastMoveTrail(null);
+        applyResolution(
+          {
+            board: nextBoard,
+            winner: null,
+            message:
+              "Tactical Shift! The Major repositioned with an adjacent ally.",
+            revealMessage: null,
+            capturedByPlayer: [],
+            capturedByAI: [],
+          },
+          "ai",
+        );
+        majorSwap.startPlayerCooldown();
+      } else {
+        majorSwap.cancelMajorSwap();
       }
       return;
     }
@@ -568,11 +893,9 @@ export function useGameState(difficulty: Difficulty) {
     // ── Colonel reveal mode ────────────────────────────────────────────────
     if (colonelReveal.colonelRevealActive) {
       if (colonelDiagonalTiles.includes(tileIndex)) {
-        // Reveal the tapped diagonal enemy, then pass turn to AI
         colonelReveal.applyColonelReveal(battleBoard, tileIndex);
         setSelectedBattleTileIndex(null);
         setLastMoveTrail(null);
-        // Pass turn to AI — board is unchanged, same pattern as flag swap
         applyResolution(
           {
             board: battleBoard,
@@ -585,7 +908,6 @@ export function useGameState(difficulty: Difficulty) {
           "ai",
         );
       } else {
-        // Tapped outside a valid target — cancel without consuming the turn
         colonelReveal.cancelColonelReveal();
       }
       return;
@@ -637,6 +959,21 @@ export function useGameState(difficulty: Difficulty) {
       return;
     }
 
+    // ── Lt. Colonel Suppression Fire mode ─────────────────────────────────
+    if (ltColonelStun.ltColonelStunActive) {
+      if (ltColonelDiagonalTiles.includes(tileIndex)) {
+        ltColonelStun.applyLtColonelStun(tileIndex);
+        ltColonelStun.startPlayerCooldown();
+        setBattleMessage(
+          "Suppression Fire! That enemy unit is stunned for 1 turn. Now make your move.",
+        );
+        setRevealMessage("Stunned enemy cannot move this AI turn.");
+      } else {
+        ltColonelStun.cancelLtColonelStun();
+      }
+      return;
+    }
+
     if (isPlayerInputBlocked()) return;
     const tappedPiece = battleBoard[tileIndex];
 
@@ -656,9 +993,12 @@ export function useGameState(difficulty: Difficulty) {
       return;
     }
 
-    const legalMove = getLegalMoves(battleBoard, "player", pieceById).find(
-      (m) => m.from === selectedBattleTileIndex && m.to === tileIndex,
-    );
+    const legalMove = getLegalMoves(battleBoard, "player", pieceById)
+      .filter(
+        (m) => !twoStarGeneral.isBackwardMoveBlocked(m.from, m.to, "player"),
+      )
+      .find((m) => m.from === selectedBattleTileIndex && m.to === tileIndex);
+
     if (!legalMove) {
       setSelectedBattleTileIndex(null);
       return;
@@ -702,9 +1042,13 @@ export function useGameState(difficulty: Difficulty) {
       return;
     }
 
-    const legalMove = getLegalMoves(battleBoard, "player", pieceById).find(
-      (m) => m.from === selectedBattleTileIndex && m.to === targetTileIndex,
-    );
+    const legalMove = getLegalMoves(battleBoard, "player", pieceById)
+      .filter(
+        (m) => !twoStarGeneral.isBackwardMoveBlocked(m.from, m.to, "player"),
+      )
+      .find(
+        (m) => m.from === selectedBattleTileIndex && m.to === targetTileIndex,
+      );
     if (!legalMove) return;
     fireChallenge(legalMove);
   };
@@ -713,6 +1057,33 @@ export function useGameState(difficulty: Difficulty) {
     phase === "formation"
       ? placement.handleFormationTilePress(tileIndex)
       : handleBattleTilePress(tileIndex);
+
+  // ── Captain Scan handler ─────────────────────────────────────────────────────
+  const handleCaptainScanPress = () => {
+    if (captainScan.isPlayerOnCooldown()) return;
+    if (selectedBattleTileIndex === null) return;
+    const entries = captainScan.applyCaptainScan(
+      battleBoard,
+      selectedBattleTileIndex,
+    );
+    const count = entries.length;
+    setSelectedBattleTileIndex(null);
+    setLastMoveTrail(null);
+    applyResolution(
+      {
+        board: battleBoard,
+        winner: null,
+        message:
+          count > 0
+            ? `Threat Scan! ${count} adjacent enem${count === 1 ? "y" : "ies"} revealed for 1.5 s.`
+            : "Threat Scan! No adjacent enemies detected.",
+        revealMessage: null,
+        capturedByPlayer: [],
+        capturedByAI: [],
+      },
+      "ai",
+    );
+  };
 
   // ── Game lifecycle ───────────────────────────────────────────────────────────
   const startBattle = () => {
@@ -747,6 +1118,12 @@ export function useGameState(difficulty: Difficulty) {
     generalCharge.resetGeneralCharge();
     fourStarPush.resetFourStarPush();
     threeStarPassive.resetThreeStarPassive();
+    ltColonelStun.resetLtColonelStun();
+    majorSwap.resetMajorSwap();
+    captainScan.resetCaptainScan();
+    oneStarGeneral.resetOneStarGeneral();
+    twoStarGeneral.resetTwoStarGeneral();
+    setOneStarGeneralActiveTile(null);
     setShowReadyModal(false);
     placement.clearFormationSelection();
     setIsInventoryExpanded(false);
@@ -773,6 +1150,12 @@ export function useGameState(difficulty: Difficulty) {
     generalCharge.resetGeneralCharge();
     fourStarPush.resetFourStarPush();
     threeStarPassive.resetThreeStarPassive();
+    ltColonelStun.resetLtColonelStun();
+    majorSwap.resetMajorSwap();
+    captainScan.resetCaptainScan();
+    oneStarGeneral.resetOneStarGeneral();
+    twoStarGeneral.resetTwoStarGeneral();
+    setOneStarGeneralActiveTile(null);
     setBattleMessage("You forfeited the match. Enemy command takes the field.");
     setRevealMessage("The battle ended by surrender.");
     resolution.resetCrates();
@@ -806,6 +1189,12 @@ export function useGameState(difficulty: Difficulty) {
     generalCharge.resetGeneralCharge();
     fourStarPush.resetFourStarPush();
     threeStarPassive.resetThreeStarPassive();
+    ltColonelStun.resetLtColonelStun();
+    majorSwap.resetMajorSwap();
+    captainScan.resetCaptainScan();
+    oneStarGeneral.resetOneStarGeneral();
+    twoStarGeneral.resetTwoStarGeneral();
+    setOneStarGeneralActiveTile(null);
     placement.resetPlacement();
   };
 
@@ -817,7 +1206,6 @@ export function useGameState(difficulty: Difficulty) {
     }
   };
 
-  // ── Re-import resolveBattleMove with correct arity ───────────────────────────
   function resolveBattleMove(
     board: Record<number, BoardPiece>,
     move: BattleMove,
@@ -828,12 +1216,10 @@ export function useGameState(difficulty: Difficulty) {
 
   // ── Public surface ───────────────────────────────────────────────────────────
   return {
-    // data
     aiProfile,
     pieceDefinitions,
     pieceById,
     boardTiles,
-    // formation
     phase,
     selectedPieceId: placement.selectedPieceId,
     selectedPiece: placement.selectedPiece,
@@ -843,7 +1229,6 @@ export function useGameState(difficulty: Difficulty) {
     isReadyEnabled: placement.totalUnplacedCount === 0,
     showSetupZoneHint: placement.showSetupZoneHint,
     pieceCountById: placement.pieceCountById,
-    // drag
     draggingPieceId: placement.draggingPieceId,
     draggingFromTile: placement.draggingFromTile,
     dragOverTileIndex: placement.dragOverTileIndex,
@@ -851,7 +1236,6 @@ export function useGameState(difficulty: Difficulty) {
     handleDragStartFromBoard: placement.handleDragStartFromBoard,
     handleDragEnterTile: placement.handleDragEnterTile,
     handleDragEnd: placement.handleDragEnd,
-    // battle
     turn,
     battleBoard,
     selectedBattleTileIndex,
@@ -866,7 +1250,6 @@ export function useGameState(difficulty: Difficulty) {
     endedBySurrender,
     capturedPlayerNames,
     capturedAINames,
-    // challenge
     pendingChallenge,
     handleChallengeDismiss,
     pendingUpgradeRoll,
@@ -876,27 +1259,25 @@ export function useGameState(difficulty: Difficulty) {
     pendingCrateChoice: resolution.pendingCrateChoice,
     handleCrateChoiceTake: resolution.handleCrateChoiceTake,
     handleCrateChoiceDestroy: resolution.handleCrateChoiceDestroy,
-    // kamikaze
     pendingKamikaze: kamikaze.pendingKamikaze,
     handleKamikazeConfirm: kamikaze.handleKamikazeConfirm,
     handleKamikazeDecline: () => kamikaze.handleKamikazeDecline(battleBoard),
-    // veteran promo
     pendingVeteranPromo: veteran.pendingVeteranPromo,
     handleVeteranPromoDismiss: veteran.handleVeteranPromoDismiss,
-    // flag swap (Shadow March ability)
+    // flag swap (Shadow March)
     selectedPieceIsFlag,
     flagSwapActive: flagSwap.flagSwapActive,
     flagSwapAllyTiles,
     flagSwapCooldownUntil: flagSwap.playerCooldownUntil,
     activateFlagSwap: flagSwap.activateFlagSwap,
     cancelFlagSwap: flagSwap.cancelFlagSwap,
-    // spy reveal (Phantom Recon ability)
+    // spy reveal (Phantom Recon)
     selectedPieceIsSpy,
     spyReveal: spyReveal.spyReveal,
     aiSpyRevealNotifVisible: spyReveal.aiSpyRevealNotifVisible,
     spyRevealCooldownUntil: spyReveal.playerCooldownUntil,
     activateSpyReveal: () => spyReveal.activateSpyReveal(battleBoard),
-    // colonel reveal (Field Scope ability)
+    // colonel reveal (Field Scope)
     selectedPieceIsColonel,
     colonelRevealActive: colonelReveal.colonelRevealActive,
     colonelDiagonalTiles,
@@ -904,13 +1285,13 @@ export function useGameState(difficulty: Difficulty) {
     colonelRevealCooldownUntil: colonelReveal.playerCooldownUntil,
     activateColonelReveal: colonelReveal.activateColonelReveal,
     cancelColonelReveal: colonelReveal.cancelColonelReveal,
-    // general charge (Supreme Charge ability)
+    // general charge (Supreme Charge)
     selectedPieceIsGeneralFiveStar,
     generalChargeActive: generalCharge.generalChargeActive,
     generalChargeCooldownUntil: generalCharge.playerCooldownUntil,
     activateGeneralCharge: generalCharge.activateGeneralCharge,
     cancelGeneralCharge: generalCharge.cancelGeneralCharge,
-    // 4-star push (Iron Shove ability)
+    // 4-star push (Iron Shove)
     selectedPieceIsGeneralFourStar,
     fourStarPushActive: fourStarPush.fourStarPushActive,
     fourStarPushTargetTiles,
@@ -921,6 +1302,41 @@ export function useGameState(difficulty: Difficulty) {
     // 3-star general passive (Last Stand)
     pendingThreeStarPassive: threeStarPassive.pendingThreeStarPassive,
     handleThreeStarPassiveDismiss,
+    // lt. colonel stun (Suppression Fire)
+    selectedPieceIsLtColonel,
+    ltColonelStunActive: ltColonelStun.ltColonelStunActive,
+    ltColonelDiagonalTiles,
+    ltColonelStunCooldownUntil: ltColonelStun.playerCooldownUntil,
+    stunnedTileIndices: ltColonelStun.stunnedTileIndices,
+    activateLtColonelStun: ltColonelStun.activateLtColonelStun,
+    cancelLtColonelStun: ltColonelStun.cancelLtColonelStun,
+    // major swap (Tactical Shift)
+    selectedPieceIsMajor,
+    majorSwapActive: majorSwap.majorSwapActive,
+    majorSwapAllyTiles,
+    majorSwapCooldownUntil: majorSwap.playerCooldownUntil,
+    activateMajorSwap: majorSwap.activateMajorSwap,
+    cancelMajorSwap: majorSwap.cancelMajorSwap,
+    // captain scan (Threat Scan)
+    selectedPieceIsCaptain,
+    captainScanResult: captainScan.captainScan,
+    captainScanCooldownUntil: captainScan.playerCooldownUntil,
+    handleCaptainScanPress,
+    // 1-star general (Press the Advantage)
+    selectedPieceIsOneStarGeneral,
+    oneStarBonusMoveActive: oneStarGeneral.bonusMoveActive,
+    oneStarBonusMoveTiles: oneStarBonusMoveTilesComputed,
+    oneStarBonusMoveCooldownUntil: oneStarGeneral.playerCooldownUntil,
+    pendingOneStarBonusMove: oneStarGeneral.pendingBonusMove,
+    handleOneStarBonusMoveConfirm,
+    handleOneStarBonusMoveSkip,
+    // 2-star general (Hold the Line)
+    selectedPieceIsTwoStarGeneral,
+    twoStarActive: twoStarGeneral.twoStarActive,
+    holdRestrictedTiles,
+    twoStarCooldownUntil: twoStarGeneral.playerCooldownUntil,
+    activateTwoStarAbility: twoStarGeneral.activateTwoStarAbility,
+    cancelTwoStarAbility: twoStarGeneral.cancelTwoStarAbility,
     // UI
     isInventoryExpanded,
     setIsInventoryExpanded,
@@ -928,7 +1344,6 @@ export function useGameState(difficulty: Difficulty) {
     setShowQuitModal,
     showReadyModal,
     setShowReadyModal,
-    // handlers
     handleTilePress,
     handleChallengePress,
     handlePieceButtonPress: placement.handlePieceButtonPress,

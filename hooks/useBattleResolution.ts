@@ -49,6 +49,15 @@ interface UseBattleResolutionOptions {
     boardAfter: Record<number, BoardPiece>,
     movedToTileIndex: number | undefined,
   ) => void;
+  /**
+   * Called when the 1-Star General on `winningSide` wins a challenge so the
+   * bonus-move modal can be queued before the turn passes.
+   * `generalTileIndex` is where the General now sits (the `to` tile after
+   * winning the challenge).
+   * Only called when the ability is NOT on cooldown — that gate lives in
+   * useGameState.
+   */
+  onOneStarGeneralWin?: (generalTileIndex: number, winningSide: Side) => void;
 }
 
 export function useBattleResolution(options: UseBattleResolutionOptions) {
@@ -67,6 +76,7 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     onSelectedBattleTileIndex,
     onPendingUpgradeRoll,
     checkAndQueueVeteranPromo,
+    onOneStarGeneralWin,
   } = options;
 
   const [crateByTile, setCrateByTile] = useState<
@@ -135,6 +145,13 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
   };
 
   // ── Crate drop + message finalization ────────────────────────────────────────
+  //
+  // NEW PARAMS vs original:
+  //   capturedByPlayerIds — forwarded from the resolution so we can detect
+  //                          whether a capture actually happened.
+  //   capturedByAIIds     — same but for the AI side.
+  //   movedTo             — the tile the piece landed on; used to check if
+  //                          that piece is the 1-Star General.
   const finalizeTurnWithCrateState = (
     boardAfterMove: Record<number, BoardPiece>,
     nextTurn: Side,
@@ -146,6 +163,9 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       skipDropAttempt?: boolean;
     },
     actingSide?: Side,
+    capturedByPlayerIds: string[] = [],
+    capturedByAIIds: string[] = [],
+    movedTo?: number,
   ) => {
     const moverSide: Side =
       actingSide ?? (nextTurn === "player" ? "ai" : "player");
@@ -206,11 +226,38 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       messageAddons.push(`Supply drop deployed: ${dropCount} ${noun}.`);
     }
 
-    onMessageChange(
+    const finalMessage =
       messageAddons.length > 0
         ? `${baseMessage} ${messageAddons.join(" ")}`
-        : baseMessage,
-    );
+        : baseMessage;
+
+    onMessageChange(finalMessage);
+
+    // ── 1-Star General "Press the Advantage" check ──────────────────────────
+    // Conditions that must ALL be true:
+    //   1. The callback is wired up in useGameState
+    //   2. A capture actually happened this resolution (not a plain move)
+    //   3. The piece now sitting on `movedTo` belongs to the mover
+    //   4. That piece is the 1-Star General
+    // The cooldown gate (isPlayerOnCooldown / isAIOnCooldown) is enforced by
+    // useGameState before passing the callback — if on cooldown the callback
+    // will not be provided, so this check is inherently safe.
+    const didCapture =
+      capturedByPlayerIds.length > 0 || capturedByAIIds.length > 0;
+
+    if (
+      onOneStarGeneralWin &&
+      didCapture &&
+      movedTo !== undefined &&
+      boardAfterMove[movedTo]?.side === moverSide &&
+      pieceById[boardAfterMove[movedTo]!.pieceId]?.label === "1 Star\nGeneral"
+    ) {
+      // Queue the bonus-move modal. Turn does NOT pass yet — useGameState will
+      // call onTurnChange after the player confirms/skips the bonus move.
+      onOneStarGeneralWin(movedTo, moverSide);
+      return;
+    }
+
     onTurnChange(nextTurn);
   };
 
@@ -273,9 +320,6 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     onSelectedBattleTileIndex(null);
 
     // ── STALEMATE CHECK ──────────────────────────────────────────────────────
-    // Check if the side whose turn it now is has any legal moves.
-    // BUG WAS HERE: was checking `opponentSide` (the side that just moved)
-    // instead of `nextTurn` (the side that needs to move next).
     if (getLegalMoves(nextBoard, nextTurn, pieceById).length === 0) {
       const stalemateWinner: Side = nextTurn === "player" ? "ai" : "player";
       onWinner(stalemateWinner);
@@ -324,10 +368,11 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
             nextTurn,
             res.message,
             remainingCrates,
-            {
-              claimedUpgrade: steppedCrateUpgrade,
-            },
+            { claimedUpgrade: steppedCrateUpgrade },
             "ai",
+            res.capturedByPlayer,
+            res.capturedByAI,
+            movedToTileIndex,
           );
         } else {
           finalizeTurnWithCrateState(
@@ -335,11 +380,11 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
             nextTurn,
             res.message,
             remainingCrates,
-            {
-              destroyedCrate: true,
-              skipDropAttempt: true,
-            },
+            { destroyedCrate: true, skipDropAttempt: true },
             "ai",
+            res.capturedByPlayer,
+            res.capturedByAI,
+            movedToTileIndex,
           );
         }
         return;
@@ -386,6 +431,9 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       remainingCrates,
       claimedUpgrade ? { claimedUpgrade } : undefined,
       actingSide,
+      res.capturedByPlayer,
+      res.capturedByAI,
+      movedToTileIndex,
     );
   };
 
@@ -414,15 +462,17 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     const withUpgradeDecoys = applyDoubleBlindBoardDecoys(withUpgrade);
     onBoardChange(withUpgradeDecoys);
     setPendingCrateChoice(null);
+    // Crate choice is player-initiated, no capture happens here
     finalizeTurnWithCrateState(
       withUpgradeDecoys,
       nextTurn,
       baseMessage,
       remainingCrates,
-      {
-        claimedUpgrade: newUpgrade,
-      },
+      { claimedUpgrade: newUpgrade },
       "player",
+      [],
+      [],
+      undefined,
     );
   };
 
@@ -436,11 +486,11 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       nextTurn,
       baseMessage,
       remainingCrates,
-      {
-        destroyedCrate: true,
-        skipDropAttempt: true,
-      },
+      { destroyedCrate: true, skipDropAttempt: true },
       "player",
+      [],
+      [],
+      undefined,
     );
   };
 

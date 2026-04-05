@@ -1,10 +1,15 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
+import { CaptainScanButton } from "./CaptainScanButton";
 import { ColonelAbilityButton } from "./ColonelAbilityButton";
 import { FlagAbilityButton } from "./FlagAbilityButton";
 import { FourStarPushButton } from "./FourStarPushButton";
 import { GeneralChargeButton } from "./GeneralChargeButton";
+import { LtColonelStunButton } from "./LtColonelStunButton";
+import { MajorAbilityButton } from "./MajorAbilityButton";
+import { OneStarGeneralButton } from "./OneStarGeneralButton";
 import { SpyAbilityButton } from "./SpyAbilityButton";
+import { TwoStarGeneralButton } from "./TwoStarGeneralButton";
 
 type Props = {
   selectedPieceIsFlag: boolean;
@@ -14,6 +19,16 @@ type Props = {
   selectedPieceIsGeneralFourStar: boolean;
   /** True when the selected battle tile is the player's Colonel */
   selectedPieceIsColonel: boolean;
+  /** True when the selected battle tile is the player's Lt. Colonel */
+  selectedPieceIsLtColonel: boolean;
+  /** True when the selected battle tile is the player's Major */
+  selectedPieceIsMajor: boolean;
+  /** True when the selected battle tile is the player's Captain */
+  selectedPieceIsCaptain: boolean;
+  /** True when the selected battle tile is the player's 1-Star General */
+  selectedPieceIsOneStarGeneral: boolean;
+  /** True when the selected battle tile is the player's 2-Star General */
+  selectedPieceIsTwoStarGeneral: boolean;
   winner: boolean;
   // Flag
   flagSwapActive: boolean;
@@ -34,6 +49,24 @@ type Props = {
   colonelRevealActive: boolean;
   colonelRevealCooldownUntil: number | null;
   onColonelPress: () => void;
+  // Lt. Colonel stun (Suppression Fire)
+  ltColonelStunActive: boolean;
+  ltColonelStunCooldownUntil: number | null;
+  onLtColonelStunPress: () => void;
+  // Major swap (Tactical Shift)
+  majorSwapActive: boolean;
+  majorSwapCooldownUntil: number | null;
+  onMajorSwapPress: () => void;
+  // Captain orthogonal scan (Threat Scan)
+  captainScanCooldownUntil: number | null;
+  onCaptainScanPress: () => void;
+  // 1-Star General bonus move (Press the Advantage)
+  oneStarBonusMoveActive: boolean;
+  oneStarBonusMoveCooldownUntil: number | null;
+  // 2-Star General (Hold the Line)
+  twoStarActive: boolean;
+  twoStarCooldownUntil: number | null;
+  onTwoStarPress: () => void;
   // Layout
   verticalSectionGap: number;
   rf: (size: number) => number;
@@ -47,6 +80,11 @@ export function AbilityPanel({
   selectedPieceIsGeneralFiveStar,
   selectedPieceIsGeneralFourStar,
   selectedPieceIsColonel,
+  selectedPieceIsLtColonel,
+  selectedPieceIsMajor,
+  selectedPieceIsCaptain,
+  selectedPieceIsOneStarGeneral,
+  selectedPieceIsTwoStarGeneral,
   winner,
   flagSwapActive,
   flagSwapCooldownUntil,
@@ -62,6 +100,19 @@ export function AbilityPanel({
   colonelRevealActive,
   colonelRevealCooldownUntil,
   onColonelPress,
+  ltColonelStunActive,
+  ltColonelStunCooldownUntil,
+  onLtColonelStunPress,
+  majorSwapActive,
+  majorSwapCooldownUntil,
+  onMajorSwapPress,
+  captainScanCooldownUntil,
+  onCaptainScanPress,
+  oneStarBonusMoveActive,
+  oneStarBonusMoveCooldownUntil,
+  twoStarActive,
+  twoStarCooldownUntil,
+  onTwoStarPress,
   verticalSectionGap,
   rf,
   rs,
@@ -75,9 +126,17 @@ export function AbilityPanel({
       selectedPieceIsGeneralFourStar ||
       fourStarPushActive ||
       selectedPieceIsColonel ||
-      colonelRevealActive); // ← keep panel alive while target-select is armed
+      colonelRevealActive ||
+      selectedPieceIsLtColonel ||
+      ltColonelStunActive ||
+      selectedPieceIsMajor ||
+      majorSwapActive ||
+      selectedPieceIsCaptain ||
+      selectedPieceIsOneStarGeneral ||
+      oneStarBonusMoveActive ||
+      selectedPieceIsTwoStarGeneral ||
+      twoStarActive);
 
-  // Return null entirely so no space is taken when nothing is active.
   if (!hasAbility) return null;
 
   return (
@@ -135,6 +194,65 @@ export function AbilityPanel({
           rs={rs}
           rsv={rsv}
           onPress={onColonelPress}
+        />
+      )}
+      {/* Lt. Colonel: Suppression Fire stun ability */}
+      {(selectedPieceIsLtColonel || ltColonelStunActive) && (
+        <LtColonelStunButton
+          visible
+          active={ltColonelStunActive}
+          cooldownUntil={ltColonelStunCooldownUntil}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onPress={onLtColonelStunPress}
+        />
+      )}
+      {/* Major: Tactical Shift swap ability */}
+      {(selectedPieceIsMajor || majorSwapActive) && (
+        <MajorAbilityButton
+          visible
+          active={majorSwapActive}
+          cooldownUntil={majorSwapCooldownUntil}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onPress={onMajorSwapPress}
+        />
+      )}
+      {/* Captain: Threat Scan orthogonal reveal ability */}
+      {selectedPieceIsCaptain && (
+        <CaptainScanButton
+          visible
+          cooldownUntil={captainScanCooldownUntil}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onPress={onCaptainScanPress}
+        />
+      )}
+      {/* 1-Star General: Press the Advantage bonus move — display only (passive trigger) */}
+      {(selectedPieceIsOneStarGeneral || oneStarBonusMoveActive) && (
+        <OneStarGeneralButton
+          visible
+          active={oneStarBonusMoveActive}
+          cooldownUntil={oneStarBonusMoveCooldownUntil}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onPress={() => {}}
+        />
+      )}
+      {/* 2-Star General: Hold the Line — restrict backward movement for 2 rounds */}
+      {(selectedPieceIsTwoStarGeneral || twoStarActive) && (
+        <TwoStarGeneralButton
+          visible
+          active={twoStarActive}
+          cooldownUntil={twoStarCooldownUntil}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onPress={onTwoStarPress}
         />
       )}
     </View>

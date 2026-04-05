@@ -20,6 +20,7 @@ import type {
   PieceUpgradeId,
   Side,
 } from "../scripts/types";
+import type { OneStarBonusMoveEvent } from "./useOneStarGeneral";
 
 interface UseAITurnOptions {
   phase: Phase;
@@ -39,44 +40,46 @@ interface UseAITurnOptions {
   pendingCrateChoice: object | null;
   pendingKamikaze: KamikazeEvent | null;
   pendingVeteranPromo: object | null;
-  // ── 3-Star General Last Stand ──────────────────────────────────────────────
   pendingThreeStarPassive: {
     resolution: BattleResolution;
     nextTurn: Side;
     from: number;
     to: number;
   } | null;
-  /**
-   * Wall-clock timestamp (ms) until which the AI Flag-swap ability is on
-   * cooldown. null means it is available.
-   */
+  pendingOneStarBonusMove: OneStarBonusMoveEvent | null;
   aiFlagSwapCooldownUntil: number | null;
-  /**
-   * Wall-clock timestamp (ms) until which the AI Spy reveal is on cooldown.
-   * null means the ability is available.
-   */
   aiSpyCooldownUntil: number | null;
-  /**
-   * Wall-clock timestamp (ms) until which the AI General Charge ability is on
-   * cooldown. null means it is available.
-   */
   aiGeneralChargeCooldownUntil: number | null;
+  oneStarGeneralAICooldownUntil: number | null;
+  // ── 2-Star General: Hold the Line ─────────────────────────────────────────
+  /** Wall-clock timestamp until which the AI's Hold the Line is on cooldown. */
+  aiTwoStarCooldownUntil: number | null;
+  /** Returns true when the AI's Hold the Line ability is currently on cooldown. */
+  isAITwoStarOnCooldown: () => boolean;
+  /**
+   * Apply the Hold restriction to a random player tile chosen by the AI.
+   * Receives the target tile index.
+   */
+  onApplyAIHoldRestriction: (targetTileIndex: number) => void;
+  /** Start the AI's Hold the Line cooldown. */
+  onStartAITwoStarCooldown: () => void;
+  /**
+   * Returns true when the given move is blocked by a Hold the Line restriction.
+   * Consumed by chooseMoveForProfile via the injected filter.
+   */
+  isBackwardMoveBlocked: (from: number, to: number, side: Side) => boolean;
+  // ── Lt. Colonel stun ────────────────────────────────────────────────────────
+  isTileStunned: (tileIndex: number) => boolean;
+  onClearStuns: () => void;
   // Callbacks
   shouldInterceptKamikaze: (
     board: Record<number, BoardPiece>,
     move: any,
   ) => boolean;
-  /**
-   * Returns true when the proposed challenge should be intercepted by the
-   * 3-Star General's Last Stand passive.
-   */
   shouldInterceptThreeStarPassive: (
     attackerPieceId: string,
     defenderPieceId: string,
   ) => boolean;
-  /**
-   * Queues the Last Stand modal + pre-built resolution.
-   */
   onQueueThreeStarPassive: (
     board: Record<number, BoardPiece>,
     from: number,
@@ -95,14 +98,13 @@ interface UseAITurnOptions {
   onMessageChange: (msg: string) => void;
   onAIThinking: (thinking: boolean) => void;
   onStartAIFlagSwapCooldown: () => void;
-  /**
-   * Attempts the AI Spy reveal. Returns true if the ability fired this turn.
-   */
   onTryAISpyReveal: (board: Record<number, BoardPiece>) => boolean;
-  /** Starts the AI General Charge cooldown after the ability is used */
   onStartAIGeneralChargeCooldown: () => void;
-  /** Returns true when the AI General Charge is still cooling down */
   isAIGeneralChargeOnCooldown: () => boolean;
+  onAIOneStarBonusMove: (
+    board: Record<number, BoardPiece>,
+    generalTileIndex: number,
+  ) => void;
   kamikazeChance: number;
 }
 
@@ -122,9 +124,18 @@ export function useAITurn(opts: UseAITurnOptions) {
     pendingKamikaze,
     pendingVeteranPromo,
     pendingThreeStarPassive,
+    pendingOneStarBonusMove,
     aiFlagSwapCooldownUntil,
     aiSpyCooldownUntil,
     aiGeneralChargeCooldownUntil,
+    oneStarGeneralAICooldownUntil,
+    aiTwoStarCooldownUntil,
+    isAITwoStarOnCooldown,
+    onApplyAIHoldRestriction,
+    onStartAITwoStarCooldown,
+    isBackwardMoveBlocked,
+    isTileStunned,
+    onClearStuns,
     shouldInterceptKamikaze,
     shouldInterceptThreeStarPassive,
     onQueueThreeStarPassive,
@@ -138,6 +149,7 @@ export function useAITurn(opts: UseAITurnOptions) {
     onTryAISpyReveal,
     onStartAIGeneralChargeCooldown,
     isAIGeneralChargeOnCooldown,
+    onAIOneStarBonusMove,
     kamikazeChance,
   } = opts;
 
@@ -152,7 +164,8 @@ export function useAITurn(opts: UseAITurnOptions) {
       pendingCrateChoice ||
       pendingKamikaze ||
       pendingVeteranPromo ||
-      pendingThreeStarPassive // ← block AI while Last Stand modal is open
+      pendingThreeStarPassive ||
+      pendingOneStarBonusMove
     )
       return;
 
@@ -187,6 +200,35 @@ export function useAITurn(opts: UseAITurnOptions) {
           );
           onStartAIFlagSwapCooldown();
           onAIThinking(false);
+          onClearStuns();
+          return;
+        }
+      }
+
+      // ── AI 2-Star General: Hold the Line ───────────────────────────────────
+      // The AI uses Hold the Line when its 2-Star General is on the board,
+      // the ability is off cooldown, and there are player pieces to restrict.
+      // It targets a random player piece.
+      if (!isAITwoStarOnCooldown()) {
+        const holdResult = tryAIHoldTheLine(battleBoard, pieceById);
+        if (holdResult !== null) {
+          onApplyAIHoldRestriction(holdResult);
+          onStartAITwoStarCooldown();
+          onAIThinking(false);
+          onClearStuns();
+          onApplyResolution(
+            {
+              board: battleBoard,
+              winner: null,
+              message:
+                "Hold the Line! Enemy 2-Star General pinned one of your units — it cannot retreat for 2 rounds.",
+              revealMessage:
+                "Your restricted unit cannot move backward this round.",
+              capturedByPlayer: [],
+              capturedByAI: [],
+            },
+            "player",
+          );
           return;
         }
       }
@@ -204,16 +246,13 @@ export function useAITurn(opts: UseAITurnOptions) {
           battleBoard,
           pieceById,
           AI_CHARGE_USE_CHANCE,
+          isTileStunned,
         );
         if (chargeResult) {
           const { move: chargeMove, isCapture } = chargeResult;
           if (isCapture) {
             const target = battleBoard[chargeMove.to];
 
-            // ── 3-Star General Last Stand check inside General Charge ────────
-            // If the AI's General Charge lands on the player's 3-Star General
-            // and the AI's piece qualifies as a trigger (5-Star General here),
-            // intercept with Last Stand before opening the normal challenge modal.
             if (
               target &&
               shouldInterceptThreeStarPassive(
@@ -229,6 +268,7 @@ export function useAITurn(opts: UseAITurnOptions) {
                 chargeMove.to,
                 "player",
               );
+              onClearStuns();
               return;
             }
 
@@ -241,6 +281,7 @@ export function useAITurn(opts: UseAITurnOptions) {
               onStartAIGeneralChargeCooldown();
               onAIThinking(false);
               onPendingChallenge(event);
+              onClearStuns();
               return;
             }
           } else {
@@ -248,17 +289,22 @@ export function useAITurn(opts: UseAITurnOptions) {
             onStartAIGeneralChargeCooldown();
             onApplyResolution(res, "player", chargeMove.from, chargeMove.to);
             onAIThinking(false);
+            onClearStuns();
             return;
           }
         }
       }
 
       // ── Normal AI move ─────────────────────────────────────────────────────
+      // Pass isBackwardMoveBlocked so chooseMoveForProfile can filter out
+      // restricted backward moves for AI pieces.
       const aiMove = chooseMoveForProfile(
         battleBoard,
         aiProfile,
         pieceById,
         crateTiles,
+        isTileStunned,
+        isBackwardMoveBlocked,
       );
 
       if (!aiMove) {
@@ -268,12 +314,13 @@ export function useAITurn(opts: UseAITurnOptions) {
           "Enemy command is out of legal moves. You hold the field.",
         );
         onAIThinking(false);
+        onClearStuns();
         return;
       }
 
       const target = battleBoard[aiMove.to];
       if (target?.side === "player") {
-        // ── Kamikaze intercept (existing) ──────────────────────────────────
+        // ── Kamikaze intercept ─────────────────────────────────────────────
         if (shouldInterceptKamikaze(battleBoard, aiMove)) {
           if (Math.random() < kamikazeChance) {
             const kamikazeRes = resolveKamikazeMutualElimination(
@@ -283,13 +330,12 @@ export function useAITurn(opts: UseAITurnOptions) {
             );
             onApplyResolution(kamikazeRes, "player", aiMove.from, aiMove.to);
             onAIThinking(false);
+            onClearStuns();
             return;
           }
         }
 
         // ── 3-Star General Last Stand intercept ────────────────────────────
-        // When the AI attacks the player's 3-Star General with a qualifying
-        // piece, show the Last Stand modal instead of the normal challenge.
         if (
           shouldInterceptThreeStarPassive(
             target.pieceId === undefined
@@ -305,6 +351,7 @@ export function useAITurn(opts: UseAITurnOptions) {
             aiMove.to,
             "player",
           );
+          onClearStuns();
           return;
         }
 
@@ -312,6 +359,7 @@ export function useAITurn(opts: UseAITurnOptions) {
         if (event) {
           onAIThinking(false);
           onPendingChallenge(event);
+          onClearStuns();
           return;
         }
       }
@@ -319,6 +367,7 @@ export function useAITurn(opts: UseAITurnOptions) {
       const res = resolveBattleMove(battleBoard, aiMove, pieceById);
       onApplyResolution(res, "player", aiMove.from, aiMove.to);
       onAIThinking(false);
+      onClearStuns();
     }, AI_THINKING_DELAY_MS);
 
     return () => {
@@ -340,9 +389,12 @@ export function useAITurn(opts: UseAITurnOptions) {
     pendingKamikaze,
     pendingVeteranPromo,
     pendingThreeStarPassive,
+    pendingOneStarBonusMove,
     aiFlagSwapCooldownUntil,
     aiSpyCooldownUntil,
     aiGeneralChargeCooldownUntil,
+    oneStarGeneralAICooldownUntil,
+    aiTwoStarCooldownUntil,
   ]);
 }
 
@@ -403,12 +455,51 @@ function tryAIFlagSwap(
   return { nextBoard };
 }
 
+// ─── AI Hold the Line heuristic ───────────────────────────────────────────────
+
+/**
+ * Returns the tile index of a random player piece to restrict, or null if
+ * the AI's 2-Star General is not on the board or there are no player pieces.
+ *
+ * Conditions for use:
+ *  1. The AI's 2-Star General is alive on the board.
+ *  2. There is at least one player piece on the board to restrict.
+ *  3. The AI randomly decides to use it (70% chance when conditions are met)
+ *     so it doesn't always fire on the very first AI turn.
+ */
+function tryAIHoldTheLine(
+  board: Record<number, BoardPiece>,
+  pieceById: Record<string, PieceDefinition>,
+): number | null {
+  // Check AI 2-Star General is present
+  const hasAITwoStarGeneral = Object.values(board).some(
+    (piece) =>
+      piece.side === "ai" &&
+      pieceById[piece.pieceId]?.label === "2 Star\nGeneral",
+  );
+  if (!hasAITwoStarGeneral) return null;
+
+  // Gather all player piece tile indices
+  const playerTiles = Object.entries(board)
+    .filter(([, piece]) => piece.side === "player")
+    .map(([key]) => Number(key));
+
+  if (playerTiles.length === 0) return null;
+
+  // 70% chance to actually use it this turn (prevents deterministic use)
+  if (Math.random() > 0.7) return null;
+
+  // Pick a random player tile
+  return playerTiles[Math.floor(Math.random() * playerTiles.length)];
+}
+
 // ─── AI General Charge heuristic ─────────────────────────────────────────────
 
 function tryAIGeneralCharge(
   board: Record<number, BoardPiece>,
   pieceById: Record<string, PieceDefinition>,
   useChance: number,
+  isTileStunned: (tileIndex: number) => boolean,
 ): { move: import("../scripts/types").BattleMove; isCapture: boolean } | null {
   const generalEntry = Object.entries(board).find(
     ([, piece]) =>
@@ -417,6 +508,8 @@ function tryAIGeneralCharge(
   if (!generalEntry) return null;
 
   const generalTileIndex = Number(generalEntry[0]);
+
+  if (isTileStunned(generalTileIndex)) return null;
 
   const { allDestinations, challengeDestinations } = getGeneralChargeMoves(
     board,
@@ -463,7 +556,6 @@ function tryAIGeneralCharge(
   });
 
   if (bestChargeScore <= bestNormalScore) return null;
-
   if (Math.random() >= useChance) return null;
 
   const isCapture = challengeDestinations.includes(bestChargeTile);

@@ -16,6 +16,7 @@ import { CrateChoiceModal } from "../components/CrateChoiceModal";
 import { FormationControls } from "../components/FormationControls";
 import { GameModals } from "../components/GameModals";
 import { KamikazeModal } from "../components/KamikazeModal";
+import { OneStarGeneralBonusMoveModal } from "../components/OneStarGeneralBonusMoveModal";
 import { StatusBox } from "../components/StatusBox";
 import { ThreeStarPassiveModal } from "../components/ThreeStarPassiveModal";
 import { TopMenuRow } from "../components/TopMenuRow";
@@ -98,17 +99,23 @@ export default function GameScreen() {
       ? "Tip: tap a placed unit to move it, or double tap it to return it to reserve."
       : game.flagSwapActive
         ? "Tap a highlighted ally to swap it with your Flag, or tap elsewhere to cancel."
-        : game.fourStarPushActive
-          ? "Tap a highlighted enemy to push it back 1 square, or tap elsewhere to cancel."
-          : game.colonelRevealActive
-            ? "Tap a highlighted diagonal enemy to reveal their rank, or tap elsewhere to cancel."
-            : game.generalChargeActive
-              ? "Tap a highlighted tile to charge there, or tap elsewhere to cancel."
-              : game.aiThinking
-                ? `${game.aiProfile.label} is reading the field...`
-                : game.turn === "player"
-                  ? "Tap your piece, then tap an adjacent tile to move or attack."
-                  : "Hold position while the enemy acts.";
+        : game.majorSwapActive
+          ? "Tap a highlighted adjacent ally to swap positions, or tap elsewhere to cancel."
+          : game.ltColonelStunActive
+            ? "Tap a highlighted diagonal enemy to stun for 1 turn, or tap elsewhere to cancel."
+            : game.fourStarPushActive
+              ? "Tap a highlighted enemy to push it back 1 square, or tap elsewhere to cancel."
+              : game.colonelRevealActive
+                ? "Tap a highlighted diagonal enemy to reveal their rank, or tap elsewhere to cancel."
+                : game.generalChargeActive
+                  ? "Tap a highlighted tile to charge there, or tap elsewhere to cancel."
+                  : game.twoStarActive
+                    ? "Tap any enemy piece to restrict its backward movement for 2 rounds, or tap elsewhere to cancel."
+                    : game.aiThinking
+                      ? `${game.aiProfile.label} is reading the field...`
+                      : game.turn === "player"
+                        ? "Tap your piece, then tap an adjacent tile to move or attack."
+                        : "Hold position while the enemy acts.";
 
   const handleLeftAction = () => {
     if (game.phase === "ended") {
@@ -228,12 +235,21 @@ export default function GameScreen() {
               generalChargeActive={game.generalChargeActive}
               fourStarPushActive={game.fourStarPushActive}
               fourStarPushTargetTiles={game.fourStarPushTargetTiles}
+              ltColonelStunActive={game.ltColonelStunActive}
+              ltColonelDiagonalTiles={game.ltColonelDiagonalTiles}
+              stunnedTileIndices={game.stunnedTileIndices}
+              majorSwapActive={game.majorSwapActive}
+              majorSwapAllyTiles={game.majorSwapAllyTiles}
+              captainScanResult={game.captainScanResult}
               draggingPieceId={game.draggingPieceId}
               draggingFromTile={game.draggingFromTile}
               dragOverTileIndex={game.dragOverTileIndex}
               onDragStartFromBoard={game.handleDragStartFromBoard}
               onDragEnterTile={game.handleDragEnterTile}
               onDragEnd={game.handleDragEnd}
+              // ── Hold the Line ─────────────────────────────────────────────
+              holdRestrictedTiles={game.holdRestrictedTiles}
+              twoStarActive={game.twoStarActive}
             />
 
             {game.phase === "formation" ? (
@@ -273,6 +289,9 @@ export default function GameScreen() {
                     !!game.selectedPieceIsGeneralFourStar
                   }
                   selectedPieceIsColonel={!!game.selectedPieceIsColonel}
+                  selectedPieceIsLtColonel={!!game.selectedPieceIsLtColonel}
+                  selectedPieceIsMajor={!!game.selectedPieceIsMajor}
+                  selectedPieceIsCaptain={!!game.selectedPieceIsCaptain}
                   winner={!!game.winner}
                   flagSwapActive={game.flagSwapActive}
                   flagSwapCooldownUntil={game.flagSwapCooldownUntil}
@@ -304,10 +323,44 @@ export default function GameScreen() {
                       ? game.cancelColonelReveal()
                       : game.activateColonelReveal()
                   }
+                  ltColonelStunActive={game.ltColonelStunActive}
+                  ltColonelStunCooldownUntil={game.ltColonelStunCooldownUntil}
+                  onLtColonelStunPress={() =>
+                    game.ltColonelStunActive
+                      ? game.cancelLtColonelStun()
+                      : game.activateLtColonelStun()
+                  }
+                  majorSwapActive={game.majorSwapActive}
+                  majorSwapCooldownUntil={game.majorSwapCooldownUntil}
+                  onMajorSwapPress={() =>
+                    game.majorSwapActive
+                      ? game.cancelMajorSwap()
+                      : game.activateMajorSwap()
+                  }
+                  captainScanCooldownUntil={game.captainScanCooldownUntil}
+                  onCaptainScanPress={game.handleCaptainScanPress}
                   verticalSectionGap={verticalSectionGap}
                   rf={rf}
                   rs={rs}
                   rsv={rsv}
+                  selectedPieceIsOneStarGeneral={
+                    !!game.selectedPieceIsOneStarGeneral
+                  }
+                  oneStarBonusMoveActive={game.oneStarBonusMoveActive}
+                  oneStarBonusMoveCooldownUntil={
+                    game.oneStarBonusMoveCooldownUntil
+                  }
+                  // ── 2-Star General: Hold the Line ──────────────────────────
+                  selectedPieceIsTwoStarGeneral={
+                    !!game.selectedPieceIsTwoStarGeneral
+                  }
+                  twoStarActive={game.twoStarActive}
+                  twoStarCooldownUntil={game.twoStarCooldownUntil}
+                  onTwoStarPress={() =>
+                    game.twoStarActive
+                      ? game.cancelTwoStarAbility()
+                      : game.activateTwoStarAbility()
+                  }
                 />
 
                 <BattleInfoPanel
@@ -414,7 +467,6 @@ export default function GameScreen() {
           rsv={rsv}
           onDismiss={game.handleVeteranPromoDismiss}
         />
-        {/* 3-Star General Last Stand passive notification */}
         <ThreeStarPassiveModal
           event={
             game.pendingThreeStarPassive
@@ -427,6 +479,17 @@ export default function GameScreen() {
           rs={rs}
           rsv={rsv}
           onDismiss={game.handleThreeStarPassiveDismiss}
+        />
+
+        <OneStarGeneralBonusMoveModal
+          event={game.pendingOneStarBonusMove}
+          insets={insets}
+          width={width}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onConfirm={game.handleOneStarBonusMoveConfirm}
+          onSkip={game.handleOneStarBonusMoveSkip}
         />
         <AIAbilityNotification
           visible={game.aiSpyRevealNotifVisible}

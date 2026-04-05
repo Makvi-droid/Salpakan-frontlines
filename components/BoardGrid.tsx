@@ -4,6 +4,7 @@ import { PanGestureHandler, State } from "react-native-gesture-handler";
 
 import { appTheme } from "@/constants/theme";
 import { BOARD_HEIGHT, BOARD_WIDTH } from "../constants/constants";
+import type { CaptainScanResult } from "../hooks/useCaptainScan";
 import type { ColonelRevealResult } from "../hooks/useColonelReveal";
 import type { SpyRevealResult } from "../hooks/useSpyReveal";
 import {
@@ -61,6 +62,20 @@ type Props = {
   // 4-star push
   fourStarPushActive: boolean;
   fourStarPushTargetTiles: number[];
+  // Lt. Colonel stun (Suppression Fire)
+  ltColonelStunActive: boolean;
+  ltColonelDiagonalTiles: number[];
+  stunnedTileIndices: Set<number>;
+  // Major swap (Tactical Shift)
+  majorSwapActive: boolean;
+  majorSwapAllyTiles: number[];
+  // Captain scan (Threat Scan)
+  captainScanResult?: CaptainScanResult;
+  // 2-Star General (Hold the Line)
+  /** Tile indices of pieces currently restricted from moving backward */
+  holdRestrictedTiles: number[];
+  /** True while the player is in target-select mode for Hold the Line */
+  twoStarActive: boolean;
   // drag props
   draggingPieceId: string | null;
   draggingFromTile: number | null;
@@ -73,12 +88,6 @@ type Props = {
   boardHint: string;
 };
 
-/**
- * DropZoneTile
- * Wraps each formation-phase tile with a PanGestureHandler that fires
- * onDragEnterTile when a finger passes over it and onDragEnd when released.
- * Long-pressing a placed piece starts a board-to-board drag via onDragStartFromBoard.
- */
 function DropZoneTile({
   tileIndex,
   isSetupZone,
@@ -108,7 +117,6 @@ function DropZoneTile({
 
   const handlePan = ({ nativeEvent }: any) => {
     if (!isDragging) return;
-
     if (
       nativeEvent.state === State.BEGAN ||
       nativeEvent.state === State.ACTIVE
@@ -118,7 +126,6 @@ function DropZoneTile({
         onDragEnterTile(tileIndex);
       }
     }
-
     if (
       nativeEvent.state === State.END ||
       nativeEvent.state === State.CANCELLED ||
@@ -181,6 +188,14 @@ export function BoardGrid({
   generalChargeActive,
   fourStarPushActive,
   fourStarPushTargetTiles,
+  ltColonelStunActive,
+  ltColonelDiagonalTiles,
+  stunnedTileIndices,
+  majorSwapActive,
+  majorSwapAllyTiles,
+  captainScanResult,
+  holdRestrictedTiles,
+  twoStarActive,
   draggingPieceId,
   draggingFromTile,
   dragOverTileIndex,
@@ -228,6 +243,12 @@ export function BoardGrid({
               // ── Flag swap: ally highlight ──────────────────────────────────
               const isFlagSwapAlly =
                 phase !== "formation" && flagSwapAllyTiles.includes(tile.index);
+
+              // ── Major swap: orthogonal ally highlight ──────────────────────
+              const isMajorSwapAlly =
+                phase !== "formation" &&
+                majorSwapActive &&
+                majorSwapAllyTiles.includes(tile.index);
 
               // ── General Charge: extended move highlight ────────────────────
               const isGeneralChargeTarget =
@@ -302,13 +323,46 @@ export function BoardGrid({
                 colonelReveal.tileIndex === tile.index &&
                 battlePiece?.side === "ai";
 
+              // ── Lt. Colonel stun: diagonal target highlight ────────────────
+              const isLtColonelDiagonalTarget =
+                phase !== "formation" &&
+                ltColonelStunActive &&
+                ltColonelDiagonalTiles.includes(tile.index);
+
+              // ── Stunned tile: enemy piece locked for this AI turn ──────────
+              const isStunnedTile =
+                phase !== "formation" && stunnedTileIndices.has(tile.index);
+
+              // ── Captain scan reveal ────────────────────────────────────────
+              const captainScanEntry =
+                phase !== "formation" && captainScanResult != null
+                  ? captainScanResult.find((e) => e.tileIndex === tile.index)
+                  : undefined;
+              const isCaptainScanned =
+                captainScanEntry != null && battlePiece?.side === "ai";
+
+              // ── 2-Star General: Hold the Line restricted tile ──────────────
+              // Show on BOTH player and AI restricted pieces so both sides can
+              // see the restriction (player always knows what they applied;
+              // AI-applied restriction is shown on player pieces).
+              const isHoldRestricted =
+                phase !== "formation" &&
+                holdRestrictedTiles.includes(tile.index) &&
+                !!battlePiece;
+
+              // When twoStarActive, highlight all enemy (AI) pieces as valid
+              // targets (any enemy piece can be selected).
+              const isTwoStarTarget =
+                phase !== "formation" &&
+                twoStarActive &&
+                battlePiece?.side === "ai";
+
               // Drag-specific flags
               const isDragOver =
                 isDragging && dragOverTileIndex === tile.index && isSetupZone;
               const isDraggingSource =
                 isDragging && draggingFromTile === tile.index;
 
-              // ── Resolve which challenge icon to show ───────────────────────
               const showChallengeBtn =
                 isChallengeTarget || isGeneralChargeChallengeTarget;
 
@@ -328,27 +382,27 @@ export function BoardGrid({
                 isTrailFrom && styles.trailFrom,
                 isTrailTo && styles.trailTo,
                 (isMoveSource || isSelectedBattle) && styles.sourceSelected,
-                // Standard battle target (non-charge)
                 !generalChargeActive && isBattleTarget && styles.battleTarget,
                 !generalChargeActive &&
                   isChallengeTarget &&
                   styles.challengeTarget,
-                // General Charge targets — distinct purple/violet theming
                 isGeneralChargeTarget && styles.generalChargeTarget,
                 isGeneralChargeChallengeTarget &&
                   styles.generalChargeChallengeTarget,
-                // Veteran tile: subtle gold shimmer border
                 isPlayerVeteran && styles.veteranTile,
-                // Flag swap ally: brass-gold pulse border
                 isFlagSwapAlly && styles.flagSwapAllyTarget,
-                // Spy reveal: teal border flash (applied last so it wins)
+                isMajorSwapAlly && styles.majorSwapAllyTarget,
                 isSpyRevealed && styles.spyRevealTile,
-                // Colonel diagonal target: olive-green highlight
                 isColonelDiagonalTarget && styles.colonelDiagonalTarget,
-                // Colonel reveal: olive border flash
                 isColonelRevealed && styles.colonelRevealTile,
-                // 4-Star push target: orange-amber highlight (applied last)
                 isFourStarPushTarget && styles.fourStarPushTarget,
+                isLtColonelDiagonalTarget && styles.ltColonelDiagonalTarget,
+                isStunnedTile && styles.stunnedTile,
+                isCaptainScanned && styles.captainScanTile,
+                // Hold the Line: amber border on any restricted piece
+                isHoldRestricted && styles.holdRestrictedTile,
+                // Hold the Line: target-select highlight on enemy pieces
+                isTwoStarTarget && styles.twoStarTargetTile,
               ];
 
               // ── Formation phase: DropZoneTile ────────────────────────────
@@ -372,8 +426,6 @@ export function BoardGrid({
                         {formationPiece.shortLabel}
                       </Text>
                     ) : null}
-
-                    {/* Glowing drop target indicator on empty hovered tile */}
                     {isDragOver && !formationPiece ? (
                       <View style={styles.dropIndicator} />
                     ) : null}
@@ -410,11 +462,18 @@ export function BoardGrid({
                           (isChallengeTarget ||
                             isGeneralChargeChallengeTarget) &&
                             styles.challengeTargetPieceText,
-                          // Keep piece text visible on push targets
                           isFourStarPushTarget && styles.pushTargetPieceText,
-                          // Keep "?" visible on colonel diagonal targets
                           isColonelDiagonalTarget &&
                             styles.colonelTargetPieceText,
+                          isLtColonelDiagonalTarget &&
+                            styles.ltColonelTargetPieceText,
+                          isMajorSwapAlly && styles.majorSwapAllyPieceText,
+                          isStunnedTile && styles.stunnedPieceText,
+                          isCaptainScanned && styles.captainScanPieceText,
+                          // Hold the Line: amber label when restricted
+                          isHoldRestricted && styles.holdRestrictedPieceText,
+                          // Hold the Line: bright amber label when being targeted
+                          isTwoStarTarget && styles.twoStarTargetPieceText,
                         ]}
                       >
                         {visiblePiece}
@@ -436,7 +495,7 @@ export function BoardGrid({
                     </View>
                   ) : null}
 
-                  {/* Veteran badge — bottom-left, opposite the upgrade badge */}
+                  {/* Veteran badge — bottom-left */}
                   {isPlayerVeteran ? (
                     <View style={styles.veteranBadge}>
                       <Text style={[styles.veteranStar, { fontSize: rf(7) }]}>
@@ -453,7 +512,7 @@ export function BoardGrid({
                     />
                   ) : null}
 
-                  {/* Standard challenge button (non-charge) */}
+                  {/* Standard challenge button */}
                   {isChallengeTarget && !generalChargeActive ? (
                     <TouchableOpacity
                       style={[styles.challengeBtn, { borderRadius: rf(2) }]}
@@ -500,7 +559,7 @@ export function BoardGrid({
                     </TouchableOpacity>
                   ) : null}
 
-                  {/* Flag swap ally indicator — small swap icon overlay */}
+                  {/* Flag swap ally indicator */}
                   {isFlagSwapAlly ? (
                     <View style={styles.swapIndicator} pointerEvents="none">
                       <Text style={[styles.swapIcon, { fontSize: rf(8) }]}>
@@ -509,7 +568,16 @@ export function BoardGrid({
                     </View>
                   ) : null}
 
-                  {/* General Charge move indicator — lightning bolt on empty tiles */}
+                  {/* Major swap ally indicator */}
+                  {isMajorSwapAlly ? (
+                    <View style={styles.swapIndicator} pointerEvents="none">
+                      <Text style={[styles.majorSwapIcon, { fontSize: rf(8) }]}>
+                        ↕
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* General Charge move indicator */}
                   {isGeneralChargeTarget && !battlePiece ? (
                     <View style={styles.chargeIndicator} pointerEvents="none">
                       <Text style={[styles.chargeIcon, { fontSize: rf(9) }]}>
@@ -518,7 +586,7 @@ export function BoardGrid({
                     </View>
                   ) : null}
 
-                  {/* 4-Star Push target indicator — fist icon on pushable enemies */}
+                  {/* 4-Star Push target indicator */}
                   {isFourStarPushTarget ? (
                     <View style={styles.pushIndicator} pointerEvents="none">
                       <Text style={[styles.pushIcon, { fontSize: rf(8) }]}>
@@ -527,8 +595,7 @@ export function BoardGrid({
                     </View>
                   ) : null}
 
-                  {/* Colonel diagonal target indicator — telescope on
-                      highlighted enemy tiles (rank is hidden until tapped) */}
+                  {/* Colonel diagonal target indicator */}
                   {isColonelDiagonalTarget && battlePiece ? (
                     <View
                       style={styles.colonelTargetIndicator}
@@ -542,8 +609,61 @@ export function BoardGrid({
                     </View>
                   ) : null}
 
-                  {/* ── Spy reveal overlay ────────────────────────────────────
-                      Sits on top of everything for exactly 1.5 s. */}
+                  {/* Lt. Colonel stun target indicator */}
+                  {isLtColonelDiagonalTarget && battlePiece ? (
+                    <View
+                      style={styles.ltColonelTargetIndicator}
+                      pointerEvents="none"
+                    >
+                      <Text
+                        style={[
+                          styles.ltColonelTargetIcon,
+                          { fontSize: rf(8) },
+                        ]}
+                      >
+                        🎯
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Stunned tile indicator */}
+                  {isStunnedTile && battlePiece ? (
+                    <View style={styles.stunnedOverlay} pointerEvents="none">
+                      <Text style={[styles.stunnedIcon, { fontSize: rf(9) }]}>
+                        💤
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Hold the Line restricted tile indicator — top-left anchor chain */}
+                  {isHoldRestricted ? (
+                    <View
+                      style={styles.holdRestrictedOverlay}
+                      pointerEvents="none"
+                    >
+                      <Text
+                        style={[styles.holdRestrictedIcon, { fontSize: rf(8) }]}
+                      >
+                        ⛓️
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Hold the Line target-select indicator — pulsing shield on enemy */}
+                  {isTwoStarTarget && !isHoldRestricted ? (
+                    <View
+                      style={styles.twoStarTargetIndicator}
+                      pointerEvents="none"
+                    >
+                      <Text
+                        style={[styles.twoStarTargetIcon, { fontSize: rf(8) }]}
+                      >
+                        🛡️
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* ── Spy reveal overlay ─────────────────────────────────── */}
                   {isSpyRevealed && spyReveal ? (
                     <View
                       style={[
@@ -564,8 +684,7 @@ export function BoardGrid({
                     </View>
                   ) : null}
 
-                  {/* ── Colonel reveal overlay ────────────────────────────────
-                      Shows true rank for 1.5 s when Field Scope is used. */}
+                  {/* ── Colonel reveal overlay ─────────────────────────────── */}
                   {isColonelRevealed && colonelReveal ? (
                     <View
                       style={styles.colonelRevealOverlay}
@@ -578,6 +697,20 @@ export function BoardGrid({
                         ]}
                       >
                         {colonelReveal.shortLabel}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* ── Captain scan reveal overlay ────────────────────────── */}
+                  {isCaptainScanned && captainScanEntry ? (
+                    <View
+                      style={styles.captainScanOverlay}
+                      pointerEvents="none"
+                    >
+                      <Text
+                        style={[styles.captainScanLabel, { fontSize: rf(10) }]}
+                      >
+                        {captainScanEntry.shortLabel}
                       </Text>
                     </View>
                   ) : null}
@@ -671,6 +804,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
   },
+  majorSwapAllyTarget: {
+    borderColor: "#5B9BD5",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(91, 155, 213, 0.22)",
+    shadowColor: "#5B9BD5",
+    shadowOpacity: 0.42,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
   spyRevealTile: {
     borderColor: "#4EC9A8",
     borderWidth: appTheme.borderWidth.thick,
@@ -700,7 +843,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 5,
   },
-  // ── 4-Star Push target: orange-amber highlight ───────────────────────────────
   fourStarPushTarget: {
     borderColor: "#FF9020",
     borderWidth: appTheme.borderWidth.thick,
@@ -711,7 +853,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
   },
-  // ── Colonel diagonal target: olive-green highlight ───────────────────────────
   colonelDiagonalTarget: {
     borderColor: "#A0B840",
     borderWidth: appTheme.borderWidth.thick,
@@ -730,6 +871,57 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },
     elevation: 5,
+  },
+  ltColonelDiagonalTarget: {
+    borderColor: "#3ECFB0",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(62, 207, 176, 0.20)",
+    shadowColor: "#3ECFB0",
+    shadowOpacity: 0.45,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  stunnedTile: {
+    borderColor: "#9080B0",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(80, 60, 120, 0.25)",
+    shadowColor: "#9080B0",
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
+  },
+  captainScanTile: {
+    borderColor: "#4A9ED0",
+    borderWidth: appTheme.borderWidth.thick,
+    shadowColor: "#4A9ED0",
+    shadowOpacity: 0.6,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
+  },
+  // ── Hold the Line: restricted tile — amber chain ─────────────────────────
+  holdRestrictedTile: {
+    borderColor: "#D47C2A",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(212, 124, 42, 0.18)",
+    shadowColor: "#D47C2A",
+    shadowOpacity: 0.5,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  // ── Hold the Line: target-select mode — enemy pieces glow amber ───────────
+  twoStarTargetTile: {
+    borderColor: "#F0A050",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(240, 160, 80, 0.16)",
+    shadowColor: "#F0A050",
+    shadowOpacity: 0.42,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
   },
   playerUpgradeBadge: {
     position: "absolute",
@@ -787,6 +979,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 12,
   },
+  majorSwapIcon: {
+    color: "#5B9BD5",
+    fontWeight: "700",
+    lineHeight: 12,
+  },
   chargeIndicator: {
     position: "absolute",
     bottom: 1,
@@ -799,7 +996,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 12,
   },
-  // ── 4-Star Push indicator overlay (✊ on pushable enemy tiles) ───────────────
   pushIndicator: {
     position: "absolute",
     bottom: 1,
@@ -812,7 +1008,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 12,
   },
-  // ── Colonel diagonal target indicator (🔭 on selectable enemy tiles) ─────────
   colonelTargetIndicator: {
     position: "absolute",
     bottom: 1,
@@ -821,6 +1016,48 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   colonelTargetIcon: {
+    lineHeight: 12,
+  },
+  ltColonelTargetIndicator: {
+    position: "absolute",
+    bottom: 1,
+    right: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ltColonelTargetIcon: {
+    lineHeight: 12,
+  },
+  stunnedOverlay: {
+    position: "absolute",
+    top: 1,
+    left: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stunnedIcon: {
+    lineHeight: 12,
+  },
+  // ── Hold the Line: chain icon — top-left, distinct from stun (top-left) ───
+  holdRestrictedOverlay: {
+    position: "absolute",
+    top: 1,
+    left: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  holdRestrictedIcon: {
+    lineHeight: 12,
+  },
+  // ── Hold the Line: shield icon for target-select enemy pieces ─────────────
+  twoStarTargetIndicator: {
+    position: "absolute",
+    bottom: 1,
+    right: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  twoStarTargetIcon: {
     lineHeight: 12,
   },
   spyRevealOverlay: {
@@ -847,7 +1084,6 @@ const styles = StyleSheet.create({
   spyRevealLabelFaked: {
     color: "#A8C94E",
   },
-  // ── Colonel reveal overlay ────────────────────────────────────────────────────
   colonelRevealOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(20, 30, 5, 0.88)",
@@ -864,6 +1100,30 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.5,
     textAlign: "center",
+  },
+  captainScanOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(5, 20, 40, 0.88)",
+    borderWidth: 2,
+    borderColor: "#4A9ED0",
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 20,
+  },
+  captainScanLabel: {
+    color: "#7BC8F0",
+    fontFamily: appTheme.fonts.body,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textAlign: "center",
+  },
+  captainScanPieceText: {
+    color: "#B0D8F0",
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
   },
   aiTileHidden: { backgroundColor: "#1A0008", borderColor: "#7A2A3A" },
   aiTileRevealed: { backgroundColor: "#750012", borderColor: "#E0B55D" },
@@ -935,7 +1195,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
     textShadowOffset: { width: 0, height: 1 },
   },
-  // Keeps the "?" label readable on the orange push-target background
   pushTargetPieceText: {
     color: "#FFE0B0",
     fontWeight: "700",
@@ -943,9 +1202,44 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
     textShadowOffset: { width: 0, height: 1 },
   },
-  // Keeps the "?" label readable on the olive colonel-target background
   colonelTargetPieceText: {
     color: "#E8F0B0",
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
+  },
+  majorSwapAllyPieceText: {
+    color: "#D0E8FF",
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
+  },
+  ltColonelTargetPieceText: {
+    color: "#C0F0E8",
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
+  },
+  stunnedPieceText: {
+    color: "#C0B0D8",
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
+  },
+  // ── Hold the Line piece text styles ───────────────────────────────────────
+  holdRestrictedPieceText: {
+    color: "#F0C080",
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
+  },
+  twoStarTargetPieceText: {
+    color: "#FFD090",
     fontWeight: "700",
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowRadius: 2,
