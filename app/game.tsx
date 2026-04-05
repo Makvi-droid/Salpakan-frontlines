@@ -13,10 +13,12 @@ import { BattleInfoPanel } from "../components/BattleInfoPanel";
 import { BoardGrid } from "../components/BoardGrid";
 import { ChallengeModal } from "../components/ChallengeModal";
 import { CrateChoiceModal } from "../components/CrateChoiceModal";
+import { FirstLtRevealModal } from "../components/FirstLtRevealModal";
 import { FormationControls } from "../components/FormationControls";
 import { GameModals } from "../components/GameModals";
 import { KamikazeModal } from "../components/KamikazeModal";
 import { OneStarGeneralBonusMoveModal } from "../components/OneStarGeneralBonusMoveModal";
+import { SecondLtRevealModal } from "../components/SecondLtRevealModal";
 import { StatusBox } from "../components/StatusBox";
 import { ThreeStarPassiveModal } from "../components/ThreeStarPassiveModal";
 import { TopMenuRow } from "../components/TopMenuRow";
@@ -107,15 +109,19 @@ export default function GameScreen() {
               ? "Tap a highlighted enemy to push it back 1 square, or tap elsewhere to cancel."
               : game.colonelRevealActive
                 ? "Tap a highlighted diagonal enemy to reveal their rank, or tap elsewhere to cancel."
-                : game.generalChargeActive
-                  ? "Tap a highlighted tile to charge there, or tap elsewhere to cancel."
-                  : game.twoStarActive
-                    ? "Tap any enemy piece to restrict its backward movement for 2 rounds, or tap elsewhere to cancel."
-                    : game.aiThinking
-                      ? `${game.aiProfile.label} is reading the field...`
-                      : game.turn === "player"
-                        ? "Tap your piece, then tap an adjacent tile to move or attack."
-                        : "Hold position while the enemy acts.";
+                : game.firstLtRevealActive
+                  ? "Tap any enemy piece to assess its rank tier, or tap elsewhere to cancel."
+                  : game.secondLtRevealActive
+                    ? "Tap any enemy piece to compare its strength, or tap elsewhere to cancel."
+                    : game.generalChargeActive
+                      ? "Tap a highlighted tile to charge there, or tap elsewhere to cancel."
+                      : game.twoStarActive
+                        ? "Tap any enemy piece to restrict its backward movement for 2 rounds, or tap elsewhere to cancel."
+                        : game.aiThinking
+                          ? `${game.aiProfile.label} is reading the field...`
+                          : game.turn === "player"
+                            ? "Tap your piece, then tap an adjacent tile to move or attack."
+                            : "Hold position while the enemy acts.";
 
   const handleLeftAction = () => {
     if (game.phase === "ended") {
@@ -247,7 +253,6 @@ export default function GameScreen() {
               onDragStartFromBoard={game.handleDragStartFromBoard}
               onDragEnterTile={game.handleDragEnterTile}
               onDragEnd={game.handleDragEnd}
-              // ── Hold the Line ─────────────────────────────────────────────
               holdRestrictedTiles={game.holdRestrictedTiles}
               twoStarActive={game.twoStarActive}
             />
@@ -289,6 +294,8 @@ export default function GameScreen() {
                     !!game.selectedPieceIsGeneralFourStar
                   }
                   selectedPieceIsColonel={!!game.selectedPieceIsColonel}
+                  selectedPieceIsFirstLt={!!game.selectedPieceIsFirstLt}
+                  selectedPieceIsSecondLt={!!game.selectedPieceIsSecondLt}
                   selectedPieceIsLtColonel={!!game.selectedPieceIsLtColonel}
                   selectedPieceIsMajor={!!game.selectedPieceIsMajor}
                   selectedPieceIsCaptain={!!game.selectedPieceIsCaptain}
@@ -322,6 +329,20 @@ export default function GameScreen() {
                     game.colonelRevealActive
                       ? game.cancelColonelReveal()
                       : game.activateColonelReveal()
+                  }
+                  firstLtRevealActive={game.firstLtRevealActive}
+                  firstLtRevealCooldownUntil={game.firstLtRevealCooldownUntil}
+                  onFirstLtRevealPress={() =>
+                    game.firstLtRevealActive
+                      ? game.cancelFirstLtReveal()
+                      : game.activateFirstLtReveal()
+                  }
+                  secondLtRevealActive={game.secondLtRevealActive}
+                  secondLtRevealCooldownUntil={game.secondLtRevealCooldownUntil}
+                  onSecondLtRevealPress={() =>
+                    game.secondLtRevealActive
+                      ? game.cancelSecondLtReveal()
+                      : game.activateSecondLtReveal()
                   }
                   ltColonelStunActive={game.ltColonelStunActive}
                   ltColonelStunCooldownUntil={game.ltColonelStunCooldownUntil}
@@ -480,7 +501,6 @@ export default function GameScreen() {
           rsv={rsv}
           onDismiss={game.handleThreeStarPassiveDismiss}
         />
-
         <OneStarGeneralBonusMoveModal
           event={game.pendingOneStarBonusMove}
           insets={insets}
@@ -490,6 +510,26 @@ export default function GameScreen() {
           rsv={rsv}
           onConfirm={game.handleOneStarBonusMoveConfirm}
           onSkip={game.handleOneStarBonusMoveSkip}
+        />
+        {/* ── 1st Lieutenant: Intel Report result modal ───────────────────── */}
+        <FirstLtRevealModal
+          event={game.pendingFirstLtReveal}
+          insets={insets}
+          width={width}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onDismiss={game.handleFirstLtRevealDismiss}
+        />
+        {/* ── 2nd Lieutenant: Field Assessment result modal ───────────────── */}
+        <SecondLtRevealModal
+          event={game.pendingSecondLtReveal}
+          insets={insets}
+          width={width}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onDismiss={game.handleSecondLtRevealDismiss}
         />
         <AIAbilityNotification
           visible={game.aiSpyRevealNotifVisible}

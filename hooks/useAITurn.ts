@@ -30,7 +30,6 @@ interface UseAITurnOptions {
   aiProfile: AIProfile;
   pieceById: Record<string, PieceDefinition>;
   crateTiles: number[];
-  // Blocking conditions — AI won't move while any of these are active
   pendingChallenge: ChallengeEvent | null;
   pendingUpgradeRoll: { upgrade: PieceUpgradeId } | null;
   pendingUpgradeActivation: {
@@ -51,27 +50,13 @@ interface UseAITurnOptions {
   aiSpyCooldownUntil: number | null;
   aiGeneralChargeCooldownUntil: number | null;
   oneStarGeneralAICooldownUntil: number | null;
-  // ── 2-Star General: Hold the Line ─────────────────────────────────────────
-  /** Wall-clock timestamp until which the AI's Hold the Line is on cooldown. */
   aiTwoStarCooldownUntil: number | null;
-  /** Returns true when the AI's Hold the Line ability is currently on cooldown. */
   isAITwoStarOnCooldown: () => boolean;
-  /**
-   * Apply the Hold restriction to a random player tile chosen by the AI.
-   * Receives the target tile index.
-   */
   onApplyAIHoldRestriction: (targetTileIndex: number) => void;
-  /** Start the AI's Hold the Line cooldown. */
   onStartAITwoStarCooldown: () => void;
-  /**
-   * Returns true when the given move is blocked by a Hold the Line restriction.
-   * Consumed by chooseMoveForProfile via the injected filter.
-   */
   isBackwardMoveBlocked: (from: number, to: number, side: Side) => boolean;
-  // ── Lt. Colonel stun ────────────────────────────────────────────────────────
   isTileStunned: (tileIndex: number) => boolean;
   onClearStuns: () => void;
-  // Callbacks
   shouldInterceptKamikaze: (
     board: Record<number, BoardPiece>,
     move: any,
@@ -206,9 +191,6 @@ export function useAITurn(opts: UseAITurnOptions) {
       }
 
       // ── AI 2-Star General: Hold the Line ───────────────────────────────────
-      // The AI uses Hold the Line when its 2-Star General is on the board,
-      // the ability is off cooldown, and there are player pieces to restrict.
-      // It targets a random player piece.
       if (!isAITwoStarOnCooldown()) {
         const holdResult = tryAIHoldTheLine(battleBoard, pieceById);
         if (holdResult !== null) {
@@ -296,8 +278,6 @@ export function useAITurn(opts: UseAITurnOptions) {
       }
 
       // ── Normal AI move ─────────────────────────────────────────────────────
-      // Pass isBackwardMoveBlocked so chooseMoveForProfile can filter out
-      // restricted backward moves for AI pieces.
       const aiMove = chooseMoveForProfile(
         battleBoard,
         aiProfile,
@@ -338,9 +318,7 @@ export function useAITurn(opts: UseAITurnOptions) {
         // ── 3-Star General Last Stand intercept ────────────────────────────
         if (
           shouldInterceptThreeStarPassive(
-            target.pieceId === undefined
-              ? ""
-              : battleBoard[aiMove.from]!.pieceId,
+            battleBoard[aiMove.from]!.pieceId,
             target.pieceId,
           )
         ) {
@@ -457,21 +435,10 @@ function tryAIFlagSwap(
 
 // ─── AI Hold the Line heuristic ───────────────────────────────────────────────
 
-/**
- * Returns the tile index of a random player piece to restrict, or null if
- * the AI's 2-Star General is not on the board or there are no player pieces.
- *
- * Conditions for use:
- *  1. The AI's 2-Star General is alive on the board.
- *  2. There is at least one player piece on the board to restrict.
- *  3. The AI randomly decides to use it (70% chance when conditions are met)
- *     so it doesn't always fire on the very first AI turn.
- */
 function tryAIHoldTheLine(
   board: Record<number, BoardPiece>,
   pieceById: Record<string, PieceDefinition>,
 ): number | null {
-  // Check AI 2-Star General is present
   const hasAITwoStarGeneral = Object.values(board).some(
     (piece) =>
       piece.side === "ai" &&
@@ -479,17 +446,14 @@ function tryAIHoldTheLine(
   );
   if (!hasAITwoStarGeneral) return null;
 
-  // Gather all player piece tile indices
   const playerTiles = Object.entries(board)
     .filter(([, piece]) => piece.side === "player")
     .map(([key]) => Number(key));
 
   if (playerTiles.length === 0) return null;
 
-  // 70% chance to actually use it this turn (prevents deterministic use)
   if (Math.random() > 0.7) return null;
 
-  // Pick a random player tile
   return playerTiles[Math.floor(Math.random() * playerTiles.length)];
 }
 

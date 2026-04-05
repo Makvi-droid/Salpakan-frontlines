@@ -2,12 +2,14 @@ import React from "react";
 import { StyleSheet, View } from "react-native";
 import { CaptainScanButton } from "./CaptainScanButton";
 import { ColonelAbilityButton } from "./ColonelAbilityButton";
+import { FirstLtAbilityButton } from "./FirstLtAbilityButton";
 import { FlagAbilityButton } from "./FlagAbilityButton";
 import { FourStarPushButton } from "./FourStarPushButton";
 import { GeneralChargeButton } from "./GeneralChargeButton";
 import { LtColonelStunButton } from "./LtColonelStunButton";
 import { MajorAbilityButton } from "./MajorAbilityButton";
 import { OneStarGeneralButton } from "./OneStarGeneralButton";
+import { SecondLtAbilityButton } from "./SecondLtAbilityButton";
 import { SpyAbilityButton } from "./SpyAbilityButton";
 import { TwoStarGeneralButton } from "./TwoStarGeneralButton";
 
@@ -19,6 +21,10 @@ type Props = {
   selectedPieceIsGeneralFourStar: boolean;
   /** True when the selected battle tile is the player's Colonel */
   selectedPieceIsColonel: boolean;
+  /** True when the selected battle tile is the player's 1st Lieutenant */
+  selectedPieceIsFirstLt: boolean;
+  /** True when the selected battle tile is the player's 2nd Lieutenant */
+  selectedPieceIsSecondLt: boolean;
   /** True when the selected battle tile is the player's Lt. Colonel */
   selectedPieceIsLtColonel: boolean;
   /** True when the selected battle tile is the player's Major */
@@ -49,6 +55,14 @@ type Props = {
   colonelRevealActive: boolean;
   colonelRevealCooldownUntil: number | null;
   onColonelPress: () => void;
+  // 1st Lieutenant Intel Report
+  firstLtRevealActive: boolean;
+  firstLtRevealCooldownUntil: number | null;
+  onFirstLtRevealPress: () => void;
+  // 2nd Lieutenant Field Assessment
+  secondLtRevealActive: boolean;
+  secondLtRevealCooldownUntil: number | null;
+  onSecondLtRevealPress: () => void;
   // Lt. Colonel stun (Suppression Fire)
   ltColonelStunActive: boolean;
   ltColonelStunCooldownUntil: number | null;
@@ -80,6 +94,8 @@ export function AbilityPanel({
   selectedPieceIsGeneralFiveStar,
   selectedPieceIsGeneralFourStar,
   selectedPieceIsColonel,
+  selectedPieceIsFirstLt,
+  selectedPieceIsSecondLt,
   selectedPieceIsLtColonel,
   selectedPieceIsMajor,
   selectedPieceIsCaptain,
@@ -100,6 +116,12 @@ export function AbilityPanel({
   colonelRevealActive,
   colonelRevealCooldownUntil,
   onColonelPress,
+  firstLtRevealActive,
+  firstLtRevealCooldownUntil,
+  onFirstLtRevealPress,
+  secondLtRevealActive,
+  secondLtRevealCooldownUntil,
+  onSecondLtRevealPress,
   ltColonelStunActive,
   ltColonelStunCooldownUntil,
   onLtColonelStunPress,
@@ -127,6 +149,10 @@ export function AbilityPanel({
       fourStarPushActive ||
       selectedPieceIsColonel ||
       colonelRevealActive ||
+      selectedPieceIsFirstLt ||
+      firstLtRevealActive ||
+      selectedPieceIsSecondLt ||
+      secondLtRevealActive ||
       selectedPieceIsLtColonel ||
       ltColonelStunActive ||
       selectedPieceIsMajor ||
@@ -194,6 +220,30 @@ export function AbilityPanel({
           rs={rs}
           rsv={rsv}
           onPress={onColonelPress}
+        />
+      )}
+      {/* 1st Lieutenant: Intel Report rank-tier reveal */}
+      {(selectedPieceIsFirstLt || firstLtRevealActive) && (
+        <FirstLtAbilityButton
+          visible
+          active={firstLtRevealActive}
+          cooldownUntil={firstLtRevealCooldownUntil}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onPress={onFirstLtRevealPress}
+        />
+      )}
+      {/* 2nd Lieutenant: Field Assessment strength-comparison reveal */}
+      {(selectedPieceIsSecondLt || secondLtRevealActive) && (
+        <SecondLtAbilityButton
+          visible
+          active={secondLtRevealActive}
+          cooldownUntil={secondLtRevealCooldownUntil}
+          rf={rf}
+          rs={rs}
+          rsv={rsv}
+          onPress={onSecondLtRevealPress}
         />
       )}
       {/* Lt. Colonel: Suppression Fire stun ability */}

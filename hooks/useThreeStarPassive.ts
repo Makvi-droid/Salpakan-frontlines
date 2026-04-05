@@ -13,8 +13,8 @@ import type {
 const THREE_STAR_LABEL = "3 Star\nGeneral";
 
 /**
- * Labels that trigger the 3-Star General's Last Stand passive when they
- * attack it. Per design: 4-Star General, 5-Star General, and Spy.
+ * Labels that trigger the 3-Star General's Last Stand passive.
+ * Applies whether the 3-Star is the attacker OR the defender.
  */
 const LAST_STAND_TRIGGER_LABELS = new Set([
   "4 Star\nGeneral",
@@ -39,25 +39,37 @@ export function useThreeStarPassive({ pieceById }: UseThreeStarPassiveOptions) {
 
   /**
    * Returns true when a challenge should be intercepted by the Last Stand
-   * passive. Conditions: defender is the 3-Star General AND attacker is one
-   * of the qualifying higher pieces (4-Star, 5-Star, Spy).
+   * passive. Fires in both directions:
+   *   - Defender is 3-Star and attacker is a trigger piece (4★, 5★, Spy)
+   *   - Attacker is 3-Star and defender is a trigger piece (4★, 5★, Spy)
    */
   const shouldInterceptThreeStarPassive = (
     attackerPieceId: string,
     defenderPieceId: string,
   ): boolean => {
-    const defenderLabel = pieceById[defenderPieceId]?.label ?? "";
     const attackerLabel = pieceById[attackerPieceId]?.label ?? "";
-    return (
+    const defenderLabel = pieceById[defenderPieceId]?.label ?? "";
+
+    // Case 1: 3-Star is being attacked by a higher piece
+    if (
       defenderLabel === THREE_STAR_LABEL &&
       LAST_STAND_TRIGGER_LABELS.has(attackerLabel)
-    );
+    )
+      return true;
+
+    // Case 2: 3-Star is the attacker going after a higher piece
+    if (
+      attackerLabel === THREE_STAR_LABEL &&
+      LAST_STAND_TRIGGER_LABELS.has(defenderLabel)
+    )
+      return true;
+
+    return false;
   };
 
   /**
    * Builds the mutual-elimination BattleResolution for a Last Stand intercept.
-   * Both attacker (from) and the 3-Star General (to) are removed.
-   * Flag-capture win condition is fully preserved.
+   * Both pieces are removed regardless of which one is the 3-Star General.
    */
   const buildLastStandResolution = (
     board: Record<number, BoardPiece>,
@@ -65,7 +77,7 @@ export function useThreeStarPassive({ pieceById }: UseThreeStarPassiveOptions) {
     to: number,
   ): BattleResolution => {
     const attacker = board[from];
-    const defender = board[to]; // the 3-Star General
+    const defender = board[to];
 
     if (!attacker || !defender) {
       return {
@@ -93,24 +105,30 @@ export function useThreeStarPassive({ pieceById }: UseThreeStarPassiveOptions) {
       ? capturedByPlayer.push(defender.pieceId)
       : capturedByAI.push(defender.pieceId);
 
-    // Preserve flag-capture win condition — if either piece is the Flag,
-    // the opposing side wins immediately.
+    // Preserve flag-capture win condition
     let winner: Side | null = null;
     if (pieceById[attacker.pieceId]?.label === "Flag") winner = defender.side;
     if (pieceById[defender.pieceId]?.label === "Flag")
       winner = winner ?? attacker.side;
 
-    const isPlayerThreeStar = defender.side === "player";
-    const attackerName =
-      pieceById[attacker.pieceId]?.label.replace("\n", " ") ?? "Unknown";
+    // Identify which piece is the 3-Star (could be attacker OR defender)
+    const attackerLabel = pieceById[attacker.pieceId]?.label ?? "";
+
+    const threeStarPiece =
+      attackerLabel === THREE_STAR_LABEL ? attacker : defender;
+    const otherPiece = attackerLabel === THREE_STAR_LABEL ? defender : attacker;
+
+    const isPlayerThreeStar = threeStarPiece.side === "player";
+    const otherName =
+      pieceById[otherPiece.pieceId]?.label.replace("\n", " ") ?? "Unknown";
 
     const message = isPlayerThreeStar
-      ? `Last Stand! Your 3-Star General took the enemy ${attackerName} down with it — both eliminated.`
-      : `Last Stand! Enemy 3-Star General dragged your ${attackerName} down with it — both eliminated.`;
+      ? `Last Stand! Your 3-Star General took the enemy ${otherName} down with it — both eliminated.`
+      : `Last Stand! Enemy 3-Star General dragged your ${otherName} down with it — both eliminated.`;
 
     const revealMessage = isPlayerThreeStar
-      ? `Your 3-Star General's passive triggered: mutual elimination with the attacking ${attackerName}.`
-      : `Enemy 3-Star General's passive triggered: mutual elimination with your ${attackerName}.`;
+      ? `Your 3-Star General's passive triggered: mutual elimination with ${otherName}.`
+      : `Enemy 3-Star General's passive triggered: mutual elimination with your ${otherName}.`;
 
     return {
       board: nextBoard,
@@ -124,7 +142,8 @@ export function useThreeStarPassive({ pieceById }: UseThreeStarPassiveOptions) {
 
   /**
    * Queues the Last Stand notification event and pre-built resolution.
-   * Call this when shouldInterceptThreeStarPassive returns true.
+   * Correctly identifies the 3-Star regardless of whether it is the
+   * attacker (from) or defender (to).
    */
   const queueThreeStarPassive = (
     board: Record<number, BoardPiece>,
@@ -136,19 +155,24 @@ export function useThreeStarPassive({ pieceById }: UseThreeStarPassiveOptions) {
     const defender = board[to];
     if (!attacker || !defender) return;
 
-    const threeStarSide = defender.side;
-    const attackerLabel =
-      pieceById[attacker.pieceId]?.label.replace("\n", " ") ?? "Unknown";
-    const attackerShortLabel = pieceById[attacker.pieceId]?.shortLabel ?? "?";
+    const attackerLabel = pieceById[attacker.pieceId]?.label ?? "";
+
+    // Identify which piece is the 3-Star and which is the other piece
+    const threeStarSide =
+      attackerLabel === THREE_STAR_LABEL ? attacker.side : defender.side;
+    const otherPiece = attackerLabel === THREE_STAR_LABEL ? defender : attacker;
+
+    const otherLabel =
+      pieceById[otherPiece.pieceId]?.label.replace("\n", " ") ?? "Unknown";
+    const otherShortLabel = pieceById[otherPiece.pieceId]?.shortLabel ?? "?";
 
     const event: ThreeStarPassiveEvent = {
       threeStarSide,
-      attackerName: attackerLabel,
-      attackerShortLabel,
+      attackerName: otherLabel,
+      attackerShortLabel: otherShortLabel,
     };
 
     const resolution = buildLastStandResolution(board, from, to);
-
     setPendingThreeStarPassive({ event, resolution, nextTurn, from, to });
   };
 

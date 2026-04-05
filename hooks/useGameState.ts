@@ -25,6 +25,7 @@ import { useAITurn } from "./useAITurn";
 import { useBattleResolution } from "./useBattleResolution";
 import { useCaptainScan } from "./useCaptainScan";
 import { useColonelReveal } from "./useColonelReveal";
+import { useFirstLtReveal } from "./useFirstLtReveal";
 import { useFlagSwap } from "./useFlagSwap";
 import { useFourStarPush } from "./useFourStarPush";
 import { useGeneralCharge } from "./useGeneralCharge";
@@ -33,6 +34,7 @@ import { useLtColonelStun } from "./useLtColonelStun";
 import { useMajorSwap } from "./useMajorSwap";
 import { useOneStarGeneral } from "./useOneStarGeneral";
 import { usePlacement } from "./usePlacement";
+import { useSecondLtReveal } from "./useSecondLtReveal";
 import { useSpyReveal } from "./useSpyReveal";
 import { useThreeStarPassive } from "./useThreeStarPassive";
 import { useTwoStarGeneral } from "./useTwoStarGeneral";
@@ -156,19 +158,12 @@ export function useGameState(difficulty: Difficulty) {
     from?: number,
     to?: number,
   ) => {
-    // If the move involved a piece that is under a Hold restriction, migrate
-    // the restriction to the new tile (piece moved but is still restricted).
     if (from !== undefined && to !== undefined) {
       twoStarGeneral.decrementRestrictions(from, to);
     } else {
       twoStarGeneral.decrementRestrictions();
     }
 
-    // Also clean up any restriction on captured pieces.
-    // Pieces that were on `from` (moved away) or `to` (overwritten by
-    // attacker win, or both deleted in a draw) may need pruning.
-    // The hook handles missing keys gracefully, so a blanket call is safe.
-    // We check the next board state: if either tile no longer exists, remove.
     const nextBoard: Record<number, BoardPiece> = res.board ?? {};
     if (from !== undefined && !nextBoard[from]) {
       twoStarGeneral.removeRestrictionForTile(from);
@@ -196,6 +191,12 @@ export function useGameState(difficulty: Difficulty) {
 
   // ── Colonel reveal sub-hook ──────────────────────────────────────────────────
   const colonelReveal = useColonelReveal({ pieceById });
+
+  // ── 1st Lieutenant Intel Report sub-hook ────────────────────────────────────
+  const firstLtReveal = useFirstLtReveal({ pieceById });
+
+  // ── 2nd Lieutenant Field Assessment sub-hook ─────────────────────────────────
+  const secondLtReveal = useSecondLtReveal({ pieceById });
 
   // ── General Charge sub-hook ──────────────────────────────────────────────────
   const generalCharge = useGeneralCharge({ pieceById });
@@ -247,13 +248,11 @@ export function useGameState(difficulty: Difficulty) {
     onQueueThreeStarPassive: threeStarPassive.queueThreeStarPassive,
     isTileStunned: ltColonelStun.isTileStunned,
     onClearStuns: ltColonelStun.clearStuns,
-    // ── 2-Star General: Hold the Line wiring ────────────────────────────────
     aiTwoStarCooldownUntil: twoStarGeneral.aiCooldownUntil,
     isAITwoStarOnCooldown: twoStarGeneral.isAIOnCooldown,
     onApplyAIHoldRestriction: twoStarGeneral.applyAIHoldRestriction,
     onStartAITwoStarCooldown: twoStarGeneral.startAICooldown,
     isBackwardMoveBlocked: twoStarGeneral.isBackwardMoveBlocked,
-    // ────────────────────────────────────────────────────────────────────────
     oneStarGeneralAICooldownUntil: oneStarGeneral.aiCooldownUntil,
     onAIOneStarBonusMove: (board, generalTileIndex) => {
       if (oneStarGeneral.isAIOnCooldown()) return;
@@ -416,6 +415,38 @@ export function useGameState(difficulty: Difficulty) {
     selectedBattleTileIndex,
   ]);
 
+  // ── 1st Lieutenant Intel Report derived values ───────────────────────────────
+  const selectedPieceIsFirstLt = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    if (turn !== "player" || !!winner) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return firstLtReveal.isPlayerFirstLtPiece(piece);
+  }, [
+    phase,
+    turn,
+    winner,
+    selectedBattleTileIndex,
+    battleBoard,
+    firstLtReveal.isPlayerFirstLtPiece,
+  ]);
+
+  // ── 2nd Lieutenant Field Assessment derived values ───────────────────────────
+  const selectedPieceIsSecondLt = useMemo(() => {
+    if (phase !== "battle" || selectedBattleTileIndex === null) return false;
+    if (turn !== "player" || !!winner) return false;
+    const piece = battleBoard[selectedBattleTileIndex];
+    if (!piece) return false;
+    return secondLtReveal.isPlayerSecondLtPiece(piece);
+  }, [
+    phase,
+    turn,
+    winner,
+    selectedBattleTileIndex,
+    battleBoard,
+    secondLtReveal.isPlayerSecondLtPiece,
+  ]);
+
   // ── Lt. Colonel stun derived values ─────────────────────────────────────────
   const selectedPieceIsLtColonel = useMemo(() => {
     if (phase !== "battle" || selectedBattleTileIndex === null) return false;
@@ -567,10 +598,6 @@ export function useGameState(difficulty: Difficulty) {
     twoStarGeneral.isPlayerTwoStarGeneral,
   ]);
 
-  /**
-   * All tile indices currently under a Hold the Line restriction.
-   * Passed to BoardGrid for visual highlighting.
-   */
   const holdRestrictedTiles = useMemo(
     () => twoStarGeneral.getRestrictedTileIndices(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -735,6 +762,13 @@ export function useGameState(difficulty: Difficulty) {
     setTurn("ai");
   };
 
+  // ── 2nd Lieutenant Field Assessment modal dismiss ────────────────────────────
+  const handleSecondLtRevealDismiss = () => {
+    secondLtReveal.dismissSecondLtReveal();
+    setTurn("ai"); // ability consumes the player's turn
+    setSelectedBattleTileIndex(null);
+  };
+
   // ── Battle tile press ────────────────────────────────────────────────────────
   const isPlayerInputBlocked = () =>
     phase !== "battle" ||
@@ -748,7 +782,9 @@ export function useGameState(difficulty: Difficulty) {
     !!kamikaze.pendingKamikaze ||
     !!veteran.pendingVeteranPromo ||
     !!threeStarPassive.pendingThreeStarPassive ||
-    !!oneStarGeneral.pendingBonusMove;
+    !!oneStarGeneral.pendingBonusMove ||
+    !!firstLtReveal.pendingFirstLtReveal ||
+    !!secondLtReveal.pendingSecondLtReveal;
 
   const handleBattleTilePress = (tileIndex: number) => {
     // ── 1-Star General bonus move tile-select mode ─────────────────────────
@@ -785,7 +821,6 @@ export function useGameState(difficulty: Difficulty) {
     if (twoStarGeneral.twoStarActive) {
       const tappedPiece = battleBoard[tileIndex];
       if (tappedPiece?.side === "ai") {
-        // Valid target — apply restriction
         twoStarGeneral.applyHoldRestriction(tileIndex);
         twoStarGeneral.startPlayerCooldown();
         setSelectedBattleTileIndex(null);
@@ -794,9 +829,7 @@ export function useGameState(difficulty: Difficulty) {
           "Hold the Line! That enemy unit is pinned and cannot retreat for 2 rounds.",
         );
         setRevealMessage("Enemy movement restricted: no backward moves.");
-        // Ability does NOT consume the player's turn — they still move.
       } else {
-        // Tapped a non-enemy tile — cancel without cost
         twoStarGeneral.cancelTwoStarAbility();
       }
       return;
@@ -870,7 +903,13 @@ export function useGameState(difficulty: Difficulty) {
 
     // ── 4-Star Push mode ───────────────────────────────────────────────────
     if (fourStarPush.fourStarPushActive) {
+      // 🔧 FIX: Capture generalTileIndex into a local const immediately.
+      // fourStarPush.generalTileIndex is the value latched at activation time
+      // (set via activateFourStarPush(selectedBattleTileIndex)). Reading it
+      // here is safe because cancelFourStarPush() nulls it out — so we must
+      // snapshot it before calling cancel.
       const generalTile = fourStarPush.generalTileIndex;
+
       if (fourStarPushTargetTiles.includes(tileIndex) && generalTile !== null) {
         const res = applyFourStarPush(
           battleBoard,
@@ -883,7 +922,10 @@ export function useGameState(difficulty: Difficulty) {
         fourStarPush.startPlayerCooldown();
         setSelectedBattleTileIndex(null);
         setLastMoveTrail(null);
-        applyResolution(res, "ai");
+        // 🔧 FIX: Pass generalTile and tileIndex so twoStarGeneral
+        // restriction counters are properly decremented/cleaned up,
+        // consistent with every other ability that moves pieces.
+        applyResolution(res, "ai", generalTile, tileIndex);
       } else {
         fourStarPush.cancelFourStarPush();
       }
@@ -909,6 +951,40 @@ export function useGameState(difficulty: Difficulty) {
         );
       } else {
         colonelReveal.cancelColonelReveal();
+      }
+      return;
+    }
+
+    // ── 1st Lieutenant: Intel Report target-select mode ────────────────────
+    if (firstLtReveal.firstLtRevealActive) {
+      const tappedPiece = battleBoard[tileIndex];
+      if (tappedPiece?.side === "ai") {
+        // Valid target — apply tier reveal (does NOT consume the turn)
+        firstLtReveal.applyFirstLtReveal(battleBoard, tileIndex);
+        setSelectedBattleTileIndex(null);
+        setLastMoveTrail(null);
+      } else {
+        // Tapped a non-enemy tile — cancel without spending the ability
+        firstLtReveal.cancelFirstLtReveal();
+      }
+      return;
+    }
+
+    // ── 2nd Lieutenant: Field Assessment target-select mode ────────────────
+    if (secondLtReveal.secondLtRevealActive) {
+      const tappedPiece = battleBoard[tileIndex];
+      if (tappedPiece?.side === "ai") {
+        // Valid target — applies the reveal and starts cooldown.
+        // Turn advances to AI only after the modal is dismissed.
+        secondLtReveal.applySecondLtReveal(battleBoard, tileIndex);
+        setSelectedBattleTileIndex(null);
+        setLastMoveTrail(null);
+        setBattleMessage(
+          "Field Assessment complete. Awaiting your confirmation…",
+        );
+      } else {
+        // Tapped a non-enemy tile — cancel without spending the ability
+        secondLtReveal.cancelSecondLtReveal();
       }
       return;
     }
@@ -1115,6 +1191,8 @@ export function useGameState(difficulty: Difficulty) {
     flagSwap.resetFlagSwap();
     spyReveal.resetSpyReveal();
     colonelReveal.resetColonelReveal();
+    firstLtReveal.resetFirstLtReveal();
+    secondLtReveal.resetSecondLtReveal();
     generalCharge.resetGeneralCharge();
     fourStarPush.resetFourStarPush();
     threeStarPassive.resetThreeStarPassive();
@@ -1147,6 +1225,8 @@ export function useGameState(difficulty: Difficulty) {
     flagSwap.resetFlagSwap();
     spyReveal.resetSpyReveal();
     colonelReveal.resetColonelReveal();
+    firstLtReveal.resetFirstLtReveal();
+    secondLtReveal.resetSecondLtReveal();
     generalCharge.resetGeneralCharge();
     fourStarPush.resetFourStarPush();
     threeStarPassive.resetThreeStarPassive();
@@ -1186,6 +1266,8 @@ export function useGameState(difficulty: Difficulty) {
     flagSwap.resetFlagSwap();
     spyReveal.resetSpyReveal();
     colonelReveal.resetColonelReveal();
+    firstLtReveal.resetFirstLtReveal();
+    secondLtReveal.resetSecondLtReveal();
     generalCharge.resetGeneralCharge();
     fourStarPush.resetFourStarPush();
     threeStarPassive.resetThreeStarPassive();
@@ -1285,6 +1367,22 @@ export function useGameState(difficulty: Difficulty) {
     colonelRevealCooldownUntil: colonelReveal.playerCooldownUntil,
     activateColonelReveal: colonelReveal.activateColonelReveal,
     cancelColonelReveal: colonelReveal.cancelColonelReveal,
+    // 1st lieutenant (Intel Report)
+    selectedPieceIsFirstLt,
+    firstLtRevealActive: firstLtReveal.firstLtRevealActive,
+    firstLtRevealCooldownUntil: firstLtReveal.playerCooldownUntil,
+    pendingFirstLtReveal: firstLtReveal.pendingFirstLtReveal,
+    activateFirstLtReveal: firstLtReveal.activateFirstLtReveal,
+    cancelFirstLtReveal: firstLtReveal.cancelFirstLtReveal,
+    handleFirstLtRevealDismiss: firstLtReveal.dismissFirstLtReveal,
+    // 2nd lieutenant (Field Assessment)
+    selectedPieceIsSecondLt,
+    secondLtRevealActive: secondLtReveal.secondLtRevealActive,
+    secondLtRevealCooldownUntil: secondLtReveal.playerCooldownUntil,
+    pendingSecondLtReveal: secondLtReveal.pendingSecondLtReveal,
+    activateSecondLtReveal: secondLtReveal.activateSecondLtReveal,
+    cancelSecondLtReveal: secondLtReveal.cancelSecondLtReveal,
+    handleSecondLtRevealDismiss,
     // general charge (Supreme Charge)
     selectedPieceIsGeneralFiveStar,
     generalChargeActive: generalCharge.generalChargeActive,
@@ -1296,8 +1394,16 @@ export function useGameState(difficulty: Difficulty) {
     fourStarPushActive: fourStarPush.fourStarPushActive,
     fourStarPushTargetTiles,
     fourStarPushCooldownUntil: fourStarPush.playerCooldownUntil,
-    activateFourStarPush: () =>
-      fourStarPush.activateFourStarPush(selectedBattleTileIndex!),
+    // 🔧 FIX: Guard activateFourStarPush so it only fires when
+    // selectedBattleTileIndex is actually non-null. Previously the `!`
+    // assertion silenced TypeScript but didn't prevent passing null into
+    // activateFourStarPush(), which would latch generalTileIndex as null
+    // and cause fourStarPushTargetTiles to always return [] — making the
+    // push silently do nothing every time the button was tapped.
+    activateFourStarPush: () => {
+      if (selectedBattleTileIndex === null) return;
+      fourStarPush.activateFourStarPush(selectedBattleTileIndex);
+    },
     cancelFourStarPush: fourStarPush.cancelFourStarPush,
     // 3-star general passive (Last Stand)
     pendingThreeStarPassive: threeStarPassive.pendingThreeStarPassive,
