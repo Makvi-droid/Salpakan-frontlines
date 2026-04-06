@@ -769,6 +769,16 @@ export function useGameState(difficulty: Difficulty) {
     setSelectedBattleTileIndex(null);
   };
 
+  // ── 1st Lieutenant Intel Report modal dismiss ────────────────────────────────
+  // FIX: wrap the hook's dismiss so we can pass the turn to AI here.
+  // Previously this was delegated directly to firstLtReveal.dismissFirstLtReveal,
+  // which only cleared the modal state — it never advanced the turn.
+  const handleFirstLtRevealDismiss = () => {
+    firstLtReveal.dismissFirstLtReveal();
+    setTurn("ai"); // ability consumes the player's turn on modal dismiss
+    setSelectedBattleTileIndex(null);
+  };
+
   // ── Battle tile press ────────────────────────────────────────────────────────
   const isPlayerInputBlocked = () =>
     phase !== "battle" ||
@@ -903,11 +913,6 @@ export function useGameState(difficulty: Difficulty) {
 
     // ── 4-Star Push mode ───────────────────────────────────────────────────
     if (fourStarPush.fourStarPushActive) {
-      // 🔧 FIX: Capture generalTileIndex into a local const immediately.
-      // fourStarPush.generalTileIndex is the value latched at activation time
-      // (set via activateFourStarPush(selectedBattleTileIndex)). Reading it
-      // here is safe because cancelFourStarPush() nulls it out — so we must
-      // snapshot it before calling cancel.
       const generalTile = fourStarPush.generalTileIndex;
 
       if (fourStarPushTargetTiles.includes(tileIndex) && generalTile !== null) {
@@ -922,9 +927,6 @@ export function useGameState(difficulty: Difficulty) {
         fourStarPush.startPlayerCooldown();
         setSelectedBattleTileIndex(null);
         setLastMoveTrail(null);
-        // 🔧 FIX: Pass generalTile and tileIndex so twoStarGeneral
-        // restriction counters are properly decremented/cleaned up,
-        // consistent with every other ability that moves pieces.
         applyResolution(res, "ai", generalTile, tileIndex);
       } else {
         fourStarPush.cancelFourStarPush();
@@ -959,7 +961,9 @@ export function useGameState(difficulty: Difficulty) {
     if (firstLtReveal.firstLtRevealActive) {
       const tappedPiece = battleBoard[tileIndex];
       if (tappedPiece?.side === "ai") {
-        // Valid target — apply tier reveal (does NOT consume the turn)
+        // Valid target — apply tier reveal.
+        // Turn passes to AI only after the player dismisses the result modal
+        // (handled in handleFirstLtRevealDismiss).
         firstLtReveal.applyFirstLtReveal(battleBoard, tileIndex);
         setSelectedBattleTileIndex(null);
         setLastMoveTrail(null);
@@ -1040,10 +1044,13 @@ export function useGameState(difficulty: Difficulty) {
       if (ltColonelDiagonalTiles.includes(tileIndex)) {
         ltColonelStun.applyLtColonelStun(tileIndex);
         ltColonelStun.startPlayerCooldown();
+        setSelectedBattleTileIndex(null);
+        setLastMoveTrail(null);
         setBattleMessage(
-          "Suppression Fire! That enemy unit is stunned for 1 turn. Now make your move.",
+          "Suppression Fire! That enemy unit is stunned for 1 turn.",
         );
         setRevealMessage("Stunned enemy cannot move this AI turn.");
+        setTurn("ai"); // FIX: ability consumes the player's turn immediately
       } else {
         ltColonelStun.cancelLtColonelStun();
       }
@@ -1374,7 +1381,7 @@ export function useGameState(difficulty: Difficulty) {
     pendingFirstLtReveal: firstLtReveal.pendingFirstLtReveal,
     activateFirstLtReveal: firstLtReveal.activateFirstLtReveal,
     cancelFirstLtReveal: firstLtReveal.cancelFirstLtReveal,
-    handleFirstLtRevealDismiss: firstLtReveal.dismissFirstLtReveal,
+    handleFirstLtRevealDismiss, // ← now the local wrapper, not the raw hook fn
     // 2nd lieutenant (Field Assessment)
     selectedPieceIsSecondLt,
     secondLtRevealActive: secondLtReveal.secondLtRevealActive,
@@ -1394,12 +1401,6 @@ export function useGameState(difficulty: Difficulty) {
     fourStarPushActive: fourStarPush.fourStarPushActive,
     fourStarPushTargetTiles,
     fourStarPushCooldownUntil: fourStarPush.playerCooldownUntil,
-    // 🔧 FIX: Guard activateFourStarPush so it only fires when
-    // selectedBattleTileIndex is actually non-null. Previously the `!`
-    // assertion silenced TypeScript but didn't prevent passing null into
-    // activateFourStarPush(), which would latch generalTileIndex as null
-    // and cause fourStarPushTargetTiles to always return [] — making the
-    // push silently do nothing every time the button was tapped.
     activateFourStarPush: () => {
       if (selectedBattleTileIndex === null) return;
       fourStarPush.activateFourStarPush(selectedBattleTileIndex);

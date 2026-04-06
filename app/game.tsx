@@ -284,105 +284,109 @@ export default function GameScreen() {
               />
             ) : (
               <>
-                <AbilityPanel
-                  selectedPieceIsFlag={!!game.selectedPieceIsFlag}
-                  selectedPieceIsSpy={!!game.selectedPieceIsSpy}
-                  selectedPieceIsGeneralFiveStar={
-                    !!game.selectedPieceIsGeneralFiveStar
-                  }
-                  selectedPieceIsGeneralFourStar={
-                    !!game.selectedPieceIsGeneralFourStar
-                  }
-                  selectedPieceIsColonel={!!game.selectedPieceIsColonel}
-                  selectedPieceIsFirstLt={!!game.selectedPieceIsFirstLt}
-                  selectedPieceIsSecondLt={!!game.selectedPieceIsSecondLt}
-                  selectedPieceIsLtColonel={!!game.selectedPieceIsLtColonel}
-                  selectedPieceIsMajor={!!game.selectedPieceIsMajor}
-                  selectedPieceIsCaptain={!!game.selectedPieceIsCaptain}
-                  winner={!!game.winner}
-                  flagSwapActive={game.flagSwapActive}
-                  flagSwapCooldownUntil={game.flagSwapCooldownUntil}
-                  onFlagPress={() =>
-                    game.flagSwapActive
-                      ? game.cancelFlagSwap()
-                      : game.activateFlagSwap()
-                  }
-                  spyRevealCooldownUntil={game.spyRevealCooldownUntil}
-                  onSpyPress={game.activateSpyReveal}
-                  generalChargeActive={game.generalChargeActive}
-                  generalChargeCooldownUntil={game.generalChargeCooldownUntil}
-                  onGeneralPress={() =>
-                    game.generalChargeActive
-                      ? game.cancelGeneralCharge()
-                      : game.activateGeneralCharge()
-                  }
-                  fourStarPushActive={game.fourStarPushActive}
-                  fourStarPushCooldownUntil={game.fourStarPushCooldownUntil}
-                  onFourStarPushPress={() =>
-                    game.fourStarPushActive
-                      ? game.cancelFourStarPush()
-                      : game.activateFourStarPush()
-                  }
-                  colonelRevealActive={game.colonelRevealActive}
-                  colonelRevealCooldownUntil={game.colonelRevealCooldownUntil}
-                  onColonelPress={() =>
-                    game.colonelRevealActive
-                      ? game.cancelColonelReveal()
-                      : game.activateColonelReveal()
-                  }
-                  firstLtRevealActive={game.firstLtRevealActive}
-                  firstLtRevealCooldownUntil={game.firstLtRevealCooldownUntil}
-                  onFirstLtRevealPress={() =>
-                    game.firstLtRevealActive
-                      ? game.cancelFirstLtReveal()
-                      : game.activateFirstLtReveal()
-                  }
-                  secondLtRevealActive={game.secondLtRevealActive}
-                  secondLtRevealCooldownUntil={game.secondLtRevealCooldownUntil}
-                  onSecondLtRevealPress={() =>
-                    game.secondLtRevealActive
-                      ? game.cancelSecondLtReveal()
-                      : game.activateSecondLtReveal()
-                  }
-                  ltColonelStunActive={game.ltColonelStunActive}
-                  ltColonelStunCooldownUntil={game.ltColonelStunCooldownUntil}
-                  onLtColonelStunPress={() =>
-                    game.ltColonelStunActive
-                      ? game.cancelLtColonelStun()
-                      : game.activateLtColonelStun()
-                  }
-                  majorSwapActive={game.majorSwapActive}
-                  majorSwapCooldownUntil={game.majorSwapCooldownUntil}
-                  onMajorSwapPress={() =>
-                    game.majorSwapActive
-                      ? game.cancelMajorSwap()
-                      : game.activateMajorSwap()
-                  }
-                  captainScanCooldownUntil={game.captainScanCooldownUntil}
-                  onCaptainScanPress={game.handleCaptainScanPress}
-                  verticalSectionGap={verticalSectionGap}
-                  rf={rf}
-                  rs={rs}
-                  rsv={rsv}
-                  selectedPieceIsOneStarGeneral={
-                    !!game.selectedPieceIsOneStarGeneral
-                  }
-                  oneStarBonusMoveActive={game.oneStarBonusMoveActive}
-                  oneStarBonusMoveCooldownUntil={
-                    game.oneStarBonusMoveCooldownUntil
-                  }
-                  // ── 2-Star General: Hold the Line ──────────────────────────
-                  selectedPieceIsTwoStarGeneral={
-                    !!game.selectedPieceIsTwoStarGeneral
-                  }
-                  twoStarActive={game.twoStarActive}
-                  twoStarCooldownUntil={game.twoStarCooldownUntil}
-                  onTwoStarPress={() =>
-                    game.twoStarActive
-                      ? game.cancelTwoStarAbility()
-                      : game.activateTwoStarAbility()
-                  }
-                />
+                <View style={styles.abilityPanelContainer}>
+                  <AbilityPanel
+                    selectedPieceIsFlag={!!game.selectedPieceIsFlag}
+                    selectedPieceIsSpy={!!game.selectedPieceIsSpy}
+                    selectedPieceIsGeneralFiveStar={
+                      !!game.selectedPieceIsGeneralFiveStar
+                    }
+                    selectedPieceIsGeneralFourStar={
+                      !!game.selectedPieceIsGeneralFourStar
+                    }
+                    selectedPieceIsColonel={!!game.selectedPieceIsColonel}
+                    selectedPieceIsFirstLt={!!game.selectedPieceIsFirstLt}
+                    selectedPieceIsSecondLt={!!game.selectedPieceIsSecondLt}
+                    selectedPieceIsLtColonel={!!game.selectedPieceIsLtColonel}
+                    selectedPieceIsMajor={!!game.selectedPieceIsMajor}
+                    selectedPieceIsCaptain={!!game.selectedPieceIsCaptain}
+                    winner={!!game.winner}
+                    flagSwapActive={game.flagSwapActive}
+                    flagSwapCooldownUntil={game.flagSwapCooldownUntil}
+                    onFlagPress={() =>
+                      game.flagSwapActive
+                        ? game.cancelFlagSwap()
+                        : game.activateFlagSwap()
+                    }
+                    spyRevealCooldownUntil={game.spyRevealCooldownUntil}
+                    onSpyPress={game.activateSpyReveal}
+                    generalChargeActive={game.generalChargeActive}
+                    generalChargeCooldownUntil={game.generalChargeCooldownUntil}
+                    onGeneralPress={() =>
+                      game.generalChargeActive
+                        ? game.cancelGeneralCharge()
+                        : game.activateGeneralCharge()
+                    }
+                    fourStarPushActive={game.fourStarPushActive}
+                    fourStarPushCooldownUntil={game.fourStarPushCooldownUntil}
+                    onFourStarPushPress={() =>
+                      game.fourStarPushActive
+                        ? game.cancelFourStarPush()
+                        : game.activateFourStarPush()
+                    }
+                    colonelRevealActive={game.colonelRevealActive}
+                    colonelRevealCooldownUntil={game.colonelRevealCooldownUntil}
+                    onColonelPress={() =>
+                      game.colonelRevealActive
+                        ? game.cancelColonelReveal()
+                        : game.activateColonelReveal()
+                    }
+                    firstLtRevealActive={game.firstLtRevealActive}
+                    firstLtRevealCooldownUntil={game.firstLtRevealCooldownUntil}
+                    onFirstLtRevealPress={() =>
+                      game.firstLtRevealActive
+                        ? game.cancelFirstLtReveal()
+                        : game.activateFirstLtReveal()
+                    }
+                    secondLtRevealActive={game.secondLtRevealActive}
+                    secondLtRevealCooldownUntil={
+                      game.secondLtRevealCooldownUntil
+                    }
+                    onSecondLtRevealPress={() =>
+                      game.secondLtRevealActive
+                        ? game.cancelSecondLtReveal()
+                        : game.activateSecondLtReveal()
+                    }
+                    ltColonelStunActive={game.ltColonelStunActive}
+                    ltColonelStunCooldownUntil={game.ltColonelStunCooldownUntil}
+                    onLtColonelStunPress={() =>
+                      game.ltColonelStunActive
+                        ? game.cancelLtColonelStun()
+                        : game.activateLtColonelStun()
+                    }
+                    majorSwapActive={game.majorSwapActive}
+                    majorSwapCooldownUntil={game.majorSwapCooldownUntil}
+                    onMajorSwapPress={() =>
+                      game.majorSwapActive
+                        ? game.cancelMajorSwap()
+                        : game.activateMajorSwap()
+                    }
+                    captainScanCooldownUntil={game.captainScanCooldownUntil}
+                    onCaptainScanPress={game.handleCaptainScanPress}
+                    verticalSectionGap={verticalSectionGap}
+                    rf={rf}
+                    rs={rs}
+                    rsv={rsv}
+                    selectedPieceIsOneStarGeneral={
+                      !!game.selectedPieceIsOneStarGeneral
+                    }
+                    oneStarBonusMoveActive={game.oneStarBonusMoveActive}
+                    oneStarBonusMoveCooldownUntil={
+                      game.oneStarBonusMoveCooldownUntil
+                    }
+                    // ── 2-Star General: Hold the Line ──────────────────────────
+                    selectedPieceIsTwoStarGeneral={
+                      !!game.selectedPieceIsTwoStarGeneral
+                    }
+                    twoStarActive={game.twoStarActive}
+                    twoStarCooldownUntil={game.twoStarCooldownUntil}
+                    onTwoStarPress={() =>
+                      game.twoStarActive
+                        ? game.cancelTwoStarAbility()
+                        : game.activateTwoStarAbility()
+                    }
+                  />
+                </View>
 
                 <BattleInfoPanel
                   winner={game.winner}
@@ -549,4 +553,9 @@ const styles = StyleSheet.create({
   bgEmber: { position: "absolute", backgroundColor: "rgba(180, 67, 52, 0.18)" },
   pageFrame: { flex: 1, alignItems: "center" },
   container: { width: "100%", alignItems: "center", flex: 1 },
+  abilityPanelContainer: {
+    minHeight: 80, // adjust this to match your AbilityPanel's tallest possible height
+    width: "100%",
+    justifyContent: "flex-start",
+  },
 });

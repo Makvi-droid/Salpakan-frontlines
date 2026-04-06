@@ -319,15 +319,42 @@ function getUpgradeCharges(
   if (piece.upgrade !== upgrade) return 0;
   const charges = piece.upgradeCharges;
   // Backward compatibility for already-running games before charges existed.
-  return charges === undefined ? 2 : Math.max(0, charges);
+  return charges === undefined ? 1 : Math.max(0, charges);
 }
 
+// ─── BUG FIX: consumeChallengeUpgradeCharge ───────────────────────────────────
+//
+// Previously this function only decremented upgradeCharges but never removed
+// the upgrade when charges hit 0. This meant:
+//   - iron-veil / double-blind persisted forever after 2 uses because
+//     `attackingPiece.upgrade` stayed truthy, so UpgradeActivationModal kept
+//     firing on every subsequent challenge.
+//   - martyrs-eye was never consumed at all because it has no charge counter
+//     (getInitialUpgradeCharges returns undefined for it) and the old function
+//     only handled iron-veil / double-blind.
+//
+// Fix: strip the upgrade via removePieceUpgrade when charges reach 0, and
+// handle martyrs-eye as a single-use upgrade that is removed immediately.
 function consumeChallengeUpgradeCharge(piece: BoardPiece) {
+  // martyrs-eye is single-use with no charge counter — remove it after use.
+  if (piece.upgrade === "martyrs-eye") {
+    return removePieceUpgrade(piece);
+  }
+
   if (piece.upgrade !== "iron-veil" && piece.upgrade !== "double-blind") {
     return piece;
   }
+
   const current = piece.upgradeCharges === undefined ? 2 : piece.upgradeCharges;
-  return { ...piece, upgradeCharges: Math.max(0, current - 1) };
+  const next = Math.max(0, current - 1);
+
+  // When the last charge is spent, strip the upgrade entirely so the
+  // UpgradeActivationModal no longer fires for this piece.
+  if (next === 0) {
+    return removePieceUpgrade(piece);
+  }
+
+  return { ...piece, upgradeCharges: next };
 }
 
 function removePieceUpgrade(piece: BoardPiece): BoardPiece {

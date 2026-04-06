@@ -23,7 +23,7 @@ import type {
 import { rollVeteranProc } from "./useVeteranPromo";
 
 export function getInitialUpgradeCharges(upgrade: PieceUpgradeId) {
-  if (upgrade === "iron-veil" || upgrade === "double-blind") return 2;
+  if (upgrade === "iron-veil" || upgrade === "double-blind") return 1;
   return undefined;
 }
 
@@ -145,13 +145,6 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
   };
 
   // ── Crate drop + message finalization ────────────────────────────────────────
-  //
-  // NEW PARAMS vs original:
-  //   capturedByPlayerIds — forwarded from the resolution so we can detect
-  //                          whether a capture actually happened.
-  //   capturedByAIIds     — same but for the AI side.
-  //   movedTo             — the tile the piece landed on; used to check if
-  //                          that piece is the 1-Star General.
   const finalizeTurnWithCrateState = (
     boardAfterMove: Record<number, BoardPiece>,
     nextTurn: Side,
@@ -234,14 +227,6 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     onMessageChange(finalMessage);
 
     // ── 1-Star General "Press the Advantage" check ──────────────────────────
-    // Conditions that must ALL be true:
-    //   1. The callback is wired up in useGameState
-    //   2. A capture actually happened this resolution (not a plain move)
-    //   3. The piece now sitting on `movedTo` belongs to the mover
-    //   4. That piece is the 1-Star General
-    // The cooldown gate (isPlayerOnCooldown / isAIOnCooldown) is enforced by
-    // useGameState before passing the callback — if on cooldown the callback
-    // will not be provided, so this check is inherently safe.
     const didCapture =
       capturedByPlayerIds.length > 0 || capturedByAIIds.length > 0;
 
@@ -252,8 +237,6 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       boardAfterMove[movedTo]?.side === moverSide &&
       pieceById[boardAfterMove[movedTo]!.pieceId]?.label === "1 Star\nGeneral"
     ) {
-      // Queue the bonus-move modal. Turn does NOT pass yet — useGameState will
-      // call onTurnChange after the player confirms/skips the bonus move.
       onOneStarGeneralWin(movedTo, moverSide);
       return;
     }
@@ -354,11 +337,15 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       if (actingSide === "ai") {
         const aiTakesNewUpgrade = Math.random() < 0.5;
         if (aiTakesNewUpgrade) {
+          // ── BUG FIX: was missing upgradeCharges here, causing the AI's
+          // newly claimed upgrade to have no charge tracking and therefore
+          // never be consumed after use.
           const withUpgrade = {
             ...nextBoard,
             [movedToTileIndex!]: {
               ...movedPiece,
               upgrade: steppedCrateUpgrade,
+              upgradeCharges: getInitialUpgradeCharges(steppedCrateUpgrade),
             },
           };
           const withUpgradeDecoys = applyDoubleBlindBoardDecoys(withUpgrade);
