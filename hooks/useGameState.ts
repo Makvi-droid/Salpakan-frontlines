@@ -4,11 +4,9 @@ import { useMemo, useState } from "react";
 import { DIFFICULTY_PROFILES } from "../constants/constants";
 import { generateAIFormation } from "../scripts/aiLogic";
 import {
-  applyFourStarPush,
   buildBattleBoard,
   getGeneralChargeMoves,
   getLegalMoves,
-  getPushableTiles,
   prepareChallengeEvent,
 } from "../scripts/gameLogic";
 import type {
@@ -201,7 +199,7 @@ export function useGameState(difficulty: Difficulty) {
   // ── General Charge sub-hook ──────────────────────────────────────────────────
   const generalCharge = useGeneralCharge({ pieceById });
 
-  // ── 4-Star Push sub-hook ─────────────────────────────────────────────────────
+  // ── 4-Star General: Diagonal March sub-hook ──────────────────────────────────
   const fourStarPush = useFourStarPush({ pieceById });
 
   // ── 3-Star General Last Stand sub-hook ──────────────────────────────────────
@@ -288,6 +286,12 @@ export function useGameState(difficulty: Difficulty) {
     onMessageChange: setBattleMessage,
     onAIThinking: setAIThinking,
     kamikazeChance: aiProfile.kamikazeChance,
+    // ── 4-Star General: Diagonal March ──────────────────────────────────────
+    aiFourStarDiagonalCooldownUntil: fourStarPush.aiCooldownUntil,
+    isAIFourStarDiagonalOnCooldown: fourStarPush.isAIOnCooldown,
+    onStartAIFourStarDiagonalCooldown: fourStarPush.startAICooldown,
+    getAIDiagonalMarchTiles: fourStarPush.getDiagonalMarchTiles,
+    isAIFourStarGeneral: fourStarPush.isAIFourStarGeneral,
   });
 
   // ── Derived values ───────────────────────────────────────────────────────────
@@ -523,7 +527,7 @@ export function useGameState(difficulty: Difficulty) {
     generalCharge.isPlayerFiveStarGeneral,
   ]);
 
-  // ── 4-Star Push derived values ───────────────────────────────────────────────
+  // ── 4-Star General: Diagonal March derived values ────────────────────────────
   const selectedPieceIsGeneralFourStar = useMemo(() => {
     if (phase !== "battle" || selectedBattleTileIndex === null) return false;
     if (turn !== "player" || !!winner) return false;
@@ -539,14 +543,37 @@ export function useGameState(difficulty: Difficulty) {
     fourStarPush.isPlayerFourStarGeneral,
   ]);
 
-  const fourStarPushTargetTiles = useMemo(() => {
+  /**
+   * All diagonal tiles (move + challenge) for the 4-Star General.
+   * Computed from the latched generalTileIndex when the ability is active.
+   * Used by BoardGrid to highlight valid destinations.
+   */
+  const fourStarDiagonalAllTiles = useMemo(() => {
     if (!fourStarPush.fourStarPushActive) return [];
     const tileIndex = fourStarPush.generalTileIndex;
     if (tileIndex === null) return [];
-    return getPushableTiles(battleBoard, tileIndex, "player");
+    return fourStarPush.getDiagonalMarchTiles(battleBoard, tileIndex, "player")
+      .allTiles;
   }, [
     fourStarPush.fourStarPushActive,
     fourStarPush.generalTileIndex,
+    fourStarPush.getDiagonalMarchTiles,
+    battleBoard,
+  ]);
+
+  /**
+   * Subset of diagonal tiles that are occupied by enemies (challenge targets).
+   */
+  const fourStarDiagonalChallengeTiles = useMemo(() => {
+    if (!fourStarPush.fourStarPushActive) return [];
+    const tileIndex = fourStarPush.generalTileIndex;
+    if (tileIndex === null) return [];
+    return fourStarPush.getDiagonalMarchTiles(battleBoard, tileIndex, "player")
+      .challengeTiles;
+  }, [
+    fourStarPush.fourStarPushActive,
+    fourStarPush.generalTileIndex,
+    fourStarPush.getDiagonalMarchTiles,
     battleBoard,
   ]);
 
@@ -603,11 +630,6 @@ export function useGameState(difficulty: Difficulty) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [twoStarGeneral.restrictions],
   );
-
-  const oneStarBonusMoveTiles = useMemo(() => {
-    if (!oneStarGeneral.bonusMoveActive) return [];
-    return [];
-  }, [oneStarGeneral.bonusMoveActive, oneStarGeneral.pendingBonusMove]);
 
   const [oneStarGeneralActiveTile, setOneStarGeneralActiveTile] = useState<
     number | null
@@ -765,17 +787,14 @@ export function useGameState(difficulty: Difficulty) {
   // ── 2nd Lieutenant Field Assessment modal dismiss ────────────────────────────
   const handleSecondLtRevealDismiss = () => {
     secondLtReveal.dismissSecondLtReveal();
-    setTurn("ai"); // ability consumes the player's turn
+    setTurn("ai");
     setSelectedBattleTileIndex(null);
   };
 
   // ── 1st Lieutenant Intel Report modal dismiss ────────────────────────────────
-  // FIX: wrap the hook's dismiss so we can pass the turn to AI here.
-  // Previously this was delegated directly to firstLtReveal.dismissFirstLtReveal,
-  // which only cleared the modal state — it never advanced the turn.
   const handleFirstLtRevealDismiss = () => {
     firstLtReveal.dismissFirstLtReveal();
-    setTurn("ai"); // ability consumes the player's turn on modal dismiss
+    setTurn("ai");
     setSelectedBattleTileIndex(null);
   };
 
@@ -911,24 +930,38 @@ export function useGameState(difficulty: Difficulty) {
       return;
     }
 
-    // ── 4-Star Push mode ───────────────────────────────────────────────────
+    // ── 4-Star General: Diagonal March mode ───────────────────────────────
     if (fourStarPush.fourStarPushActive) {
       const generalTile = fourStarPush.generalTileIndex;
 
-      if (fourStarPushTargetTiles.includes(tileIndex) && generalTile !== null) {
-        const res = applyFourStarPush(
-          battleBoard,
-          generalTile,
-          tileIndex,
-          "player",
-          pieceById,
-        );
+      if (
+        fourStarDiagonalAllTiles.includes(tileIndex) &&
+        generalTile !== null
+      ) {
+        const isChallenge = fourStarDiagonalChallengeTiles.includes(tileIndex);
+
+        const legalMove: BattleMove = {
+          side: "player",
+          from: generalTile,
+          to: tileIndex,
+        };
+
         fourStarPush.cancelFourStarPush();
         fourStarPush.startPlayerCooldown();
         setSelectedBattleTileIndex(null);
         setLastMoveTrail(null);
-        applyResolution(res, "ai", generalTile, tileIndex);
+
+        if (isChallenge) {
+          // Route through the normal challenge pipeline (kamikaze, 3-star
+          // passive, upgrade activation, then challenge modal).
+          fireChallenge(legalMove);
+        } else {
+          // Plain diagonal move — resolve immediately.
+          const res = resolveBattleMove(battleBoard, legalMove);
+          applyResolution(res, "ai", legalMove.from, legalMove.to);
+        }
       } else {
+        // Tapped outside highlighted tiles — cancel, no cooldown consumed.
         fourStarPush.cancelFourStarPush();
       }
       return;
@@ -961,14 +994,10 @@ export function useGameState(difficulty: Difficulty) {
     if (firstLtReveal.firstLtRevealActive) {
       const tappedPiece = battleBoard[tileIndex];
       if (tappedPiece?.side === "ai") {
-        // Valid target — apply tier reveal.
-        // Turn passes to AI only after the player dismisses the result modal
-        // (handled in handleFirstLtRevealDismiss).
         firstLtReveal.applyFirstLtReveal(battleBoard, tileIndex);
         setSelectedBattleTileIndex(null);
         setLastMoveTrail(null);
       } else {
-        // Tapped a non-enemy tile — cancel without spending the ability
         firstLtReveal.cancelFirstLtReveal();
       }
       return;
@@ -978,8 +1007,6 @@ export function useGameState(difficulty: Difficulty) {
     if (secondLtReveal.secondLtRevealActive) {
       const tappedPiece = battleBoard[tileIndex];
       if (tappedPiece?.side === "ai") {
-        // Valid target — applies the reveal and starts cooldown.
-        // Turn advances to AI only after the modal is dismissed.
         secondLtReveal.applySecondLtReveal(battleBoard, tileIndex);
         setSelectedBattleTileIndex(null);
         setLastMoveTrail(null);
@@ -987,7 +1014,6 @@ export function useGameState(difficulty: Difficulty) {
           "Field Assessment complete. Awaiting your confirmation…",
         );
       } else {
-        // Tapped a non-enemy tile — cancel without spending the ability
         secondLtReveal.cancelSecondLtReveal();
       }
       return;
@@ -1050,7 +1076,7 @@ export function useGameState(difficulty: Difficulty) {
           "Suppression Fire! That enemy unit is stunned for 1 turn.",
         );
         setRevealMessage("Stunned enemy cannot move this AI turn.");
-        setTurn("ai"); // FIX: ability consumes the player's turn immediately
+        setTurn("ai");
       } else {
         ltColonelStun.cancelLtColonelStun();
       }
@@ -1122,6 +1148,28 @@ export function useGameState(difficulty: Difficulty) {
         }
       }
       generalCharge.cancelGeneralCharge();
+      return;
+    }
+
+    // ── 4-Star General diagonal challenge via challenge button ─────────────
+    if (fourStarPush.fourStarPushActive) {
+      const generalTile = fourStarPush.generalTileIndex;
+      if (
+        generalTile !== null &&
+        fourStarDiagonalChallengeTiles.includes(targetTileIndex)
+      ) {
+        const legalMove: BattleMove = {
+          side: "player",
+          from: generalTile,
+          to: targetTileIndex,
+        };
+        fourStarPush.cancelFourStarPush();
+        fourStarPush.startPlayerCooldown();
+        setSelectedBattleTileIndex(null);
+        fireChallenge(legalMove);
+      } else {
+        fourStarPush.cancelFourStarPush();
+      }
       return;
     }
 
@@ -1381,7 +1429,7 @@ export function useGameState(difficulty: Difficulty) {
     pendingFirstLtReveal: firstLtReveal.pendingFirstLtReveal,
     activateFirstLtReveal: firstLtReveal.activateFirstLtReveal,
     cancelFirstLtReveal: firstLtReveal.cancelFirstLtReveal,
-    handleFirstLtRevealDismiss, // ← now the local wrapper, not the raw hook fn
+    handleFirstLtRevealDismiss,
     // 2nd lieutenant (Field Assessment)
     selectedPieceIsSecondLt,
     secondLtRevealActive: secondLtReveal.secondLtRevealActive,
@@ -1396,10 +1444,13 @@ export function useGameState(difficulty: Difficulty) {
     generalChargeCooldownUntil: generalCharge.playerCooldownUntil,
     activateGeneralCharge: generalCharge.activateGeneralCharge,
     cancelGeneralCharge: generalCharge.cancelGeneralCharge,
-    // 4-star push (Iron Shove)
+    // 4-star general (Diagonal March)
     selectedPieceIsGeneralFourStar,
     fourStarPushActive: fourStarPush.fourStarPushActive,
-    fourStarPushTargetTiles,
+    // allTiles drives the orange highlight (reusing the same prop name for BoardGrid)
+    fourStarPushTargetTiles: fourStarDiagonalAllTiles,
+    // challenge tiles needed by BoardGrid for the challenge button overlay
+    fourStarDiagonalChallengeTiles,
     fourStarPushCooldownUntil: fourStarPush.playerCooldownUntil,
     activateFourStarPush: () => {
       if (selectedBattleTileIndex === null) return;

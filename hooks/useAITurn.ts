@@ -91,6 +91,16 @@ interface UseAITurnOptions {
     generalTileIndex: number,
   ) => void;
   kamikazeChance: number;
+  // ── 4-Star General: Diagonal March ────────────────────────────────────────
+  aiFourStarDiagonalCooldownUntil: number | null;
+  isAIFourStarDiagonalOnCooldown: () => boolean;
+  onStartAIFourStarDiagonalCooldown: () => void;
+  getAIDiagonalMarchTiles: (
+    board: Record<number, BoardPiece>,
+    fromTileIndex: number,
+    side: "player" | "ai",
+  ) => { allTiles: number[]; challengeTiles: number[] };
+  isAIFourStarGeneral: (piece: BoardPiece) => boolean;
 }
 
 export function useAITurn(opts: UseAITurnOptions) {
@@ -136,6 +146,11 @@ export function useAITurn(opts: UseAITurnOptions) {
     isAIGeneralChargeOnCooldown,
     onAIOneStarBonusMove,
     kamikazeChance,
+    aiFourStarDiagonalCooldownUntil,
+    isAIFourStarDiagonalOnCooldown,
+    onStartAIFourStarDiagonalCooldown,
+    getAIDiagonalMarchTiles,
+    isAIFourStarGeneral,
   } = opts;
 
   useEffect(() => {
@@ -277,6 +292,72 @@ export function useAITurn(opts: UseAITurnOptions) {
         }
       }
 
+      // ── AI 4-Star General: Diagonal March ─────────────────────────────────
+      // Use chance mirrors the General Charge logic — harder AI profiles use
+      // the ability more reliably.
+      const AI_DIAGONAL_USE_CHANCE =
+        aiProfile.randomness > 0.6
+          ? 0.25
+          : aiProfile.randomness > 0.25
+            ? 0.5
+            : 0.75;
+
+      if (!isAIFourStarDiagonalOnCooldown()) {
+        const diagonalResult = tryAIDiagonalMarch(
+          battleBoard,
+          pieceById,
+          AI_DIAGONAL_USE_CHANCE,
+          isTileStunned,
+          isAIFourStarGeneral,
+          getAIDiagonalMarchTiles,
+        );
+        if (diagonalResult) {
+          const { move: diagMove, isCapture } = diagonalResult;
+          if (isCapture) {
+            const target = battleBoard[diagMove.to];
+
+            if (
+              target &&
+              shouldInterceptThreeStarPassive(
+                battleBoard[diagMove.from]!.pieceId,
+                target.pieceId,
+              )
+            ) {
+              onStartAIFourStarDiagonalCooldown();
+              onAIThinking(false);
+              onQueueThreeStarPassive(
+                battleBoard,
+                diagMove.from,
+                diagMove.to,
+                "player",
+              );
+              onClearStuns();
+              return;
+            }
+
+            const event = prepareChallengeEvent(
+              battleBoard,
+              diagMove,
+              pieceById,
+            );
+            if (event) {
+              onStartAIFourStarDiagonalCooldown();
+              onAIThinking(false);
+              onPendingChallenge(event);
+              onClearStuns();
+              return;
+            }
+          } else {
+            const res = resolveBattleMove(battleBoard, diagMove, pieceById);
+            onStartAIFourStarDiagonalCooldown();
+            onApplyResolution(res, "player", diagMove.from, diagMove.to);
+            onAIThinking(false);
+            onClearStuns();
+            return;
+          }
+        }
+      }
+
       // ── Normal AI move ─────────────────────────────────────────────────────
       const aiMove = chooseMoveForProfile(
         battleBoard,
@@ -373,6 +454,7 @@ export function useAITurn(opts: UseAITurnOptions) {
     aiGeneralChargeCooldownUntil,
     oneStarGeneralAICooldownUntil,
     aiTwoStarCooldownUntil,
+    aiFourStarDiagonalCooldownUntil,
   ]);
 }
 
@@ -528,6 +610,101 @@ function tryAIGeneralCharge(
     isCapture,
   };
 }
+
+// ─── AI Diagonal March heuristic ─────────────────────────────────────────────
+
+/**
+ * Decides whether the AI's 4-Star General should use Diagonal March this turn.
+ *
+ * Strategy (mirrors General Charge approach):
+ *  - Only fires when the 4-Star General is on the board and not stunned.
+ *  - Scores each diagonal destination by: captures (high value) > advancement.
+ *  - Only fires if the best diagonal score beats the best normal-move score,
+ *    ensuring the ability is only used when it provides a genuine advantage.
+ *  - Subject to a random chance gate so easier difficulties use it less.
+ */
+function tryAIDiagonalMarch(
+  board: Record<number, BoardPiece>,
+  pieceById: Record<string, PieceDefinition>,
+  useChance: number,
+  isTileStunned: (tileIndex: number) => boolean,
+  isAIFourStarGeneral: (piece: BoardPiece) => boolean,
+  getDiagonalMarchTiles: (
+    board: Record<number, BoardPiece>,
+    fromTileIndex: number,
+    side: "player" | "ai",
+  ) => { allTiles: number[]; challengeTiles: number[] },
+): { move: import("../scripts/types").BattleMove; isCapture: boolean } | null {
+  // Find the AI's 4-Star General on the board.
+  const generalEntry = Object.entries(board).find(([, piece]) =>
+    isAIFourStarGeneral(piece),
+  );
+  if (!generalEntry) return null;
+
+  const generalTileIndex = Number(generalEntry[0]);
+
+  // Don't use the ability while stunned.
+  if (isTileStunned(generalTileIndex)) return null;
+
+  const { allTiles, challengeTiles } = getDiagonalMarchTiles(
+    board,
+    generalTileIndex,
+    "ai",
+  );
+  if (allTiles.length === 0) return null;
+
+  const BOARD_WIDTH = 9;
+  const getTileRow = (ti: number) => Math.floor(ti / BOARD_WIDTH);
+  const generalRow = getTileRow(generalTileIndex);
+
+  // Score each diagonal destination.
+  const scoreTile = (tileIndex: number): number => {
+    const occupant = board[tileIndex];
+    if (occupant && occupant.side === "player") {
+      // Capturing a high-strength piece is very desirable.
+      return 10 + getStrengthByLabel(pieceById[occupant.pieceId]?.label ?? "");
+    }
+    // Advancing toward the player's end (lower row index = AI advances).
+    const advancement = generalRow - getTileRow(tileIndex);
+    return Math.max(0, advancement);
+  };
+
+  let bestDiagTile = -1;
+  let bestDiagScore = -Infinity;
+  allTiles.forEach((ti) => {
+    const score = scoreTile(ti);
+    if (score > bestDiagScore) {
+      bestDiagScore = score;
+      bestDiagTile = ti;
+    }
+  });
+
+  if (bestDiagTile === -1) return null;
+
+  // Compare against the best normal (orthogonal) move for the same General.
+  const normalMoves = getLegalMoves(board, "ai", pieceById).filter(
+    (m) => m.from === generalTileIndex,
+  );
+  let bestNormalScore = -Infinity;
+  normalMoves.forEach((m) => {
+    const score = scoreTile(m.to);
+    if (score > bestNormalScore) bestNormalScore = score;
+  });
+
+  // Only use the diagonal ability when it's genuinely better than walking.
+  if (bestDiagScore <= bestNormalScore) return null;
+
+  // Random chance gate — easier AI profiles use this less reliably.
+  if (Math.random() >= useChance) return null;
+
+  const isCapture = challengeTiles.includes(bestDiagTile);
+  return {
+    move: { side: "ai", from: generalTileIndex, to: bestDiagTile },
+    isCapture,
+  };
+}
+
+// ─── Shared strength lookup ───────────────────────────────────────────────────
 
 function getStrengthByLabel(label: string): number {
   const map: Record<string, number> = {

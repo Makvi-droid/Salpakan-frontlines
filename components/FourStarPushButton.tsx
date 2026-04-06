@@ -12,7 +12,7 @@ import { appTheme } from "@/constants/theme";
 type Props = {
   /** Show/hide the entire button — only true when the 4-Star General is selected in battle */
   visible: boolean;
-  /** True while the player is in push-target-picking mode */
+  /** True while the player is in diagonal-target-picking mode */
   active: boolean;
   /**
    * Wall-clock timestamp (ms) until which the ability is on cooldown.
@@ -25,12 +25,12 @@ type Props = {
   onPress: () => void;
 };
 
-const ABILITY_NAME = "Iron Shove";
+const ABILITY_NAME = "Diagonal March";
 const ABILITY_DESC_IDLE =
-  "Push an adjacent enemy piece 1 square away from the General. " +
-  "Only available when the target square behind the enemy is empty.";
+  "Move the 4-Star General up to 2 squares diagonally. " +
+  "Can challenge an enemy on a diagonal tile. Tap to activate, then pick a highlighted tile.";
 const ABILITY_DESC_ACTIVE =
-  "Select a highlighted adjacent enemy to push it back 1 square.";
+  "Select a highlighted diagonal tile to move or challenge — or tap elsewhere to cancel.";
 
 /** Formats remaining milliseconds as "M:SS". */
 function formatCountdown(ms: number): string {
@@ -42,8 +42,8 @@ function formatCountdown(ms: number): string {
 
 /**
  * Floats below the board grid when the player's 4-Star General is selected
- * during battle. Tapping it activates push-target mode (pushable adjacent
- * enemies glow on the board). Tapping it again while active cancels.
+ * during battle. Tapping it activates diagonal-march mode (valid diagonal
+ * tiles glow on the board). Tapping it again while active cancels.
  * Shows a live countdown when the 5-minute cooldown is active.
  */
 export function FourStarPushButton({
@@ -164,7 +164,7 @@ export function FourStarPushButton({
               { borderRadius: rs(6) },
             ]}
           >
-            <Text style={[styles.iconText, { fontSize: rf(11) }]}>💢</Text>
+            <Text style={[styles.iconText, { fontSize: rf(11) }]}>↗️</Text>
           </View>
 
           <Text

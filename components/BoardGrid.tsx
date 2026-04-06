@@ -59,9 +59,12 @@ type Props = {
   colonelDiagonalTiles: number[];
   // general charge
   generalChargeActive: boolean;
-  // 4-star push
+  // 4-star diagonal march
   fourStarPushActive: boolean;
+  /** All diagonal destination tiles (move + challenge combined) */
   fourStarPushTargetTiles: number[];
+  /** Subset of fourStarPushTargetTiles that are enemy-occupied (challenge) */
+  fourStarDiagonalChallengeTiles: number[];
   // Lt. Colonel stun (Suppression Fire)
   ltColonelStunActive: boolean;
   ltColonelDiagonalTiles: number[];
@@ -72,9 +75,7 @@ type Props = {
   // Captain scan (Threat Scan)
   captainScanResult?: CaptainScanResult;
   // 2-Star General (Hold the Line)
-  /** Tile indices of pieces currently restricted from moving backward */
   holdRestrictedTiles: number[];
-  /** True while the player is in target-select mode for Hold the Line */
   twoStarActive: boolean;
   // drag props
   draggingPieceId: string | null;
@@ -188,6 +189,7 @@ export function BoardGrid({
   generalChargeActive,
   fourStarPushActive,
   fourStarPushTargetTiles,
+  fourStarDiagonalChallengeTiles,
   ltColonelStunActive,
   ltColonelDiagonalTiles,
   stunnedTileIndices,
@@ -262,11 +264,19 @@ export function BoardGrid({
                 generalChargeActive &&
                 challengeTargetTiles.includes(tile.index);
 
-              // ── 4-Star Push: pushable enemy highlight ──────────────────────
-              const isFourStarPushTarget =
+              // ── 4-Star General: Diagonal March highlights ──────────────────
+              // Plain diagonal move destination (empty tile)
+              const isFourStarDiagonalTarget =
                 phase !== "formation" &&
                 fourStarPushActive &&
-                fourStarPushTargetTiles.includes(tile.index);
+                fourStarPushTargetTiles.includes(tile.index) &&
+                !fourStarDiagonalChallengeTiles.includes(tile.index);
+
+              // Diagonal challenge destination (enemy-occupied tile)
+              const isFourStarDiagonalChallenge =
+                phase !== "formation" &&
+                fourStarPushActive &&
+                fourStarDiagonalChallengeTiles.includes(tile.index);
 
               const showLastMoveTrail =
                 phase !== "formation" && selectedBattleTileIndex === null;
@@ -329,7 +339,7 @@ export function BoardGrid({
                 ltColonelStunActive &&
                 ltColonelDiagonalTiles.includes(tile.index);
 
-              // ── Stunned tile: enemy piece locked for this AI turn ──────────
+              // ── Stunned tile ────────────────────────────────────────────────
               const isStunnedTile =
                 phase !== "formation" && stunnedTileIndices.has(tile.index);
 
@@ -341,17 +351,12 @@ export function BoardGrid({
               const isCaptainScanned =
                 captainScanEntry != null && battlePiece?.side === "ai";
 
-              // ── 2-Star General: Hold the Line restricted tile ──────────────
-              // Show on BOTH player and AI restricted pieces so both sides can
-              // see the restriction (player always knows what they applied;
-              // AI-applied restriction is shown on player pieces).
+              // ── 2-Star General: Hold the Line ──────────────────────────────
               const isHoldRestricted =
                 phase !== "formation" &&
                 holdRestrictedTiles.includes(tile.index) &&
                 !!battlePiece;
 
-              // When twoStarActive, highlight all enemy (AI) pieces as valid
-              // targets (any enemy piece can be selected).
               const isTwoStarTarget =
                 phase !== "formation" &&
                 twoStarActive &&
@@ -363,8 +368,11 @@ export function BoardGrid({
               const isDraggingSource =
                 isDragging && draggingFromTile === tile.index;
 
+              // Any challenge button scenario
               const showChallengeBtn =
-                isChallengeTarget || isGeneralChargeChallengeTarget;
+                isChallengeTarget ||
+                isGeneralChargeChallengeTarget ||
+                isFourStarDiagonalChallenge;
 
               const tileStyle = [
                 styles.tile,
@@ -395,17 +403,18 @@ export function BoardGrid({
                 isSpyRevealed && styles.spyRevealTile,
                 isColonelDiagonalTarget && styles.colonelDiagonalTarget,
                 isColonelRevealed && styles.colonelRevealTile,
-                isFourStarPushTarget && styles.fourStarPushTarget,
+                // 4-star diagonal move destination (orange glow, same palette as before)
+                isFourStarDiagonalTarget && styles.fourStarDiagonalTarget,
+                // 4-star diagonal challenge destination (deeper orange/amber)
+                isFourStarDiagonalChallenge && styles.fourStarDiagonalChallenge,
                 isLtColonelDiagonalTarget && styles.ltColonelDiagonalTarget,
                 isStunnedTile && styles.stunnedTile,
                 isCaptainScanned && styles.captainScanTile,
-                // Hold the Line: amber border on any restricted piece
                 isHoldRestricted && styles.holdRestrictedTile,
-                // Hold the Line: target-select highlight on enemy pieces
                 isTwoStarTarget && styles.twoStarTargetTile,
               ];
 
-              // ── Formation phase: DropZoneTile ────────────────────────────
+              // ── Formation phase ──────────────────────────────────────────
               if (phase === "formation") {
                 return (
                   <DropZoneTile
@@ -433,7 +442,7 @@ export function BoardGrid({
                 );
               }
 
-              // ── Battle phase: plain TouchableOpacity ─────────────────────
+              // ── Battle phase ─────────────────────────────────────────────
               return (
                 <TouchableOpacity
                   key={tile.index}
@@ -462,7 +471,8 @@ export function BoardGrid({
                           (isChallengeTarget ||
                             isGeneralChargeChallengeTarget) &&
                             styles.challengeTargetPieceText,
-                          isFourStarPushTarget && styles.pushTargetPieceText,
+                          isFourStarDiagonalChallenge &&
+                            styles.fourStarDiagonalChallengePieceText,
                           isColonelDiagonalTarget &&
                             styles.colonelTargetPieceText,
                           isLtColonelDiagonalTarget &&
@@ -470,9 +480,7 @@ export function BoardGrid({
                           isMajorSwapAlly && styles.majorSwapAllyPieceText,
                           isStunnedTile && styles.stunnedPieceText,
                           isCaptainScanned && styles.captainScanPieceText,
-                          // Hold the Line: amber label when restricted
                           isHoldRestricted && styles.holdRestrictedPieceText,
-                          // Hold the Line: bright amber label when being targeted
                           isTwoStarTarget && styles.twoStarTargetPieceText,
                         ]}
                       >
@@ -559,6 +567,35 @@ export function BoardGrid({
                     </TouchableOpacity>
                   ) : null}
 
+                  {/* 4-Star Diagonal March challenge button — amber/orange tint */}
+                  {isFourStarDiagonalChallenge &&
+                  !isGeneralChargeChallengeTarget ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.challengeBtn,
+                        styles.diagonalChallengeBtnOverride,
+                        { borderRadius: rf(2) },
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        onChallengePress(tile.index);
+                      }}
+                      activeOpacity={0.85}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Image
+                        source={CHALLENGE_ICON}
+                        style={{
+                          width: "84%",
+                          height: "84%",
+                          opacity: 0.98,
+                          tintColor: "#FFD080",
+                        }}
+                        resizeMode="contain"
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+
                   {/* Flag swap ally indicator */}
                   {isFlagSwapAlly ? (
                     <View style={styles.swapIndicator} pointerEvents="none">
@@ -586,11 +623,11 @@ export function BoardGrid({
                     </View>
                   ) : null}
 
-                  {/* 4-Star Push target indicator */}
-                  {isFourStarPushTarget ? (
-                    <View style={styles.pushIndicator} pointerEvents="none">
-                      <Text style={[styles.pushIcon, { fontSize: rf(8) }]}>
-                        ✊
+                  {/* 4-Star Diagonal March move indicator (empty tile) */}
+                  {isFourStarDiagonalTarget && !battlePiece ? (
+                    <View style={styles.diagonalIndicator} pointerEvents="none">
+                      <Text style={[styles.diagonalIcon, { fontSize: rf(9) }]}>
+                        ↗
                       </Text>
                     </View>
                   ) : null}
@@ -635,7 +672,7 @@ export function BoardGrid({
                     </View>
                   ) : null}
 
-                  {/* Hold the Line restricted tile indicator — top-left anchor chain */}
+                  {/* Hold the Line restricted tile indicator */}
                   {isHoldRestricted ? (
                     <View
                       style={styles.holdRestrictedOverlay}
@@ -649,7 +686,7 @@ export function BoardGrid({
                     </View>
                   ) : null}
 
-                  {/* Hold the Line target-select indicator — pulsing shield on enemy */}
+                  {/* Hold the Line target-select indicator */}
                   {isTwoStarTarget && !isHoldRestricted ? (
                     <View
                       style={styles.twoStarTargetIndicator}
@@ -843,15 +880,27 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 5,
   },
-  fourStarPushTarget: {
+  // ── 4-Star General: Diagonal March — empty tile destination ─────────────
+  fourStarDiagonalTarget: {
     borderColor: "#FF9020",
     borderWidth: appTheme.borderWidth.thick,
-    backgroundColor: "rgba(255, 144, 32, 0.20)",
+    backgroundColor: "rgba(255, 144, 32, 0.18)",
     shadowColor: "#FF9020",
     shadowOpacity: 0.45,
     shadowRadius: 7,
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
+  },
+  // ── 4-Star General: Diagonal March — enemy tile (challenge) ─────────────
+  fourStarDiagonalChallenge: {
+    borderColor: "#FFB040",
+    borderWidth: appTheme.borderWidth.thick,
+    backgroundColor: "rgba(220, 120, 20, 0.28)",
+    shadowColor: "#FFB040",
+    shadowOpacity: 0.55,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
   },
   colonelDiagonalTarget: {
     borderColor: "#A0B840",
@@ -901,7 +950,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 5,
   },
-  // ── Hold the Line: restricted tile — amber chain ─────────────────────────
   holdRestrictedTile: {
     borderColor: "#D47C2A",
     borderWidth: appTheme.borderWidth.thick,
@@ -912,7 +960,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
   },
-  // ── Hold the Line: target-select mode — enemy pieces glow amber ───────────
   twoStarTargetTile: {
     borderColor: "#F0A050",
     borderWidth: appTheme.borderWidth.thick,
@@ -996,14 +1043,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 12,
   },
-  pushIndicator: {
+  // ── 4-Star Diagonal March move indicator ─────────────────────────────────
+  diagonalIndicator: {
     position: "absolute",
     bottom: 1,
     right: 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  pushIcon: {
+  diagonalIcon: {
     color: "#FF9020",
     fontWeight: "700",
     lineHeight: 12,
@@ -1038,7 +1086,6 @@ const styles = StyleSheet.create({
   stunnedIcon: {
     lineHeight: 12,
   },
-  // ── Hold the Line: chain icon — top-left, distinct from stun (top-left) ───
   holdRestrictedOverlay: {
     position: "absolute",
     top: 1,
@@ -1049,7 +1096,6 @@ const styles = StyleSheet.create({
   holdRestrictedIcon: {
     lineHeight: 12,
   },
-  // ── Hold the Line: shield icon for target-select enemy pieces ─────────────
   twoStarTargetIndicator: {
     position: "absolute",
     bottom: 1,
@@ -1175,6 +1221,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(80, 20, 140, 0.45)",
     borderColor: "#C0A0FF",
   },
+  // ── 4-Star diagonal challenge button — amber/orange tint ─────────────────
+  diagonalChallengeBtnOverride: {
+    backgroundColor: "rgba(140, 70, 10, 0.45)",
+    borderColor: "#FFD080",
+  },
   pieceText: {
     color: appTheme.colors.ink,
     fontFamily: appTheme.fonts.body,
@@ -1195,7 +1246,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
     textShadowOffset: { width: 0, height: 1 },
   },
-  pushTargetPieceText: {
+  // ── 4-Star diagonal challenge piece text ─────────────────────────────────
+  fourStarDiagonalChallengePieceText: {
     color: "#FFE0B0",
     fontWeight: "700",
     textShadowColor: "rgba(0,0,0,0.6)",
@@ -1230,7 +1282,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
     textShadowOffset: { width: 0, height: 1 },
   },
-  // ── Hold the Line piece text styles ───────────────────────────────────────
   holdRestrictedPieceText: {
     color: "#F0C080",
     fontWeight: "700",

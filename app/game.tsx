@@ -106,7 +106,7 @@ export default function GameScreen() {
           : game.ltColonelStunActive
             ? "Tap a highlighted diagonal enemy to stun for 1 turn, or tap elsewhere to cancel."
             : game.fourStarPushActive
-              ? "Tap a highlighted enemy to push it back 1 square, or tap elsewhere to cancel."
+              ? "Tap a highlighted diagonal tile to move there, or tap elsewhere to cancel."
               : game.colonelRevealActive
                 ? "Tap a highlighted diagonal enemy to reveal their rank, or tap elsewhere to cancel."
                 : game.firstLtRevealActive
@@ -241,6 +241,9 @@ export default function GameScreen() {
               generalChargeActive={game.generalChargeActive}
               fourStarPushActive={game.fourStarPushActive}
               fourStarPushTargetTiles={game.fourStarPushTargetTiles}
+              fourStarDiagonalChallengeTiles={
+                game.fourStarDiagonalChallengeTiles
+              }
               ltColonelStunActive={game.ltColonelStunActive}
               ltColonelDiagonalTiles={game.ltColonelDiagonalTiles}
               stunnedTileIndices={game.stunnedTileIndices}
@@ -374,7 +377,6 @@ export default function GameScreen() {
                     oneStarBonusMoveCooldownUntil={
                       game.oneStarBonusMoveCooldownUntil
                     }
-                    // ── 2-Star General: Hold the Line ──────────────────────────
                     selectedPieceIsTwoStarGeneral={
                       !!game.selectedPieceIsTwoStarGeneral
                     }
@@ -515,7 +517,6 @@ export default function GameScreen() {
           onConfirm={game.handleOneStarBonusMoveConfirm}
           onSkip={game.handleOneStarBonusMoveSkip}
         />
-        {/* ── 1st Lieutenant: Intel Report result modal ───────────────────── */}
         <FirstLtRevealModal
           event={game.pendingFirstLtReveal}
           insets={insets}
@@ -525,7 +526,6 @@ export default function GameScreen() {
           rsv={rsv}
           onDismiss={game.handleFirstLtRevealDismiss}
         />
-        {/* ── 2nd Lieutenant: Field Assessment result modal ───────────────── */}
         <SecondLtRevealModal
           event={game.pendingSecondLtReveal}
           insets={insets}
@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
   pageFrame: { flex: 1, alignItems: "center" },
   container: { width: "100%", alignItems: "center", flex: 1 },
   abilityPanelContainer: {
-    minHeight: 80, // adjust this to match your AbilityPanel's tallest possible height
+    minHeight: 80,
     width: "100%",
     justifyContent: "flex-start",
   },
