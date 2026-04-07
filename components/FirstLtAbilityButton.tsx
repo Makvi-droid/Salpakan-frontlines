@@ -10,17 +10,8 @@ import {
 import { appTheme } from "@/constants/theme";
 
 type Props = {
-  /** Show/hide — only true when the player's 1st Lieutenant is selected */
   visible: boolean;
-  /**
-   * Whether the ability is currently armed (target-selection mode active).
-   * Shows a "CANCEL" state when true.
-   */
   active: boolean;
-  /**
-   * Wall-clock timestamp (ms) until which the ability is on cooldown.
-   * null or a past timestamp = not on cooldown.
-   */
   cooldownUntil: number | null;
   rf: (size: number) => number;
   rs: (size: number) => number;
@@ -30,12 +21,11 @@ type Props = {
 
 const ABILITY_NAME = "Intel Report";
 const ABILITY_DESC_IDLE =
-  "Tap any visible enemy piece to learn if it is a High Rank (General) or Low Rank (Colonel and below). Does not consume your turn.";
+  "Reveal any enemy piece to learn if it is High Rank (General) or Low Rank (Colonel and below).";
 const ABILITY_DESC_ACTIVE =
   "Tap any enemy piece on the board to assess its rank tier, or tap elsewhere to cancel.";
 const ABILITY_DESC_COOLDOWN = "Recharging…";
 
-/** Formats remaining milliseconds as "M:SS". */
 function formatCountdown(ms: number): string {
   const totalSec = Math.max(0, Math.ceil(ms / 1000));
   const minutes = Math.floor(totalSec / 60);
@@ -52,7 +42,6 @@ export function FirstLtAbilityButton({
   rsv,
   onPress,
 }: Props) {
-  // ── Live countdown ticker ─────────────────────────────────────────────────
   const [remainingMs, setRemainingMs] = useState<number>(0);
 
   useEffect(() => {
@@ -60,10 +49,7 @@ export function FirstLtAbilityButton({
       setRemainingMs(0);
       return;
     }
-    const tick = () => {
-      const diff = cooldownUntil - Date.now();
-      setRemainingMs(Math.max(0, diff));
-    };
+    const tick = () => setRemainingMs(Math.max(0, cooldownUntil - Date.now()));
     tick();
     const interval = setInterval(tick, 500);
     return () => clearInterval(interval);
@@ -71,7 +57,6 @@ export function FirstLtAbilityButton({
 
   const onCooldown = remainingMs > 0;
 
-  // ── Slide-in / slide-out ──────────────────────────────────────────────────
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(10)).current;
 
@@ -90,7 +75,6 @@ export function FirstLtAbilityButton({
     ]).start();
   }, [visible, opacity, translateY]);
 
-  // ── Idle pulse (only when ready and not active) ───────────────────────────
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -120,7 +104,6 @@ export function FirstLtAbilityButton({
     }
   }, [visible, onCooldown, active, pulse]);
 
-  // ── Derived display values ────────────────────────────────────────────────
   const descriptionText = onCooldown
     ? `${ABILITY_DESC_COOLDOWN} available in ${formatCountdown(remainingMs)}`
     : active
@@ -142,7 +125,7 @@ export function FirstLtAbilityButton({
           onCooldown && styles.buttonCooldown,
           {
             borderRadius: rs(10),
-            paddingVertical: rsv(10),
+            paddingVertical: rsv(12),
             paddingHorizontal: rs(14),
           },
         ]}
@@ -150,7 +133,6 @@ export function FirstLtAbilityButton({
         activeOpacity={onCooldown ? 1 : 0.8}
         disabled={onCooldown}
       >
-        {/* ── Name row ─────────────────────────────────────────────────────── */}
         <View style={styles.nameRow}>
           <View
             style={[
@@ -160,8 +142,7 @@ export function FirstLtAbilityButton({
               { borderRadius: rs(6) },
             ]}
           >
-            {/* 📡 — signals intelligence / signals corps theme */}
-            <Text style={[styles.iconText, { fontSize: rf(11) }]}>📡</Text>
+            <Text style={[styles.iconText, { fontSize: rf(13) }]}>📋</Text>
           </View>
 
           <Text
@@ -169,39 +150,37 @@ export function FirstLtAbilityButton({
               styles.abilityName,
               active && styles.abilityNameActive,
               onCooldown && styles.abilityNameCooldown,
-              { fontSize: rf(12) },
+              { fontSize: rf(14) },
             ]}
           >
             {ABILITY_NAME}
           </Text>
 
-          {/* ── Status pill ────────────────────────────────────────────────── */}
           {onCooldown ? (
             <View style={[styles.cooldownPill, { borderRadius: rs(99) }]}>
-              <Text style={[styles.cooldownPillText, { fontSize: rf(9) }]}>
+              <Text style={[styles.cooldownPillText, { fontSize: rf(10) }]}>
                 {formatCountdown(remainingMs)}
               </Text>
             </View>
           ) : active ? (
             <View style={[styles.activePill, { borderRadius: rs(99) }]}>
-              <Text style={[styles.activePillText, { fontSize: rf(9) }]}>
+              <Text style={[styles.activePillText, { fontSize: rf(10) }]}>
                 CANCEL
               </Text>
             </View>
           ) : (
             <View style={[styles.readyPill, { borderRadius: rs(99) }]}>
-              <Text style={[styles.readyPillText, { fontSize: rf(9) }]}>
+              <Text style={[styles.readyPillText, { fontSize: rf(10) }]}>
                 READY
               </Text>
             </View>
           )}
         </View>
 
-        {/* ── Description ──────────────────────────────────────────────────── */}
         <Text
           style={[
             styles.desc,
-            { fontSize: rf(10.5), marginTop: rsv(5) },
+            { fontSize: rf(12), marginTop: rsv(6) },
             active && styles.descActive,
             onCooldown && styles.descCooldown,
           ]}
@@ -214,11 +193,7 @@ export function FirstLtAbilityButton({
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    width: "100%",
-    marginBottom: 10,
-  },
-  // ── Idle — steel-blue signals theme, distinct from every other ability ────
+  wrapper: { width: "100%", marginBottom: 10 },
   button: {
     width: "100%",
     backgroundColor: "#080E18",
@@ -236,11 +211,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#050810",
     opacity: 0.65,
   },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   iconPill: {
     backgroundColor: "#0C1620",
     borderWidth: 1,
@@ -250,14 +221,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconPillActive: {
-    borderColor: "#5090C0",
-    backgroundColor: "#102030",
-  },
-  iconPillCooldown: {
-    borderColor: "#162030",
-    backgroundColor: "#080E18",
-  },
+  iconPillActive: { borderColor: "#5090C0", backgroundColor: "#102030" },
+  iconPillCooldown: { borderColor: "#162030", backgroundColor: "#080E18" },
   iconText: {},
   abilityName: {
     color: "#5090C0",
@@ -266,13 +231,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     flex: 1,
   },
-  abilityNameActive: {
-    color: "#80C0F0",
-  },
-  abilityNameCooldown: {
-    color: "#1E3850",
-  },
-  // ── Status pills ──────────────────────────────────────────────────────────
+  abilityNameActive: { color: "#80C0F0" },
+  abilityNameCooldown: { color: "#1E3850" },
   readyPill: {
     backgroundColor: "#5090C0",
     paddingHorizontal: 8,
@@ -308,19 +268,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
   },
-  // ── Description text ──────────────────────────────────────────────────────
   desc: {
     color: appTheme.colors.parchmentSoft,
     fontFamily: appTheme.fonts.body,
-    lineHeight: 15,
+    lineHeight: 18,
     opacity: 0.85,
   },
-  descActive: {
-    color: "#80C0F0",
-    opacity: 0.9,
-  },
-  descCooldown: {
-    color: "#1E3850",
-    opacity: 0.8,
-  },
+  descActive: { color: "#80C0F0", opacity: 0.9 },
+  descCooldown: { color: "#1E3850", opacity: 0.8 },
 });

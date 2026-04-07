@@ -10,12 +10,7 @@ import {
 import { appTheme } from "@/constants/theme";
 
 type Props = {
-  /** Show/hide the button — only true when the player's Captain is selected */
   visible: boolean;
-  /**
-   * Wall-clock timestamp (ms) until which the ability is on cooldown.
-   * null or a past timestamp = not on cooldown.
-   */
   cooldownUntil: number | null;
   rf: (size: number) => number;
   rs: (size: number) => number;
@@ -25,10 +20,9 @@ type Props = {
 
 const ABILITY_NAME = "Threat Scan";
 const ABILITY_DESC_IDLE =
-  "Instantly reveal the true rank of all enemy pieces in the 4 adjacent squares (Up, Down, Left, Right) for 1.5 seconds.";
+  "Instantly reveal the ranks of all enemy pieces in the 4 adjacent squares (Up, Down, Left, Right) for 1.5 seconds.";
 const ABILITY_DESC_COOLDOWN = "Recharging…";
 
-/** Formats remaining milliseconds as "M:SS". */
 function formatCountdown(ms: number): string {
   const totalSec = Math.max(0, Math.ceil(ms / 1000));
   const minutes = Math.floor(totalSec / 60);
@@ -36,11 +30,6 @@ function formatCountdown(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-/**
- * Floats below the board grid when the player's Captain is selected during
- * battle. Unlike most abilities this fires immediately on button press — there
- * is no two-step target-selection mode. A 5-minute cooldown starts after use.
- */
 export function CaptainScanButton({
   visible,
   cooldownUntil,
@@ -49,7 +38,6 @@ export function CaptainScanButton({
   rsv,
   onPress,
 }: Props) {
-  // ── Live countdown ticker ────────────────────────────────────────────────────
   const [remainingMs, setRemainingMs] = useState<number>(0);
 
   useEffect(() => {
@@ -57,10 +45,7 @@ export function CaptainScanButton({
       setRemainingMs(0);
       return;
     }
-    const tick = () => {
-      const diff = cooldownUntil - Date.now();
-      setRemainingMs(Math.max(0, diff));
-    };
+    const tick = () => setRemainingMs(Math.max(0, cooldownUntil - Date.now()));
     tick();
     const interval = setInterval(tick, 500);
     return () => clearInterval(interval);
@@ -68,7 +53,6 @@ export function CaptainScanButton({
 
   const onCooldown = remainingMs > 0;
 
-  // ── Slide-in / slide-out ─────────────────────────────────────────────────────
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(10)).current;
 
@@ -87,7 +71,6 @@ export function CaptainScanButton({
     ]).start();
   }, [visible, opacity, translateY]);
 
-  // ── Idle pulse (only when ready) ─────────────────────────────────────────────
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -117,7 +100,6 @@ export function CaptainScanButton({
     }
   }, [visible, onCooldown, pulse]);
 
-  // ── Derived display values ───────────────────────────────────────────────────
   const descriptionText = onCooldown
     ? `${ABILITY_DESC_COOLDOWN} available in ${formatCountdown(remainingMs)}`
     : ABILITY_DESC_IDLE;
@@ -136,7 +118,7 @@ export function CaptainScanButton({
           onCooldown && styles.buttonCooldown,
           {
             borderRadius: rs(10),
-            paddingVertical: rsv(10),
+            paddingVertical: rsv(12),
             paddingHorizontal: rs(14),
           },
         ]}
@@ -144,7 +126,6 @@ export function CaptainScanButton({
         activeOpacity={onCooldown ? 1 : 0.8}
         disabled={onCooldown}
       >
-        {/* ── Name row ───────────────────────────────────────────────────────── */}
         <View style={styles.nameRow}>
           <View
             style={[
@@ -153,41 +134,38 @@ export function CaptainScanButton({
               { borderRadius: rs(6) },
             ]}
           >
-            {/* 📡 — signals radar / scan theme */}
-            <Text style={[styles.iconText, { fontSize: rf(11) }]}>📡</Text>
+            <Text style={[styles.iconText, { fontSize: rf(13) }]}>📡</Text>
           </View>
 
           <Text
             style={[
               styles.abilityName,
               onCooldown && styles.abilityNameCooldown,
-              { fontSize: rf(12) },
+              { fontSize: rf(14) },
             ]}
           >
             {ABILITY_NAME}
           </Text>
 
-          {/* ── Status pill: READY or cooldown timer ──────────────────────── */}
           {onCooldown ? (
             <View style={[styles.cooldownPill, { borderRadius: rs(99) }]}>
-              <Text style={[styles.cooldownPillText, { fontSize: rf(9) }]}>
+              <Text style={[styles.cooldownPillText, { fontSize: rf(10) }]}>
                 {formatCountdown(remainingMs)}
               </Text>
             </View>
           ) : (
             <View style={[styles.readyPill, { borderRadius: rs(99) }]}>
-              <Text style={[styles.readyPillText, { fontSize: rf(9) }]}>
+              <Text style={[styles.readyPillText, { fontSize: rf(10) }]}>
                 READY
               </Text>
             </View>
           )}
         </View>
 
-        {/* ── Description ────────────────────────────────────────────────────── */}
         <Text
           style={[
             styles.desc,
-            { fontSize: rf(10.5), marginTop: rsv(5) },
+            { fontSize: rf(12), marginTop: rsv(6) },
             onCooldown && styles.descCooldown,
           ]}
         >
@@ -199,11 +177,7 @@ export function CaptainScanButton({
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    width: "100%",
-    marginBottom: 10,
-  },
-  // ── Idle — steel-blue / radar theme, distinct from all existing abilities ─────
+  wrapper: { width: "100%", marginBottom: 10 },
   button: {
     width: "100%",
     backgroundColor: "#080E18",
@@ -216,11 +190,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#060810",
     opacity: 0.65,
   },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   iconPill: {
     backgroundColor: "#0C1A28",
     borderWidth: 1,
@@ -230,10 +200,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconPillCooldown: {
-    borderColor: "#102030",
-    backgroundColor: "#080E18",
-  },
+  iconPillCooldown: { borderColor: "#102030", backgroundColor: "#080E18" },
   iconText: {},
   abilityName: {
     color: "#4A9ED0",
@@ -242,9 +209,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     flex: 1,
   },
-  abilityNameCooldown: {
-    color: "#1E3A50",
-  },
+  abilityNameCooldown: { color: "#1E3A50" },
   readyPill: {
     backgroundColor: "#4A9ED0",
     paddingHorizontal: 8,
@@ -272,11 +237,8 @@ const styles = StyleSheet.create({
   desc: {
     color: appTheme.colors.parchmentSoft,
     fontFamily: appTheme.fonts.body,
-    lineHeight: 15,
+    lineHeight: 18,
     opacity: 0.85,
   },
-  descCooldown: {
-    color: "#1E3A50",
-    opacity: 0.8,
-  },
+  descCooldown: { color: "#1E3A50", opacity: 0.8 },
 });

@@ -10,14 +10,8 @@ import {
 import { appTheme } from "@/constants/theme";
 
 type Props = {
-  /** Show/hide the entire button — only true when the 4-Star General is selected in battle */
   visible: boolean;
-  /** True while the player is in diagonal-target-picking mode */
   active: boolean;
-  /**
-   * Wall-clock timestamp (ms) until which the ability is on cooldown.
-   * null or a past timestamp = not on cooldown.
-   */
   cooldownUntil: number | null;
   rf: (size: number) => number;
   rs: (size: number) => number;
@@ -27,12 +21,10 @@ type Props = {
 
 const ABILITY_NAME = "Diagonal March";
 const ABILITY_DESC_IDLE =
-  "Move the 4-Star General up to 2 squares diagonally. " +
-  "Can challenge an enemy on a diagonal tile. Tap to activate, then pick a highlighted tile.";
+  "Move up to 2 squares diagonally in one turn. Can challenge an enemy on a diagonal tile.";
 const ABILITY_DESC_ACTIVE =
   "Select a highlighted diagonal tile to move or challenge — or tap elsewhere to cancel.";
 
-/** Formats remaining milliseconds as "M:SS". */
 function formatCountdown(ms: number): string {
   const totalSec = Math.max(0, Math.ceil(ms / 1000));
   const minutes = Math.floor(totalSec / 60);
@@ -40,12 +32,6 @@ function formatCountdown(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-/**
- * Floats below the board grid when the player's 4-Star General is selected
- * during battle. Tapping it activates diagonal-march mode (valid diagonal
- * tiles glow on the board). Tapping it again while active cancels.
- * Shows a live countdown when the 5-minute cooldown is active.
- */
 export function FourStarPushButton({
   visible,
   active,
@@ -55,7 +41,6 @@ export function FourStarPushButton({
   rsv,
   onPress,
 }: Props) {
-  // ── Live countdown ticker ────────────────────────────────────────────────────
   const [remainingMs, setRemainingMs] = useState<number>(0);
 
   useEffect(() => {
@@ -63,12 +48,7 @@ export function FourStarPushButton({
       setRemainingMs(0);
       return;
     }
-
-    const tick = () => {
-      const diff = cooldownUntil - Date.now();
-      setRemainingMs(Math.max(0, diff));
-    };
-
+    const tick = () => setRemainingMs(Math.max(0, cooldownUntil - Date.now()));
     tick();
     const interval = setInterval(tick, 500);
     return () => clearInterval(interval);
@@ -76,7 +56,6 @@ export function FourStarPushButton({
 
   const onCooldown = remainingMs > 0;
 
-  // ── Slide-in / slide-out ─────────────────────────────────────────────────────
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(10)).current;
 
@@ -95,7 +74,6 @@ export function FourStarPushButton({
     ]).start();
   }, [visible, opacity, translateY]);
 
-  // ── Pulse when active (suppressed during cooldown) ───────────────────────────
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -125,7 +103,6 @@ export function FourStarPushButton({
     }
   }, [active, onCooldown, pulse]);
 
-  // ── Derived display values ───────────────────────────────────────────────────
   const descriptionText = onCooldown
     ? `Ability recharging — available in ${formatCountdown(remainingMs)}`
     : active
@@ -147,7 +124,7 @@ export function FourStarPushButton({
           onCooldown && styles.buttonCooldown,
           {
             borderRadius: rs(10),
-            paddingVertical: rsv(10),
+            paddingVertical: rsv(12),
             paddingHorizontal: rs(14),
           },
         ]}
@@ -155,7 +132,6 @@ export function FourStarPushButton({
         activeOpacity={onCooldown ? 1 : 0.8}
         disabled={onCooldown}
       >
-        {/* ── Name row ───────────────────────────────────────────────────────── */}
         <View style={styles.nameRow}>
           <View
             style={[
@@ -164,42 +140,38 @@ export function FourStarPushButton({
               { borderRadius: rs(6) },
             ]}
           >
-            <Text style={[styles.iconText, { fontSize: rf(11) }]}>↗️</Text>
+            <Text style={[styles.iconText, { fontSize: rf(13) }]}>↗️</Text>
           </View>
 
           <Text
             style={[
               styles.abilityName,
               onCooldown && styles.abilityNameCooldown,
-              { fontSize: rf(12) },
+              { fontSize: rf(14) },
             ]}
           >
             {ABILITY_NAME}
           </Text>
 
-          {/* ── Status pill: ACTIVE or cooldown timer ──────────────────────── */}
           {onCooldown ? (
             <View style={[styles.cooldownPill, { borderRadius: rs(99) }]}>
-              <Text style={[styles.cooldownPillText, { fontSize: rf(9) }]}>
+              <Text style={[styles.cooldownPillText, { fontSize: rf(10) }]}>
                 {formatCountdown(remainingMs)}
               </Text>
             </View>
-          ) : (
-            active && (
-              <View style={[styles.activePill, { borderRadius: rs(99) }]}>
-                <Text style={[styles.activePillText, { fontSize: rf(9) }]}>
-                  ACTIVE
-                </Text>
-              </View>
-            )
-          )}
+          ) : active ? (
+            <View style={[styles.activePill, { borderRadius: rs(99) }]}>
+              <Text style={[styles.activePillText, { fontSize: rf(10) }]}>
+                ACTIVE
+              </Text>
+            </View>
+          ) : null}
         </View>
 
-        {/* ── Description ────────────────────────────────────────────────────── */}
         <Text
           style={[
             styles.desc,
-            { fontSize: rf(10.5), marginTop: rsv(5) },
+            { fontSize: rf(12), marginTop: rsv(6) },
             active && !onCooldown && styles.descActive,
             onCooldown && styles.descCooldown,
           ]}
@@ -212,10 +184,7 @@ export function FourStarPushButton({
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    width: "100%",
-    marginBottom: 10,
-  },
+  wrapper: { width: "100%", marginBottom: 10 },
   button: {
     width: "100%",
     backgroundColor: "#191107",
@@ -237,11 +206,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#110E06",
     opacity: 0.65,
   },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   iconPill: {
     backgroundColor: "#2D2108",
     borderWidth: 1,
@@ -251,13 +216,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconPillCooldown: {
-    borderColor: "#3A3020",
-    backgroundColor: "#1A150A",
-  },
-  iconText: {
-    // emoji sizing handled via fontSize prop above
-  },
+  iconPillCooldown: { borderColor: "#3A3020", backgroundColor: "#1A150A" },
+  iconText: {},
   abilityName: {
     color: appTheme.colors.brassBright,
     fontFamily: appTheme.fonts.body,
@@ -265,9 +225,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     flex: 1,
   },
-  abilityNameCooldown: {
-    color: "#5A4A20",
-  },
+  abilityNameCooldown: { color: "#5A4A20" },
   activePill: {
     backgroundColor: appTheme.colors.brassBright,
     paddingHorizontal: 8,
@@ -295,15 +253,9 @@ const styles = StyleSheet.create({
   desc: {
     color: appTheme.colors.parchmentSoft,
     fontFamily: appTheme.fonts.body,
-    lineHeight: 15,
+    lineHeight: 18,
     opacity: 0.85,
   },
-  descActive: {
-    color: appTheme.colors.brassBright,
-    opacity: 1,
-  },
-  descCooldown: {
-    color: "#5A4A20",
-    opacity: 0.8,
-  },
+  descActive: { color: appTheme.colors.brassBright, opacity: 1 },
+  descCooldown: { color: "#5A4A20", opacity: 0.8 },
 });
