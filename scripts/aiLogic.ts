@@ -129,7 +129,7 @@ export function scoreAIMove(
     if (!target.revealedToAI && moverStrength <= 3) captureScore += 1.5;
   }
 
-  // Aggressive crate pressure: prioritize stepping on crate tiles to gain upgrades.
+  // Crate pressure
   if (crateTileSet?.has(move.to)) {
     const hasUpgrade = mover.upgrade !== undefined;
     crateScore += hasUpgrade ? 4.5 : 8.5;
@@ -155,13 +155,23 @@ export function scoreAIMove(
 /**
  * Choose the best legal move for the AI given its profile.
  *
- * @param isTileStunned      - Optional. Returns true when a tile's piece is
- *                             stunned and cannot move this turn (Lt. Colonel).
- * @param isBackwardMoveBlocked - Optional. Returns true when a move is blocked
- *                             by a Hold the Line restriction (2-Star General).
- *                             Both the AI's own pieces (restricted by the
- *                             player's 2-Star General) and the player's pieces
- *                             are filtered through this callback.
+ * RANDOMNESS OVERHAUL
+ * -------------------
+ * The old system scored all moves, sliced the top N%, then weighted by score
+ * delta. This made hard AI feel very mechanical and medium AI quite predictable.
+ *
+ * New approach:
+ *  1. Score all legal moves as before.
+ *  2. Apply a per-move Gaussian-style jitter scaled by `profile.randomness`
+ *     BEFORE ranking — this shuffles the apparent ranking without destroying
+ *     the signal entirely. Hard AI gets tiny jitter; easy AI gets large jitter.
+ *  3. Then do the usual topSlice / blunderFloor filter on the JITTERED scores.
+ *  4. Final pick is a weighted sample from the shortlist, same as before.
+ *
+ * The key insight: injecting noise before ranking means every run produces a
+ * genuinely different move priority order, not just a different sample from
+ * the same fixed ranked list. This gives the AI organic variation while still
+ * respecting difficulty.
  */
 export function chooseMoveForProfile(
   board: Record<number, BoardPiece>,
@@ -173,14 +183,12 @@ export function chooseMoveForProfile(
 ): BattleMove | null {
   const allLegalMoves = getLegalMoves(board, "ai", pieceById);
 
-  // ── Filter out moves originating from stunned tiles ──────────────────────
+  // Filter stunned tiles
   let legalMoves = isTileStunned
     ? allLegalMoves.filter((m) => !isTileStunned(m.from))
     : allLegalMoves;
 
-  // ── Filter out backward moves blocked by Hold the Line ───────────────────
-  // This covers AI pieces that have been restricted by the player's
-  // 2-Star General ability.
+  // Filter Hold the Line backward restrictions
   if (isBackwardMoveBlocked) {
     legalMoves = legalMoves.filter(
       (m) => !isBackwardMoveBlocked(m.from, m.to, "ai"),
@@ -190,28 +198,43 @@ export function chooseMoveForProfile(
   if (legalMoves.length === 0) return null;
   const crateTileSet = new Set(crateTiles);
 
-  const scored = legalMoves
-    .map((move) => ({
-      move,
-      score: scoreAIMove(board, move, profile, pieceById, crateTileSet),
-    }))
-    .sort((a, b) => b.score - a.score);
+  // ── Step 1: Score all moves ─────────────────────────────────────────────
+  const rawScored = legalMoves.map((move) => ({
+    move,
+    rawScore: scoreAIMove(board, move, profile, pieceById, crateTileSet),
+  }));
 
-  const bestScore = scored[0]?.score ?? 0;
-  const filtered = scored.filter(
+  // ── Step 2: Add per-move jitter before ranking ──────────────────────────
+  // Jitter magnitude = randomness * 8. At randomness=0.8 (easy) this is ±6.4,
+  // at 0.38 (medium) it's ±3.0, at 0.12 (hard) it's ±1.0.
+  // We use two random draws averaged (triangle distribution) so extreme values
+  // are less likely — the AI doesn't fully throw games, it just varies.
+  const jitterScale = profile.randomness * 8;
+  const jittered = rawScored.map(({ move, rawScore }) => {
+    const noise = (Math.random() + Math.random() - 1) * jitterScale;
+    return { move, score: rawScore + noise };
+  });
+
+  // ── Step 3: Sort and slice ──────────────────────────────────────────────
+  jittered.sort((a, b) => b.score - a.score);
+
+  const bestScore = jittered[0]?.score ?? 0;
+  const filtered = jittered.filter(
     (e) => e.score >= Math.max(profile.blunderFloor, bestScore - 6),
   );
   const sliceCount = Math.max(1, Math.ceil(filtered.length * profile.topSlice));
   const shortlist = filtered.slice(0, sliceCount);
+
   if (shortlist.length === 1) return shortlist[0].move;
 
+  // ── Step 4: Weighted sample from shortlist ──────────────────────────────
+  // Weight by score delta so the best candidates are still more likely, but
+  // the jitter in step 2 already spread the field — so this step is just a
+  // soft preference, not a hard gate.
+  const last = shortlist[shortlist.length - 1].score;
   const weighted = shortlist.map((e) => ({
     ...e,
-    weight: Math.max(
-      0.2,
-      (e.score - shortlist[shortlist.length - 1].score + 1) *
-        (1.15 - profile.randomness),
-    ),
+    weight: Math.max(0.2, (e.score - last + 1) * (1.15 - profile.randomness)),
   }));
 
   const total = weighted.reduce((s, e) => s + e.weight, 0);

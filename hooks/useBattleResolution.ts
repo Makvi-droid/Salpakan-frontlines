@@ -50,12 +50,16 @@ interface UseBattleResolutionOptions {
     movedToTileIndex: number | undefined,
   ) => void;
   /**
-   * Called when the 1-Star General on `winningSide` wins a challenge so the
+   * Called ONLY when the player's 1-Star General wins a challenge so the
    * bonus-move modal can be queued before the turn passes.
    * `generalTileIndex` is where the General now sits (the `to` tile after
    * winning the challenge).
    * Only called when the ability is NOT on cooldown — that gate lives in
    * useGameState.
+   *
+   * NOTE: The AI bonus-move path is handled separately in useAITurn via
+   * `onAIOneStarBonusMove`. This callback must NOT fire for moverSide === "ai"
+   * to avoid showing the player-facing modal on the AI's turn.
    */
   onOneStarGeneralWin?: (generalTileIndex: number, winningSide: Side) => void;
 }
@@ -227,6 +231,10 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     onMessageChange(finalMessage);
 
     // ── 1-Star General "Press the Advantage" check ──────────────────────────
+    // BUG FIX: Only fire the player-facing modal callback when the PLAYER's
+    // 1-Star General wins. The AI path is handled in useAITurn via
+    // onAIOneStarBonusMove — firing here for moverSide === "ai" caused the
+    // OneStarGeneralBonusMoveModal to appear on the AI's turn.
     const didCapture =
       capturedByPlayerIds.length > 0 || capturedByAIIds.length > 0;
 
@@ -234,6 +242,7 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       onOneStarGeneralWin &&
       didCapture &&
       movedTo !== undefined &&
+      moverSide === "player" && // ← THE FIX: only trigger for the player
       boardAfterMove[movedTo]?.side === moverSide &&
       pieceById[boardAfterMove[movedTo]!.pieceId]?.label === "1 Star\nGeneral"
     ) {
@@ -337,9 +346,6 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
       if (actingSide === "ai") {
         const aiTakesNewUpgrade = Math.random() < 0.5;
         if (aiTakesNewUpgrade) {
-          // ── BUG FIX: was missing upgradeCharges here, causing the AI's
-          // newly claimed upgrade to have no charge tracking and therefore
-          // never be consumed after use.
           const withUpgrade = {
             ...nextBoard,
             [movedToTileIndex!]: {
@@ -449,7 +455,6 @@ export function useBattleResolution(options: UseBattleResolutionOptions) {
     const withUpgradeDecoys = applyDoubleBlindBoardDecoys(withUpgrade);
     onBoardChange(withUpgradeDecoys);
     setPendingCrateChoice(null);
-    // Crate choice is player-initiated, no capture happens here
     finalizeTurnWithCrateState(
       withUpgradeDecoys,
       nextTurn,

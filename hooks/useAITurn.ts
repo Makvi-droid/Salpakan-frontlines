@@ -179,11 +179,22 @@ export function useAITurn(opts: UseAITurnOptions) {
       // ── AI Spy reveal (Phantom Recon) ──────────────────────────────────────
       onTryAISpyReveal(battleBoard);
 
+      // ── Derive per-turn random use chances from profile ────────────────────
+      // randomness=0.8 (easy) → low use rates; randomness=0.12 (hard) → high.
+      // These replace the old hardcoded thresholds so difficulty actually
+      // controls how often abilities are used.
+      const baseUseRate = 1 - aiProfile.randomness; // 0.2 easy → 0.88 hard
+
+      // Extra independent entropy roll — each ability independently decides
+      // whether to even consider firing this turn. This prevents all abilities
+      // from always evaluating on the same turn, which felt scripted.
+      const abilityRollThreshold = 0.35 + baseUseRate * 0.5; // 0.45–0.79
+
       // ── AI Flag-swap (Shadow March) logic ──────────────────────────────────
       const aiFlagSwapAvailable =
         !aiFlagSwapCooldownUntil || Date.now() >= aiFlagSwapCooldownUntil;
 
-      if (aiFlagSwapAvailable) {
+      if (aiFlagSwapAvailable && Math.random() < abilityRollThreshold) {
         const swapResult = tryAIFlagSwap(battleBoard, pieceById);
         if (swapResult) {
           onApplyResolution(
@@ -206,7 +217,11 @@ export function useAITurn(opts: UseAITurnOptions) {
       }
 
       // ── AI 2-Star General: Hold the Line ───────────────────────────────────
-      if (!isAITwoStarOnCooldown()) {
+      // Use chance is independent — even on hard it won't fire every single
+      // time it's available, making it feel like a deliberate choice rather
+      // than a scripted response.
+      const holdLineChance = 0.25 + baseUseRate * 0.45; // 0.34–0.65
+      if (!isAITwoStarOnCooldown() && Math.random() < holdLineChance) {
         const holdResult = tryAIHoldTheLine(battleBoard, pieceById);
         if (holdResult !== null) {
           onApplyAIHoldRestriction(holdResult);
@@ -231,14 +246,14 @@ export function useAITurn(opts: UseAITurnOptions) {
       }
 
       // ── AI General Charge (Supreme Charge) logic ───────────────────────────
-      const AI_CHARGE_USE_CHANCE =
-        aiProfile.randomness > 0.6
-          ? 0.3
-          : aiProfile.randomness > 0.25
-            ? 0.55
-            : 0.8;
+      // Use chance now derives from profile randomness uniformly, instead of
+      // the old fixed 0.3/0.55/0.8 brackets.
+      const AI_CHARGE_USE_CHANCE = 0.25 + baseUseRate * 0.55; // 0.36–0.74
 
-      if (!isAIGeneralChargeOnCooldown()) {
+      if (
+        !isAIGeneralChargeOnCooldown() &&
+        Math.random() < abilityRollThreshold
+      ) {
         const chargeResult = tryAIGeneralCharge(
           battleBoard,
           pieceById,
@@ -293,16 +308,12 @@ export function useAITurn(opts: UseAITurnOptions) {
       }
 
       // ── AI 4-Star General: Diagonal March ─────────────────────────────────
-      // Use chance mirrors the General Charge logic — harder AI profiles use
-      // the ability more reliably.
-      const AI_DIAGONAL_USE_CHANCE =
-        aiProfile.randomness > 0.6
-          ? 0.25
-          : aiProfile.randomness > 0.25
-            ? 0.5
-            : 0.75;
+      const AI_DIAGONAL_USE_CHANCE = 0.2 + baseUseRate * 0.55; // 0.31–0.68
 
-      if (!isAIFourStarDiagonalOnCooldown()) {
+      if (
+        !isAIFourStarDiagonalOnCooldown() &&
+        Math.random() < abilityRollThreshold
+      ) {
         const diagonalResult = tryAIDiagonalMarch(
           battleBoard,
           pieceById,
@@ -534,8 +545,8 @@ function tryAIHoldTheLine(
 
   if (playerTiles.length === 0) return null;
 
-  if (Math.random() > 0.7) return null;
-
+  // Removed the hard 0.7 gate here — the caller in useAITurn now owns
+  // the randomness check so we don't double-gate.
   return playerTiles[Math.floor(Math.random() * playerTiles.length)];
 }
 
@@ -613,16 +624,6 @@ function tryAIGeneralCharge(
 
 // ─── AI Diagonal March heuristic ─────────────────────────────────────────────
 
-/**
- * Decides whether the AI's 4-Star General should use Diagonal March this turn.
- *
- * Strategy (mirrors General Charge approach):
- *  - Only fires when the 4-Star General is on the board and not stunned.
- *  - Scores each diagonal destination by: captures (high value) > advancement.
- *  - Only fires if the best diagonal score beats the best normal-move score,
- *    ensuring the ability is only used when it provides a genuine advantage.
- *  - Subject to a random chance gate so easier difficulties use it less.
- */
 function tryAIDiagonalMarch(
   board: Record<number, BoardPiece>,
   pieceById: Record<string, PieceDefinition>,
@@ -635,7 +636,6 @@ function tryAIDiagonalMarch(
     side: "player" | "ai",
   ) => { allTiles: number[]; challengeTiles: number[] },
 ): { move: import("../scripts/types").BattleMove; isCapture: boolean } | null {
-  // Find the AI's 4-Star General on the board.
   const generalEntry = Object.entries(board).find(([, piece]) =>
     isAIFourStarGeneral(piece),
   );
@@ -643,7 +643,6 @@ function tryAIDiagonalMarch(
 
   const generalTileIndex = Number(generalEntry[0]);
 
-  // Don't use the ability while stunned.
   if (isTileStunned(generalTileIndex)) return null;
 
   const { allTiles, challengeTiles } = getDiagonalMarchTiles(
@@ -657,14 +656,11 @@ function tryAIDiagonalMarch(
   const getTileRow = (ti: number) => Math.floor(ti / BOARD_WIDTH);
   const generalRow = getTileRow(generalTileIndex);
 
-  // Score each diagonal destination.
   const scoreTile = (tileIndex: number): number => {
     const occupant = board[tileIndex];
     if (occupant && occupant.side === "player") {
-      // Capturing a high-strength piece is very desirable.
       return 10 + getStrengthByLabel(pieceById[occupant.pieceId]?.label ?? "");
     }
-    // Advancing toward the player's end (lower row index = AI advances).
     const advancement = generalRow - getTileRow(tileIndex);
     return Math.max(0, advancement);
   };
@@ -681,7 +677,6 @@ function tryAIDiagonalMarch(
 
   if (bestDiagTile === -1) return null;
 
-  // Compare against the best normal (orthogonal) move for the same General.
   const normalMoves = getLegalMoves(board, "ai", pieceById).filter(
     (m) => m.from === generalTileIndex,
   );
@@ -691,10 +686,7 @@ function tryAIDiagonalMarch(
     if (score > bestNormalScore) bestNormalScore = score;
   });
 
-  // Only use the diagonal ability when it's genuinely better than walking.
   if (bestDiagScore <= bestNormalScore) return null;
-
-  // Random chance gate — easier AI profiles use this less reliably.
   if (Math.random() >= useChance) return null;
 
   const isCapture = challengeTiles.includes(bestDiagTile);

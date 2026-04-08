@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import React, { useRef } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { PanGestureHandler, State } from "react-native-gesture-handler";
@@ -22,6 +23,45 @@ import type {
 
 const CLOSED_EYE_ICON = require("../assets/images/closed-eye.png");
 const CHALLENGE_ICON = require("../assets/images/challenge.png");
+
+// ── Rank icon map (MaterialCommunityIcons names, all verified to exist) ──────
+// These map the shortLabel of a piece to an MCI icon name.
+const RANK_ICON: Record<string, string> = {
+  F: "flag",
+  Sp: "eye-off-outline",
+  Pvt: "shield-outline",
+  Sgt: "sword",
+  "2Lt": "medal-outline",
+  "1Lt": "medal",
+  Cpt: "shield-half-full",
+  Maj: "clipboard-text-outline",
+  LtC: "bullseye-arrow",
+  Col: "eagle",
+  "1*": "star-outline",
+  "2*": "star-half-full",
+  "3*": "star",
+  "4*": "star-circle-outline",
+  "5*": "crown",
+};
+
+// ── Rank subtitle map — full readable name shown below icon ──────────────────
+const RANK_SUBTITLE: Record<string, string> = {
+  F: "Flag",
+  Sp: "Spy",
+  Pvt: "Private",
+  Sgt: "Sergeant",
+  "2Lt": "2nd Lt",
+  "1Lt": "1st Lt",
+  Cpt: "Captain",
+  Maj: "Major",
+  LtC: "Lt Colonel",
+  Col: "Colonel",
+  "1*": "1\u2605 General",
+  "2*": "2\u2605 General",
+  "3*": "3\u2605 General",
+  "4*": "4\u2605 General",
+  "5*": "5\u2605 General",
+};
 
 function getUpgradeAbbrev(upgrade?: BoardPiece["upgrade"]) {
   if (upgrade === "iron-veil") return "IV";
@@ -61,9 +101,7 @@ type Props = {
   generalChargeActive: boolean;
   // 4-star diagonal march
   fourStarPushActive: boolean;
-  /** All diagonal destination tiles (move + challenge combined) */
   fourStarPushTargetTiles: number[];
-  /** Subset of fourStarPushTargetTiles that are enemy-occupied (challenge) */
   fourStarDiagonalChallengeTiles: number[];
   // Lt. Colonel stun (Suppression Fire)
   ltColonelStunActive: boolean;
@@ -162,6 +200,55 @@ function DropZoneTile({
   );
 }
 
+// ── RankPieceContent ─────────────────────────────────────────────────────────
+// Renders icon + short label + subtitle for player pieces and revealed AI pieces.
+// Falls back to plain text for hidden AI pieces.
+function RankPieceContent({
+  visiblePiece,
+  isPlayer,
+  isRevealedAI,
+  rf,
+  textStyle,
+}: {
+  visiblePiece: string;
+  isPlayer: boolean;
+  isRevealedAI: boolean;
+  rf: (n: number) => number;
+  textStyle: any[];
+}) {
+  const iconName = RANK_ICON[visiblePiece];
+  const subtitle = RANK_SUBTITLE[visiblePiece];
+
+  // Only show the enhanced layout for player pieces and revealed AI pieces
+  if ((isPlayer || isRevealedAI) && iconName && subtitle) {
+    const iconColor = isRevealedAI ? "#E9D8AF" : "#E2C67C";
+    return (
+      <View style={styles.rankContent} pointerEvents="none">
+        <MaterialCommunityIcons
+          name={iconName as any}
+          size={rf(11)}
+          color={iconColor}
+        />
+        <Text style={[textStyle, { fontSize: rf(8.5) }]}>{visiblePiece}</Text>
+        <Text
+          style={[
+            styles.rankSubtitle,
+            { fontSize: rf(6) },
+            isRevealedAI && styles.rankSubtitleRevealedAI,
+          ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {subtitle}
+        </Text>
+      </View>
+    );
+  }
+
+  // Hidden AI or unknown — plain short label as before
+  return <Text style={[textStyle, { fontSize: rf(10) }]}>{visiblePiece}</Text>;
+}
+
 export function BoardGrid({
   phase,
   boardTiles,
@@ -242,37 +329,26 @@ export function BoardGrid({
                 phase !== "formation" &&
                 challengeTargetTiles.includes(tile.index);
 
-              // ── Flag swap: ally highlight ──────────────────────────────────
               const isFlagSwapAlly =
                 phase !== "formation" && flagSwapAllyTiles.includes(tile.index);
-
-              // ── Major swap: orthogonal ally highlight ──────────────────────
               const isMajorSwapAlly =
                 phase !== "formation" &&
                 majorSwapActive &&
                 majorSwapAllyTiles.includes(tile.index);
-
-              // ── General Charge: extended move highlight ────────────────────
               const isGeneralChargeTarget =
                 phase !== "formation" &&
                 generalChargeActive &&
                 selectedBattleMoves.includes(tile.index) &&
                 !challengeTargetTiles.includes(tile.index);
-
               const isGeneralChargeChallengeTarget =
                 phase !== "formation" &&
                 generalChargeActive &&
                 challengeTargetTiles.includes(tile.index);
-
-              // ── 4-Star General: Diagonal March highlights ──────────────────
-              // Plain diagonal move destination (empty tile)
               const isFourStarDiagonalTarget =
                 phase !== "formation" &&
                 fourStarPushActive &&
                 fourStarPushTargetTiles.includes(tile.index) &&
                 !fourStarDiagonalChallengeTiles.includes(tile.index);
-
-              // Diagonal challenge destination (enemy-occupied tile)
               const isFourStarDiagonalChallenge =
                 phase !== "formation" &&
                 fourStarPushActive &&
@@ -296,12 +372,15 @@ export function BoardGrid({
               const isHiddenAI =
                 battlePiece?.side === "ai" && !battlePiece.revealedToPlayer;
 
+              const isPlayer = battlePiece?.side === "player";
+              const isRevealedAI =
+                battlePiece?.side === "ai" && !!battlePiece.revealedToPlayer;
+
               const playerUpgradeTag =
                 phase !== "formation" && battlePiece?.side === "player"
                   ? getUpgradeAbbrev(battlePiece.upgrade)
                   : "";
 
-              // ── Veteran badge flag ──────────────────────────────────────────
               const isPlayerVeteran =
                 phase !== "formation" &&
                 battlePiece?.side === "player" &&
@@ -314,14 +393,12 @@ export function BoardGrid({
                 battlePiece.upgrade === "iron-veil" &&
                 battlePiece.ironVeilKnownToPlayer === true;
 
-              // ── Spy reveal overlay ──────────────────────────────────────────
               const isSpyRevealed =
                 phase !== "formation" &&
                 spyReveal != null &&
                 spyReveal.tileIndex === tile.index &&
                 battlePiece?.side === "ai";
 
-              // ── Colonel diagonal reveal ────────────────────────────────────
               const isColonelDiagonalTarget =
                 phase !== "formation" &&
                 colonelRevealActive &&
@@ -333,17 +410,14 @@ export function BoardGrid({
                 colonelReveal.tileIndex === tile.index &&
                 battlePiece?.side === "ai";
 
-              // ── Lt. Colonel stun: diagonal target highlight ────────────────
               const isLtColonelDiagonalTarget =
                 phase !== "formation" &&
                 ltColonelStunActive &&
                 ltColonelDiagonalTiles.includes(tile.index);
 
-              // ── Stunned tile ────────────────────────────────────────────────
               const isStunnedTile =
                 phase !== "formation" && stunnedTileIndices.has(tile.index);
 
-              // ── Captain scan reveal ────────────────────────────────────────
               const captainScanEntry =
                 phase !== "formation" && captainScanResult != null
                   ? captainScanResult.find((e) => e.tileIndex === tile.index)
@@ -351,7 +425,6 @@ export function BoardGrid({
               const isCaptainScanned =
                 captainScanEntry != null && battlePiece?.side === "ai";
 
-              // ── 2-Star General: Hold the Line ──────────────────────────────
               const isHoldRestricted =
                 phase !== "formation" &&
                 holdRestrictedTiles.includes(tile.index) &&
@@ -362,13 +435,11 @@ export function BoardGrid({
                 twoStarActive &&
                 battlePiece?.side === "ai";
 
-              // Drag-specific flags
               const isDragOver =
                 isDragging && dragOverTileIndex === tile.index && isSetupZone;
               const isDraggingSource =
                 isDragging && draggingFromTile === tile.index;
 
-              // Any challenge button scenario
               const showChallengeBtn =
                 isChallengeTarget ||
                 isGeneralChargeChallengeTarget ||
@@ -403,15 +474,33 @@ export function BoardGrid({
                 isSpyRevealed && styles.spyRevealTile,
                 isColonelDiagonalTarget && styles.colonelDiagonalTarget,
                 isColonelRevealed && styles.colonelRevealTile,
-                // 4-star diagonal move destination (orange glow, same palette as before)
                 isFourStarDiagonalTarget && styles.fourStarDiagonalTarget,
-                // 4-star diagonal challenge destination (deeper orange/amber)
                 isFourStarDiagonalChallenge && styles.fourStarDiagonalChallenge,
                 isLtColonelDiagonalTarget && styles.ltColonelDiagonalTarget,
                 isStunnedTile && styles.stunnedTile,
                 isCaptainScanned && styles.captainScanTile,
                 isHoldRestricted && styles.holdRestrictedTile,
                 isTwoStarTarget && styles.twoStarTargetTile,
+              ];
+
+              // ── Shared piece text styles (for hidden AI fallback + overlays) ──
+              const pieceTextStyle = [
+                styles.pieceText,
+                isHiddenAI && styles.hiddenEnemyText,
+                !isHiddenAI &&
+                  battlePiece?.side === "ai" &&
+                  styles.revealedEnemyText,
+                (isChallengeTarget || isGeneralChargeChallengeTarget) &&
+                  styles.challengeTargetPieceText,
+                isFourStarDiagonalChallenge &&
+                  styles.fourStarDiagonalChallengePieceText,
+                isColonelDiagonalTarget && styles.colonelTargetPieceText,
+                isLtColonelDiagonalTarget && styles.ltColonelTargetPieceText,
+                isMajorSwapAlly && styles.majorSwapAllyPieceText,
+                isStunnedTile && styles.stunnedPieceText,
+                isCaptainScanned && styles.captainScanPieceText,
+                isHoldRestricted && styles.holdRestrictedPieceText,
+                isTwoStarTarget && styles.twoStarTargetPieceText,
               ];
 
               // ── Formation phase ──────────────────────────────────────────
@@ -452,40 +541,25 @@ export function BoardGrid({
                 >
                   {battlePiece ? (
                     showIronVeilIconOnBoard ? (
+                      // Hidden AI with known Iron Veil — show closed-eye icon
                       <Image
                         source={CLOSED_EYE_ICON}
-                        style={[
-                          { width: rf(16), height: rf(16), tintColor: "white" },
-                        ]}
+                        style={{
+                          width: rf(16),
+                          height: rf(16),
+                          tintColor: "white",
+                        }}
                         resizeMode="contain"
                       />
                     ) : showChallengeBtn ? null : (
-                      <Text
-                        style={[
-                          styles.pieceText,
-                          { fontSize: rf(10) },
-                          isHiddenAI && styles.hiddenEnemyText,
-                          !isHiddenAI &&
-                            battlePiece.side === "ai" &&
-                            styles.revealedEnemyText,
-                          (isChallengeTarget ||
-                            isGeneralChargeChallengeTarget) &&
-                            styles.challengeTargetPieceText,
-                          isFourStarDiagonalChallenge &&
-                            styles.fourStarDiagonalChallengePieceText,
-                          isColonelDiagonalTarget &&
-                            styles.colonelTargetPieceText,
-                          isLtColonelDiagonalTarget &&
-                            styles.ltColonelTargetPieceText,
-                          isMajorSwapAlly && styles.majorSwapAllyPieceText,
-                          isStunnedTile && styles.stunnedPieceText,
-                          isCaptainScanned && styles.captainScanPieceText,
-                          isHoldRestricted && styles.holdRestrictedPieceText,
-                          isTwoStarTarget && styles.twoStarTargetPieceText,
-                        ]}
-                      >
-                        {visiblePiece}
-                      </Text>
+                      // ── Main piece display ───────────────────────────────
+                      <RankPieceContent
+                        visiblePiece={visiblePiece ?? ""}
+                        isPlayer={isPlayer}
+                        isRevealedAI={isRevealedAI}
+                        rf={rf}
+                        textStyle={pieceTextStyle}
+                      />
                     )
                   ) : null}
 
@@ -880,7 +954,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 5,
   },
-  // ── 4-Star General: Diagonal March — empty tile destination ─────────────
   fourStarDiagonalTarget: {
     borderColor: "#FF9020",
     borderWidth: appTheme.borderWidth.thick,
@@ -891,7 +964,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
   },
-  // ── 4-Star General: Diagonal March — enemy tile (challenge) ─────────────
   fourStarDiagonalChallenge: {
     borderColor: "#FFB040",
     borderWidth: appTheme.borderWidth.thick,
@@ -1043,7 +1115,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 12,
   },
-  // ── 4-Star Diagonal March move indicator ─────────────────────────────────
   diagonalIndicator: {
     position: "absolute",
     bottom: 1,
@@ -1221,7 +1292,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(80, 20, 140, 0.45)",
     borderColor: "#C0A0FF",
   },
-  // ── 4-Star diagonal challenge button — amber/orange tint ─────────────────
   diagonalChallengeBtnOverride: {
     backgroundColor: "rgba(140, 70, 10, 0.45)",
     borderColor: "#FFD080",
@@ -1246,7 +1316,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
     textShadowOffset: { width: 0, height: 1 },
   },
-  // ── 4-Star diagonal challenge piece text ─────────────────────────────────
   fourStarDiagonalChallengePieceText: {
     color: "#FFE0B0",
     fontWeight: "700",
@@ -1316,5 +1385,21 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(199, 163, 84, 0.55)",
     borderWidth: 1,
     borderColor: appTheme.colors.brassBright,
+  },
+  // ── Rank content layout (icon + short label + subtitle) ───────────────────
+  rankContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
+  },
+  rankSubtitle: {
+    color: "#C9B98D",
+    fontFamily: appTheme.fonts.body,
+    textAlign: "center",
+    letterSpacing: 0.1,
+    lineHeight: 7,
+  },
+  rankSubtitleRevealedAI: {
+    color: "#B8A070",
   },
 });
