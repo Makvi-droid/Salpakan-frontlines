@@ -31,14 +31,13 @@ const menuActions: MenuAction[] = [
   },
 ];
 
-const { playMenuMusic, isMuted, toggleMute } = useBgm();
-
-useEffect(() => {
-  playMenuMusic();
-}, [playMenuMusic]);
-
 export default function MainMenuScreen() {
   const router = useRouter();
+  const { playMenuMusic, isMuted, toggleMute } = useBgm();
+
+  useEffect(() => {
+    playMenuMusic();
+  }, [playMenuMusic]);
   const {
     width,
     safeHeight,
