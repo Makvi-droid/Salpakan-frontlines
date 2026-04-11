@@ -1,50 +1,118 @@
-# Welcome to your Expo app 👋
+# Salpakan: Frontlines
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A mobile strategy game inspired by the classic Filipino board game **Salpakan**, reimagined with modern mechanics, battlefield abilities, AI difficulty levels, and a digital frontlines experience.
 
-## Get started
+This project is currently a work in progress for our **Mobile Computing** course.
 
-1. Install dependencies
+## Overview
 
-   ```bash
-   npm install
-   ```
+**Salpakan: Frontlines** is a turn-based strategy game where players place units, protect their flag, outmaneuver the enemy, and use special abilities to gain control of the battlefield. The project aims to combine the familiar hidden-rank tension of Salpakan with added game systems such as abilities, upgrades, and AI-driven gameplay.
 
-2. Start the app
+## Current Features
 
-   ```bash
-   npx expo start
-   ```
+- Main menu and navigation screens
+- Difficulty selection
+- Turn-based board gameplay
+- Unit setup / formation phase
+- Hidden-rank enemy interactions
+- AI opponent behavior
+- Soldier's Guide / instructional screen
+- Background music system
+  - Looping menu theme
+  - Looping battle theme
+  - Mute / unmute toggle
+- Crate upgrade system
+- Veteran system
+- Rank-based special abilities
 
-In the output, you'll find options to open the app in a
+## Planned / In-Progress Features
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- Further gameplay balancing
+- UI and UX polish
+- Additional audio and visual improvements
+- Expanded documentation
+- More refined promotional and presentation materials
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Tech Stack
 
-## Get a fresh project
+- **React Native**
+- **Expo**
+- **TypeScript**
+- **Expo Router**
 
-When you're ready, run:
+## Project Structure
 
 ```bash
-npm run reset-project
+app/            # Route-based screens
+screens/        # Main screen components
+components/     # Reusable UI components
+hooks/          # Game logic and custom hooks
+constants/      # Game constants, themes, audio config
+contexts/       # Shared app state such as BGM
+assets/         # Fonts, images, and audio files
+scripts/        # Supporting logic and utilities
+
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Installation
 
-## Learn more
+**_Clone the repository_**
+**Install dependencies**
+_Start the Expo development server_
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm install
+npx expo start
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Running the Project
 
-## Join the community
+# To run on web:
 
-Join our community of developers creating universal apps.
+```bash
+npx expo start --web
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+# To clear cache if needed:
+
+```bash
+npx expo start -c
+```
+
+## Background Music Credits
+
+### Menu Theme
+
+- Song: Legionnaire
+- Composer: Scott Buckley
+- Website: https://youtube.com/user/musicbyscottb
+- License: Creative Commons Attribution 4.0
+- Music powered by: BreakingCopyright
+
+### Battle Theme
+
+- Song: Titan Striker
+- Composer: Evan King
+- Website: https://youtube.com/user/EvanKingAudio
+- License: Free To Use YouTube license
+- Music powered by: BreakingCopyright
+
+## Attribution Note
+
+All music used in this project belongs to their respective creators and is credited accordingly above. This project is made for educational purposes, and all external audio used should follow the original creator's licensing terms and attribution requirements.
+
+## Developers
+
+Developed by the project group behind Salpakan: Frontlines.
+
+- Barnuevo, Charles L.
+- Benauro, Pascual B.
+- Clor, Ashley D.
+- Macalalad, Abdullah F.
+- Rabena, James F.
+
+_Additional README details, feature documentation, and full contributor information may be added in future revisions._
+
+# Status
+
+**_This repository is currently under active development._**
