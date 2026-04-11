@@ -22,12 +22,6 @@ type DifficultyOption = {
   icon: React.ReactNode;
 };
 
-const { playMenuMusic } = useBgm();
-
-useEffect(() => {
-  playMenuMusic();
-}, [playMenuMusic]);
-
 const difficultyOptions: DifficultyOption[] = [
   {
     key: "easy",
@@ -75,6 +69,12 @@ const difficultyOptions: DifficultyOption[] = [
 
 function Homescreen() {
   const router = useRouter();
+  const { playMenuMusic } = useBgm();
+
+  useEffect(() => {
+    playMenuMusic();
+  }, [playMenuMusic]);
+
   const {
     layoutWidth,
     rs,

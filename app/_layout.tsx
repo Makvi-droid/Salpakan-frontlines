@@ -1,3 +1,4 @@
+import { BgmProvider } from "@/contexts/BgmContext";
 import * as Font from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -16,12 +17,13 @@ export default function RootLayout() {
       });
       setFontsLoaded(true);
     }
+
     loadFonts();
   }, []);
 
   if (!fontsLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: "center" }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" />
       </View>
     );
@@ -29,8 +31,10 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false }} />
+      <BgmProvider>
+        <StatusBar style="light" />
+        <Stack screenOptions={{ headerShown: false }} />
+      </BgmProvider>
     </SafeAreaProvider>
   );
 }
