@@ -6,7 +6,9 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ScreenShell from "@/components/ScreenShell";
 import { UpgradeRollModal } from "@/components/UpgradeRollModal";
 import { appTheme } from "@/constants/theme";
+import { useBgm } from "@/contexts/BgmContext"; //bgm stuff
 import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
+import { useEffect } from "react"; //bgm stuff
 import { AIAbilityNotification } from "../components/AIAbilityNotification";
 import { AbilityPanel } from "../components/AbilityPanel";
 import { BattleInfoPanel } from "../components/BattleInfoPanel";
@@ -52,6 +54,12 @@ export default function GameScreen() {
     isUltraCompactHeight,
     insets,
   } = useResponsiveTokens();
+
+  const { playBattleMusic, isMuted, toggleMute } = useBgm(); //bgm stuff
+
+  useEffect(() => {
+    playBattleMusic();
+  }, [playBattleMusic]);
 
   // ── Layout metrics ──────────────────────────────────────────────────────────
   const contentWidth = Math.min(layoutWidth, rs(560));
@@ -195,6 +203,8 @@ export default function GameScreen() {
               rs={rs}
               rsv={rsv}
               onLeftAction={handleLeftAction}
+              isMuted={isMuted}
+              onToggleMute={toggleMute}
             />
 
             <StatusBox
