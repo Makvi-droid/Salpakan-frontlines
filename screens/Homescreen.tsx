@@ -8,6 +8,9 @@ import ScreenShell from "@/components/ScreenShell";
 import { appTheme, difficultyTones } from "@/constants/theme";
 import { useResponsiveTokens } from "@/hooks/useResponsiveTokens";
 
+import { useBgm } from "@/contexts/BgmContext";
+import { useEffect } from "react";
+
 type Difficulty = "easy" | "medium" | "hard";
 
 type DifficultyOption = {
@@ -18,6 +21,12 @@ type DifficultyOption = {
   stars: number;
   icon: React.ReactNode;
 };
+
+const { playMenuMusic } = useBgm();
+
+useEffect(() => {
+  playMenuMusic();
+}, [playMenuMusic]);
 
 const difficultyOptions: DifficultyOption[] = [
   {

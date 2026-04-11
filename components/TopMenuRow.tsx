@@ -14,6 +14,8 @@ type Props = {
   rs: (size: number) => number;
   rsv: (size: number) => number;
   onLeftAction: () => void;
+  isMuted: boolean;
+  onToggleMute: () => void;
 };
 
 export function TopMenuRow({
@@ -25,6 +27,8 @@ export function TopMenuRow({
   rs,
   rsv,
   onLeftAction,
+  isMuted,
+  onToggleMute,
 }: Props) {
   const phaseLabel =
     phase === "formation"
@@ -49,26 +53,26 @@ export function TopMenuRow({
 
   return (
     <View style={[styles.row, { minHeight: topMenuHeight, marginBottom }]}>
-      <View style={[styles.sideSlot, styles.sideLeft]}>
+      <View style={[styles.sideSlot, styles.sideRight]}>
         <TouchableOpacity
+          onPress={onToggleMute}
           style={[
             styles.menuButton,
             {
-              paddingVertical: rsv(6),
+              minHeight: topMenuHeight,
               paddingHorizontal: rs(10),
-              borderRadius: rs(12),
+              paddingVertical: rsv(6),
             },
           ]}
-          onPress={onLeftAction}
           activeOpacity={0.85}
         >
           <MaterialCommunityIcons
-            name={leftIcon}
-            size={rf(18)}
-            color={appTheme.colors.brassBright}
+            name={isMuted ? "volume-off" : "volume-high"}
+            size={rf(16)}
+            color={appTheme.colors.ink}
           />
-          <Text style={[styles.menuButtonText, { fontSize: rf(13) }]}> 
-            {leftLabel}
+          <Text style={[styles.menuButtonText, { fontSize: rf(11) }]}>
+            {isMuted ? "Muted" : "Music"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -91,7 +95,7 @@ export function TopMenuRow({
             },
           ]}
         >
-          <Text style={[styles.badgeText, { fontSize: rf(10) }]}> 
+          <Text style={[styles.badgeText, { fontSize: rf(10) }]}>
             {aiProfile.label}
           </Text>
         </View>

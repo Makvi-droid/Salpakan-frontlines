@@ -7,6 +7,9 @@ import ScreenShell from "@/components/ScreenShell";
 import { appTheme } from "@/constants/theme";
 import { clamp, useResponsiveTokens } from "@/hooks/useResponsiveTokens";
 
+import { useBgm } from "@/contexts/BgmContext";
+import { useEffect } from "react";
+
 type MenuAction = {
   label: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -28,6 +31,12 @@ const menuActions: MenuAction[] = [
   },
 ];
 
+const { playMenuMusic, isMuted, toggleMute } = useBgm();
+
+useEffect(() => {
+  playMenuMusic();
+}, [playMenuMusic]);
+
 export default function MainMenuScreen() {
   const router = useRouter();
   const {
@@ -47,10 +56,18 @@ export default function MainMenuScreen() {
 
   const contentWidth = Math.min(layoutWidth, rs(520));
   const titleSize = clamp(width * 0.115, rf(40), rf(isCompactHeight ? 54 : 62));
-  const subtitleSize = clamp(width * 0.084, rf(30), rf(isCompactHeight ? 42 : 50));
-  const crestSize = rs(isUltraCompactHeight ? 104 : isCompactHeight ? 120 : 134);
+  const subtitleSize = clamp(
+    width * 0.084,
+    rf(30),
+    rf(isCompactHeight ? 42 : 50),
+  );
+  const crestSize = rs(
+    isUltraCompactHeight ? 104 : isCompactHeight ? 120 : 134,
+  );
   const isScrollable = safeHeight < 680;
-  const panelContentGap = rsv(isUltraCompactHeight ? 18 : isCompactHeight ? 22 : 28);
+  const panelContentGap = rsv(
+    isUltraCompactHeight ? 18 : isCompactHeight ? 22 : 28,
+  );
 
   return (
     <View style={styles.safeArea}>
@@ -100,13 +117,24 @@ export default function MainMenuScreen() {
               {
                 borderRadius: panelRadius,
                 paddingHorizontal: cardPadding,
-                paddingTop: rsv(isUltraCompactHeight ? 18 : isCompactHeight ? 22 : 28),
-                paddingBottom: rsv(isUltraCompactHeight ? 16 : isCompactHeight ? 20 : 24),
+                paddingTop: rsv(
+                  isUltraCompactHeight ? 18 : isCompactHeight ? 22 : 28,
+                ),
+                paddingBottom: rsv(
+                  isUltraCompactHeight ? 16 : isCompactHeight ? 20 : 24,
+                ),
               },
             ]}
           >
-            <View style={[styles.heroContent, { marginBottom: panelContentGap }]}>
-              <View style={[styles.logoWrap, { marginBottom: rsv(isUltraCompactHeight ? 12 : 16) }]}>
+            <View
+              style={[styles.heroContent, { marginBottom: panelContentGap }]}
+            >
+              <View
+                style={[
+                  styles.logoWrap,
+                  { marginBottom: rsv(isUltraCompactHeight ? 12 : 16) },
+                ]}
+              >
                 <View
                   style={[
                     styles.logoCrest,
@@ -117,17 +145,42 @@ export default function MainMenuScreen() {
                     },
                   ]}
                 >
-                  <View style={[styles.logoHalo, { borderRadius: crestSize / 2 }]} />
+                  <View
+                    style={[styles.logoHalo, { borderRadius: crestSize / 2 }]}
+                  />
                   <View style={[styles.logoBanner, { borderRadius: rs(12) }]} />
                   <Image
                     source={require("../assets/images/swords.png")}
-                    style={{ width: crestSize * 0.82, height: crestSize * 0.82 }}
+                    style={{
+                      width: crestSize * 0.82,
+                      height: crestSize * 0.82,
+                    }}
                     resizeMode="contain"
                   />
                 </View>
               </View>
-
-              <Text style={[styles.title, { fontSize: titleSize, lineHeight: titleSize * 0.82 }]}>Salpakan:</Text>
+              <TouchableOpacity
+                style={styles.musicButton}
+                onPress={toggleMute}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons
+                  name={isMuted ? "volume-off" : "volume-high"}
+                  size={22}
+                  color={appTheme.colors.ink}
+                />
+                <Text style={styles.musicButtonText}>
+                  {isMuted ? "Music Off" : "Music On"}
+                </Text>
+              </TouchableOpacity>
+              <Text
+                style={[
+                  styles.title,
+                  { fontSize: titleSize, lineHeight: titleSize * 0.82 },
+                ]}
+              >
+                Salpakan:
+              </Text>
               <Text
                 style={[
                   styles.title,
@@ -161,7 +214,9 @@ export default function MainMenuScreen() {
                   key={action.label}
                   style={[
                     styles.actionButton,
-                    action.isPrimary ? styles.actionButtonPrimary : styles.actionButtonSecondary,
+                    action.isPrimary
+                      ? styles.actionButtonPrimary
+                      : styles.actionButtonSecondary,
                     {
                       borderRadius: rs(20),
                       paddingHorizontal: cardPadding,
@@ -174,7 +229,9 @@ export default function MainMenuScreen() {
                   <View
                     style={[
                       styles.iconWrap,
-                      action.isPrimary ? styles.iconWrapPrimary : styles.iconWrapSecondary,
+                      action.isPrimary
+                        ? styles.iconWrapPrimary
+                        : styles.iconWrapSecondary,
                       {
                         width: rs(54),
                         height: rs(54),
@@ -185,13 +242,28 @@ export default function MainMenuScreen() {
                     <MaterialCommunityIcons
                       name={action.icon}
                       size={rf(26)}
-                      color={action.isPrimary ? appTheme.colors.ink : appTheme.colors.brassBright}
+                      color={
+                        action.isPrimary
+                          ? appTheme.colors.ink
+                          : appTheme.colors.brassBright
+                      }
                     />
                   </View>
 
-                  <Text style={[styles.actionLabel, { fontSize: rf(isCompactHeight ? 22 : 24) }]}>{action.label}</Text>
+                  <Text
+                    style={[
+                      styles.actionLabel,
+                      { fontSize: rf(isCompactHeight ? 22 : 24) },
+                    ]}
+                  >
+                    {action.label}
+                  </Text>
 
-                  <MaterialCommunityIcons name="chevron-right" size={rf(30)} color={appTheme.colors.brassBright} />
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={rf(30)}
+                    color={appTheme.colors.brassBright}
+                  />
                 </TouchableOpacity>
               ))}
             </View>
@@ -311,5 +383,23 @@ const styles = StyleSheet.create({
     fontFamily: appTheme.fonts.display,
     textTransform: "uppercase",
     letterSpacing: 0.12,
+  },
+  musicButton: {
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: appTheme.colors.fieldRaised,
+    borderWidth: appTheme.borderWidth.regular,
+    borderColor: appTheme.colors.brassBright,
+    borderRadius: 12,
+  },
+  musicButtonText: {
+    color: appTheme.colors.ink,
+    fontFamily: appTheme.fonts.body,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
   },
 });
