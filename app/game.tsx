@@ -30,6 +30,11 @@ import { useGameState } from "../hooks/useGameState";
 import type { Difficulty } from "../scripts/types";
 
 export default function GameScreen() {
+  const { playBattleMusic, isMuted, toggleMute } = useBgm(); //bgm stuff
+
+  useEffect(() => {
+    playBattleMusic();
+  }, [playBattleMusic]);
   const params = useLocalSearchParams<{ level?: string }>();
   const difficulty: Difficulty =
     params.level === "easy" ||
@@ -54,12 +59,6 @@ export default function GameScreen() {
     isUltraCompactHeight,
     insets,
   } = useResponsiveTokens();
-
-  const { playBattleMusic, isMuted, toggleMute } = useBgm(); //bgm stuff
-
-  useEffect(() => {
-    playBattleMusic();
-  }, [playBattleMusic]);
 
   // ── Layout metrics ──────────────────────────────────────────────────────────
   const contentWidth = Math.min(layoutWidth, rs(560));

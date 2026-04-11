@@ -1,17 +1,17 @@
 import { BATTLE_BGM, DEFAULT_BGM_VOLUME, MENU_BGM } from "@/constants/audio";
 import {
-    createAudioPlayer,
-    setAudioModeAsync,
-    type AudioPlayer,
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer,
 } from "expo-audio";
 import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 
 type TrackName = "menu" | "battle" | null;
@@ -28,7 +28,9 @@ type BgmContextValue = {
 const BgmContext = createContext<BgmContextValue | null>(null);
 
 export function BgmProvider({ children }: { children: React.ReactNode }) {
-  const playerRef = useRef<AudioPlayer | null>(null);
+  const menuPlayerRef = useRef<AudioPlayer | null>(null);
+  const battlePlayerRef = useRef<AudioPlayer | null>(null);
+
   const [isMuted, setIsMuted] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<TrackName>(null);
 
@@ -44,65 +46,83 @@ export function BgmProvider({ children }: { children: React.ReactNode }) {
 
       if (!mounted) return;
 
-      const player = createAudioPlayer(MENU_BGM);
-      player.loop = true;
-      player.volume = DEFAULT_BGM_VOLUME;
-      playerRef.current = player;
+      const menuPlayer = createAudioPlayer(MENU_BGM);
+      menuPlayer.loop = true;
+      menuPlayer.volume = DEFAULT_BGM_VOLUME;
+
+      const battlePlayer = createAudioPlayer(BATTLE_BGM);
+      battlePlayer.loop = true;
+      battlePlayer.volume = DEFAULT_BGM_VOLUME;
+
+      menuPlayerRef.current = menuPlayer;
+      battlePlayerRef.current = battlePlayer;
     })();
 
     return () => {
       mounted = false;
-      if (playerRef.current) {
-        playerRef.current.pause();
-        playerRef.current.release();
-        playerRef.current = null;
+
+      if (menuPlayerRef.current) {
+        menuPlayerRef.current.pause();
+        menuPlayerRef.current.release();
+        menuPlayerRef.current = null;
+      }
+
+      if (battlePlayerRef.current) {
+        battlePlayerRef.current.pause();
+        battlePlayerRef.current.release();
+        battlePlayerRef.current = null;
       }
     };
   }, []);
 
-  const playTrack = useCallback(
-    (track: Exclude<TrackName, null>) => {
-      const player = playerRef.current;
-      if (!player) return;
+  const applyVolume = useCallback((muted: boolean) => {
+    const volume = muted ? 0 : DEFAULT_BGM_VOLUME;
 
-      const source = track === "menu" ? MENU_BGM : BATTLE_BGM;
-
-      if (currentTrack !== track) {
-        player.replace(source);
-        setCurrentTrack(track);
-      }
-
-      player.loop = true;
-      player.volume = isMuted ? 0 : DEFAULT_BGM_VOLUME;
-      player.play();
-    },
-    [currentTrack, isMuted],
-  );
+    if (menuPlayerRef.current) menuPlayerRef.current.volume = volume;
+    if (battlePlayerRef.current) battlePlayerRef.current.volume = volume;
+  }, []);
 
   const playMenuMusic = useCallback(() => {
-    playTrack("menu");
-  }, [playTrack]);
+    const menuPlayer = menuPlayerRef.current;
+    const battlePlayer = battlePlayerRef.current;
+    if (!menuPlayer || !battlePlayer) return;
+
+    battlePlayer.pause();
+    void menuPlayer.seekTo(0);
+    menuPlayer.loop = true;
+    menuPlayer.volume = isMuted ? 0 : DEFAULT_BGM_VOLUME;
+    menuPlayer.play();
+
+    setCurrentTrack("menu");
+  }, [isMuted]);
 
   const playBattleMusic = useCallback(() => {
-    playTrack("battle");
-  }, [playTrack]);
+    const menuPlayer = menuPlayerRef.current;
+    const battlePlayer = battlePlayerRef.current;
+    if (!menuPlayer || !battlePlayer) return;
+
+    menuPlayer.pause();
+    void battlePlayer.seekTo(0);
+    battlePlayer.loop = true;
+    battlePlayer.volume = isMuted ? 0 : DEFAULT_BGM_VOLUME;
+    battlePlayer.play();
+
+    setCurrentTrack("battle");
+  }, [isMuted]);
 
   const stopMusic = useCallback(() => {
-    const player = playerRef.current;
-    if (!player) return;
-    player.pause();
+    menuPlayerRef.current?.pause();
+    battlePlayerRef.current?.pause();
+    setCurrentTrack(null);
   }, []);
 
   const toggleMute = useCallback(() => {
     setIsMuted((prev) => {
       const next = !prev;
-      const player = playerRef.current;
-      if (player) {
-        player.volume = next ? 0 : DEFAULT_BGM_VOLUME;
-      }
+      applyVolume(next);
       return next;
     });
-  }, []);
+  }, [applyVolume]);
 
   const value = useMemo(
     () => ({
