@@ -1,8 +1,7 @@
+import { appTheme } from "@/constants/theme";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-
-import { appTheme } from "@/constants/theme";
 import type { AIProfile, Phase } from "../scripts/types";
 
 type Props = {
@@ -53,11 +52,46 @@ export function TopMenuRow({
 
   return (
     <View style={[styles.row, { minHeight: topMenuHeight, marginBottom }]}>
+      {/* ── Left slot: back / surrender / main menu ── */}
+      <View style={[styles.sideSlot, styles.sideLeft]}>
+        <TouchableOpacity
+          onPress={onLeftAction}
+          style={[
+            styles.menuButton,
+            {
+              minHeight: topMenuHeight,
+              paddingHorizontal: rs(10),
+              paddingVertical: rsv(6),
+            },
+          ]}
+          activeOpacity={0.85}
+        >
+          <MaterialCommunityIcons
+            name={leftIcon}
+            size={rf(16)}
+            color={appTheme.colors.ink}
+          />
+          <Text style={[styles.menuButtonText, { fontSize: rf(11) }]}>
+            {leftLabel}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Center: phase label + title ── */}
+      <View style={styles.center}>
+        <Text style={[styles.phaseLabel, { fontSize: rf(9) }]}>
+          {phaseLabel}
+        </Text>
+        <Text style={[styles.title, { fontSize: rf(24) }]}>Salpakan</Text>
+      </View>
+
+      {/* ── Right slot: mute toggle ── */}
       <View style={[styles.sideSlot, styles.sideRight]}>
         <TouchableOpacity
           onPress={onToggleMute}
           style={[
             styles.menuButton,
+            styles.muteButton,
             {
               minHeight: topMenuHeight,
               paddingHorizontal: rs(10),
@@ -75,30 +109,6 @@ export function TopMenuRow({
             {isMuted ? "Muted" : "Music"}
           </Text>
         </TouchableOpacity>
-      </View>
-
-      <View style={styles.center}>
-        <Text style={[styles.phaseLabel, { fontSize: rf(9) }]}>
-          {phaseLabel}
-        </Text>
-        <Text style={[styles.title, { fontSize: rf(24) }]}>Salpakan</Text>
-      </View>
-
-      <View style={[styles.sideSlot, styles.sideRight]}>
-        <View
-          style={[
-            styles.badge,
-            {
-              paddingHorizontal: rs(10),
-              paddingVertical: rsv(6),
-              borderRadius: rs(14),
-            },
-          ]}
-        >
-          <Text style={[styles.badgeText, { fontSize: rf(10) }]}>
-            {aiProfile.label}
-          </Text>
-        </View>
       </View>
     </View>
   );
@@ -140,6 +150,9 @@ const styles = StyleSheet.create({
     backgroundColor: appTheme.surfaces.commandSecondary.backgroundColor,
     borderWidth: appTheme.borderWidth.regular,
     borderColor: appTheme.surfaces.commandSecondary.borderColor,
+  },
+  muteButton: {
+    justifyContent: "flex-end",
   },
   menuButtonText: {
     color: appTheme.colors.ink,
