@@ -82,6 +82,17 @@ export default function MainMenuScreen() {
           },
         ]}
       />
+      <TouchableOpacity
+        onPress={toggleMute}
+        style={styles.bgmButton}
+        activeOpacity={0.8}
+      >
+        <MaterialCommunityIcons
+          name={isMuted ? "volume-off" : "volume-high"}
+          size={22}
+          color={appTheme.colors.ink}
+        />
+      </TouchableOpacity>
       <View
         style={[
           styles.backgroundEmber,
@@ -158,20 +169,7 @@ export default function MainMenuScreen() {
                   />
                 </View>
               </View>
-              <TouchableOpacity
-                style={styles.musicButton}
-                onPress={toggleMute}
-                activeOpacity={0.85}
-              >
-                <MaterialCommunityIcons
-                  name={isMuted ? "volume-off" : "volume-high"}
-                  size={22}
-                  color={appTheme.colors.ink}
-                />
-                <Text style={styles.musicButtonText}>
-                  {isMuted ? "Music Off" : "Music On"}
-                </Text>
-              </TouchableOpacity>
+
               <Text
                 style={[
                   styles.title,
@@ -274,6 +272,19 @@ export default function MainMenuScreen() {
 }
 
 const styles = StyleSheet.create({
+  bgmButton: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 10,
+
+    padding: 10,
+    borderRadius: 50,
+
+    backgroundColor: appTheme.colors.fieldRaised,
+    borderWidth: appTheme.borderWidth.regular,
+    borderColor: appTheme.colors.brassBright,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: appTheme.colors.background,
